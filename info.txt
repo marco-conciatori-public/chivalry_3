@@ -1,4 +1,4 @@
-ona sola volta all'inizio
+una sola volta all'inizio
 	npm init -y
 	npm install express socket.io
 
