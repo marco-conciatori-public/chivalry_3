@@ -5,6 +5,12 @@ const status = document.getElementById('status');
 
 const GRID_SIZE = 10;
 const CELL_SIZE = canvas.width / GRID_SIZE;
+const icons = {
+    knight: '⚔️',
+    archer: '🏹',
+    wizard: '🧙',
+    scout: '🏇'
+};
 
 let myId = null;
 let localState = null;
@@ -98,7 +104,7 @@ function render() {
             if (entity) {
                 ctx.fillStyle = entity.owner === myId ? "blue" : "red";
                 ctx.font = "20px Arial";
-                const icon = entity.type === 'knight' ? '⚔️' : entity.type === 'archer' ? '🏹' : '🧙';
+                const icon = icons[entity.type] || '❓';
                 ctx.fillText(icon, x * CELL_SIZE + 10, y * CELL_SIZE + 30);
             }
         }
