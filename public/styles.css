@@ -1,0 +1,111 @@
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    margin: 0;
+    background-color: #f0f2f5;
+}
+
+/* Main container for Layout (Legend Left, Game Right) */
+#app-container {
+    display: flex;
+    gap: 30px;
+    background: white;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+/* Sidebar Legend */
+#sidebar {
+    width: 200px;
+    display: flex;
+    flex-direction: column;
+}
+
+#player-list {
+    list-style: none;
+    padding: 0;
+    margin: 10px 0;
+}
+
+.player-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 8px;
+    padding: 8px;
+    border-radius: 6px;
+    background: #f8f9fa;
+}
+
+.player-color-box {
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+    margin-right: 10px;
+}
+
+.current-turn-marker {
+    margin-left: auto;
+    font-size: 12px;
+    font-weight: bold;
+    color: #555;
+}
+
+/* Game Area */
+#game-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+canvas {
+    border: 2px solid #333;
+    cursor: pointer;
+    background-color: #fff;
+}
+
+/* Toolbar */
+#toolbar {
+    margin-top: 15px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.template {
+    border: 1px solid #ccc;
+    padding: 8px 15px;
+    cursor: pointer;
+    border-radius: 4px;
+    user-select: none;
+    transition: all 0.2s;
+    background: white;
+}
+
+.template:hover { background: #eee; }
+.selected-template {
+    background: #e3f2fd !important;
+    border-color: #2196f3 !important;
+    transform: translateY(-2px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* End Turn Button Style */
+#end-turn-btn {
+    background-color: #e74c3c;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: bold;
+    margin-left: 20px; /* Space from templates */
+    transition: background 0.2s;
+}
+#end-turn-btn:hover { background-color: #c0392b; }
+#end-turn-btn:disabled { background-color: #ccc; cursor: not-allowed; }
+
+h2 { margin-top: 0; }
