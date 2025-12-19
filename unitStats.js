@@ -2,7 +2,7 @@
 const unitStats = {
     knight: {
         attack: 70,
-        bonus_vs: ['archer'], // Updated to array
+        bonus_vs: ['archer'],
         defence: 60,
         has_shield: true,
         speed: 2,
@@ -12,11 +12,12 @@ const unitStats = {
         accuracy: 0,
         is_melee_capable: true,
         range: 1,
-        max_health: 100
+        max_health: 100,
+        cost: 100 // New Stat
     },
     archer: {
         attack: 45,
-        bonus_vs: ['scout'], // Updated to array
+        bonus_vs: ['scout'],
         defence: 20,
         has_shield: false,
         speed: 2,
@@ -26,11 +27,12 @@ const unitStats = {
         accuracy: 80,
         is_melee_capable: false,
         range: 3,
-        max_health: 50
+        max_health: 50,
+        cost: 80 // New Stat
     },
     wizard: {
         attack: 85,
-        bonus_vs: ['knight'], // Updated to array
+        bonus_vs: ['knight'],
         defence: 10,
         has_shield: false,
         speed: 1,
@@ -40,11 +42,12 @@ const unitStats = {
         accuracy: 100,
         is_melee_capable: false,
         range: 2,
-        max_health: 40
+        max_health: 40,
+        cost: 120 // New Stat
     },
     scout: {
         attack: 30,
-        bonus_vs: ['wizard'], // Updated to array
+        bonus_vs: ['wizard'],
         defence: 30,
         has_shield: false,
         speed: 3,
@@ -54,7 +57,8 @@ const unitStats = {
         accuracy: 0,
         is_melee_capable: true,
         range: 1,
-        max_health: 60
+        max_health: 60,
+        cost: 60 // New Stat
     }
 };
 
