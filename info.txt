@@ -1,6 +1,0 @@
-una sola volta all'inizio
-	npm init -y
-	npm install express socket.io
-
-fai partire il server
-	node server.js

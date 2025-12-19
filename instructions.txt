@@ -1,0 +1,9 @@
+Una sola volta all'inizio
+	npm init -y
+	npm install express socket.io
+
+Fai partire il server
+	node server.js
+
+In un browser connettiti a
+    http://localhost:3000
