@@ -341,19 +341,19 @@ function updateUnitInfo(entity, isTemplate) {
         bonusDisplay = 'None';
     }
 
-    let extraRows = '';
-
-    if (!isTemplate) {
-        // Unit selected: Show Bonus
-        extraRows += formatStat('Bonus against', bonusDisplay);
-    } else {
-        // Template selected: Show Bonus, then Cost at the very bottom
-        extraRows += formatStat('Bonus against', bonusDisplay);
-        extraRows += formatStat('Cost', entity.cost || '-');
+    // Cost (Display logic: Only for templates, and placed below name)
+    let costRow = '';
+    if (isTemplate) {
+        costRow = formatStat('Cost', entity.cost || '-');
     }
 
+    // Extra Rows (Bonus against is always at bottom now)
+    let extraRows = '';
+    extraRows += formatStat('Bonus against', bonusDisplay);
+
     unitInfoContent.innerHTML = `
-        ${formatStat('Type', (type || 'Unknown').toUpperCase())}
+        <div style="font-size: 1.1em; font-weight: bold; margin-bottom: 5px;">${(type || 'Unknown').toUpperCase()}</div>
+        ${costRow}
         <hr style="border: 0; border-top: 1px solid #eee; margin: 8px 0;">
         ${formatStat('Health', healthDisplay)}
         ${formatStat('Moves', movesDisplay)}
