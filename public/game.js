@@ -38,6 +38,7 @@ document.querySelectorAll('.template').forEach(el => {
 });
 
 canvas.addEventListener('click', (e) => {
+    console.log("Clicked coordinates:", x, y, "Selected Template:", selectedTemplate);
     const rect = canvas.getBoundingClientRect();
     const x = Math.floor((e.clientX - rect.left) / CELL_SIZE);
     const y = Math.floor((e.clientY - rect.top) / CELL_SIZE);
