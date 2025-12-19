@@ -1,6 +1,7 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
+const unitStats = require('./unitStats'); // Import the new stats file
 
 const app = express();
 const server = http.createServer(app);
@@ -47,13 +48,25 @@ io.on('connection', (socket) => {
 
 		// Check if cell is empty
 		if (!gameState.grid[y][x]) {
+			// Get base stats from the configuration file
+			const baseStats = unitStats[type];
+			if (!baseStats) return; // Guard against invalid types
+
 			gameState.grid[y][x] = {
 				type: type,
 				owner: socket.id,
 				symbol: gameState.players[socket.id].symbol,
-				hasMoved: true // Spawned units can't move same turn
+				hasMoved: true, // Spawned units can't move same turn
+
+				// Spread the static stats (attack, defense, etc.)
+				...baseStats,
+
+				// Initialize dynamic variables
+				current_health: baseStats.max_health,
+				current_morale: baseStats.max_morale,
+				facing_direction: 0 // 0: North, 2: East, 4: South, 6: West
 			};
-			// NOTE: We do NOT call endTurn() here anymore
+
 			io.emit('update', gameState);
 		}
 	});
@@ -65,6 +78,17 @@ io.on('connection', (socket) => {
 
 		// Validate owner, adjacency, and IF IT HAS MOVED
 		if (entity && entity.owner === socket.id && !entity.hasMoved && isAdjacent(from, to) && !gameState.grid[to.y][to.x]) {
+			// Update facing direction based on movement
+			const dx = to.x - from.x;
+			const dy = to.y - from.y;
+
+			// Simple 4-way direction logic for now (0:N, 2:E, 4:S, 6:W)
+			// You can expand this to 8-way (0-7) if you allow diagonal movement later
+			if (dy === -1) entity.facing_direction = 0; // North
+			if (dy === 1)  entity.facing_direction = 4; // South
+			if (dx === 1)  entity.facing_direction = 2; // East
+			if (dx === -1) entity.facing_direction = 6; // West
+
 			// Update location
 			gameState.grid[to.y][to.x] = entity;
 			gameState.grid[from.y][from.x] = null;
@@ -76,7 +100,7 @@ io.on('connection', (socket) => {
 		}
 	});
 
-	// NEW: Manual End Turn
+	// Manual End Turn
 	socket.on('endTurn', () => {
 		if (socket.id !== gameState.turn) return;
 		endTurn();
