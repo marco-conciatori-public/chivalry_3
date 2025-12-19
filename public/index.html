@@ -2,10 +2,40 @@
 <html lang="en">
 <head>
     <title>Grid Game</title>
-    <!-- Simple sword favicon -->
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚔️</text></svg>">
-    <!-- Linked the new external stylesheet -->
     <link rel="stylesheet" href="styles.css">
+    <style>
+        /* Context Menu Styles */
+        #context-menu {
+            display: none;
+            position: absolute;
+            background: white;
+            border: 1px solid #ccc;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            border-radius: 4px;
+            z-index: 100;
+            flex-direction: column;
+            min-width: 100px;
+        }
+
+        #context-menu button {
+            background: none;
+            border: none;
+            padding: 8px 12px;
+            text-align: left;
+            cursor: pointer;
+            font-size: 14px;
+            width: 100%;
+        }
+
+        #context-menu button:hover {
+            background-color: #f0f0f0;
+        }
+
+        #context-menu button.danger {
+            color: #d32f2f;
+        }
+    </style>
 </head>
 <body>
 
@@ -20,9 +50,18 @@
     </div>
 
     <!-- RIGHT: Game Board -->
-    <div id="game-area">
+    <div id="game-area" style="position: relative;">
         <h2 id="status">Waiting for players...</h2>
-        <canvas id="gameCanvas" width="400" height="400"></canvas>
+
+        <div style="position: relative;">
+            <canvas id="gameCanvas" width="400" height="400"></canvas>
+            <!-- Context Menu inserted here to be relative to game area or absolute to body -->
+            <div id="context-menu">
+                <button id="btn-attack">Attack</button>
+                <button id="btn-rotate">Rotate</button>
+                <button id="btn-deselect" class="danger">Deselect</button>
+            </div>
+        </div>
 
         <div id="toolbar">
             <div class="template" data-type="knight">⚔️ Knight</div>
@@ -33,7 +72,7 @@
             <button id="end-turn-btn">END TURN</button>
         </div>
 
-        <p style="font-size: 0.8em; color: #666; margin-top: 10px;">Click to select unit. Click empty space to move. ESC to deselect.</p>
+        <p style="font-size: 0.8em; color: #666; margin-top: 10px;">Click unit twice for actions. ESC to deselect.</p>
     </div>
 </div>
 
