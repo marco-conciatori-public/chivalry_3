@@ -34,6 +34,7 @@ let selectedTemplate = null;
 let interactionState = 'NONE';
 let validMoves = []; // Array of {x,y}
 let validAttackTargets = []; // Array of {x,y}
+let cellsInAttackRange = []; // Array of {x,y}
 
 // --- SOCKET LISTENERS ---
 
@@ -247,6 +248,7 @@ function resetSelection() {
     interactionState = 'NONE';
     validMoves = [];
     validAttackTargets = [];
+    cellsInAttackRange = [];
     hideContextMenu();
     document.querySelectorAll('.template').forEach(t => t.classList.remove('selected-template'));
     updateUnitInfo(null, false);
@@ -258,8 +260,21 @@ function recalculateOptions(entity) {
 
     // Attacks
     validAttackTargets = [];
+    cellsInAttackRange = [];
     if (!entity.hasAttacked) {
-        validAttackTargets = getAttackableTargets(selectedCell, entity, localState.grid);
+        const range = entity.range;
+        for (let y = 0; y < GRID_SIZE; y++) {
+            for (let x = 0; x < GRID_SIZE; x++) {
+                const dist = Math.abs(selectedCell.x - x) + Math.abs(selectedCell.y - y);
+                if (dist <= range && dist > 0) {
+                    cellsInAttackRange.push({x, y});
+                    const targetEntity = localState.grid[y][x];
+                    if (targetEntity && targetEntity.owner !== myId) {
+                        validAttackTargets.push({x, y});
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -379,24 +394,6 @@ function getReachableCells(start, maxDist, grid) {
     return cells;
 }
 
-function getAttackableTargets(start, entity, grid) {
-    let targets = [];
-    const range = entity.range;
-
-    for (let y = 0; y < GRID_SIZE; y++) {
-        for (let x = 0; x < GRID_SIZE; x++) {
-            const dist = Math.abs(start.x - x) + Math.abs(start.y - y);
-            if (dist <= range && dist > 0) {
-                const targetEntity = grid[y][x];
-                if (targetEntity && targetEntity.owner !== myId) {
-                    targets.push({x, y});
-                }
-            }
-        }
-    }
-    return targets;
-}
-
 function updateLegend() {
     if (!localState || !localState.players) return;
     playerListElement.innerHTML = '';
@@ -476,6 +473,12 @@ function render() {
 
             // B. ATTACK TARGETS
             else if (interactionState === 'ATTACK_TARGETING') {
+                const isInRange = cellsInAttackRange.some(c => c.x === x && c.y === y);
+                if (isInRange) {
+                    ctx.fillStyle = "rgba(255, 0, 0, 0.2)";
+                    ctx.fillRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+                }
+
                 const isTarget = validAttackTargets.some(t => t.x === x && t.y === y);
                 if (isTarget) {
                     ctx.strokeStyle = "red";
@@ -484,9 +487,6 @@ function render() {
                     ctx.strokeRect(x * CELL_SIZE + 2, y * CELL_SIZE + 2, CELL_SIZE - 4, CELL_SIZE - 4);
                     ctx.setLineDash([]);
                     ctx.lineWidth = 1;
-
-                    ctx.fillStyle = "rgba(255, 0, 0, 0.2)";
-                    ctx.fillRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
                 }
             }
 
