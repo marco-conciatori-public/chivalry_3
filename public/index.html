@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Grid Game Skeleton</title>
+    <style>
+        canvas { border: 2px solid #333; cursor: pointer; }
+        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; }
+		.template:hover { background: #eee; }
+		.selected-template { background: #add8e6 !important; }
+    </style>
+</head>
+<body>
+    <h2 id="status">Waiting for players...</h2>
+    <canvas id="gameCanvas" width="400" height="400"></canvas>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="game.js"></script>
+	
+	<div id="toolbar" style="margin-top: 10px; display: flex; gap: 10px;">
+		<div class="template" data-type="knight" style="border: 1px solid #000; padding: 10px; cursor: pointer;">⚔️ Knight</div>
+		<div class="template" data-type="archer" style="border: 1px solid #000; padding: 10px; cursor: pointer;">🏹 Archer</div>
+		<div class="template" data-type="wizard" style="border: 1px solid #000; padding: 10px; cursor: pointer;">🧙 Wizard</div>
+		<div class="template" data-type="scout" style="border: 1px solid #000; padding: 10px; cursor: pointer;">🏇 Scout</div>
+	</div>
+</body>
+</html>
