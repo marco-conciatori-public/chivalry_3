@@ -30,7 +30,7 @@ io.on('connection', (socket) => {
 	gameState.players[socket.id] = {
 		symbol: playerSymbol,
 		color: playerColor,
-		id: socket.id // Store ID inside the object for easier client access
+		id: socket.id
 	};
 
 	// Set first player as the starting turn
@@ -39,7 +39,7 @@ io.on('connection', (socket) => {
 	// Send initial state to the new player
 	socket.emit('init', { state: gameState, myId: socket.id });
 
-	// Broadcast update to everyone so they see the new player in the legend
+	// Broadcast update to everyone
 	io.emit('update', gameState);
 
 	socket.on('spawnEntity', ({ x, y, type }) => {
@@ -50,10 +50,11 @@ io.on('connection', (socket) => {
 			gameState.grid[y][x] = {
 				type: type,
 				owner: socket.id,
-				// We don't strictly need symbol anymore if we have color, but keeping it for safety
-				symbol: gameState.players[socket.id].symbol
+				symbol: gameState.players[socket.id].symbol,
+				hasMoved: true // Spawned units can't move same turn
 			};
-			endTurn();
+			// NOTE: We do NOT call endTurn() here anymore
+			io.emit('update', gameState);
 		}
 	});
 
@@ -62,12 +63,23 @@ io.on('connection', (socket) => {
 
 		const entity = gameState.grid[from.y][from.x];
 
-		// Validate owner and adjacency
-		if (entity && entity.owner === socket.id && isAdjacent(from, to) && !gameState.grid[to.y][to.x]) {
+		// Validate owner, adjacency, and IF IT HAS MOVED
+		if (entity && entity.owner === socket.id && !entity.hasMoved && isAdjacent(from, to) && !gameState.grid[to.y][to.x]) {
+			// Update location
 			gameState.grid[to.y][to.x] = entity;
 			gameState.grid[from.y][from.x] = null;
-			endTurn();
+
+			// Mark as moved
+			gameState.grid[to.y][to.x].hasMoved = true;
+
+			io.emit('update', gameState);
 		}
+	});
+
+	// NEW: Manual End Turn
+	socket.on('endTurn', () => {
+		if (socket.id !== gameState.turn) return;
+		endTurn();
 	});
 
 	function isAdjacent(p1, p2) {
@@ -82,7 +94,22 @@ io.on('connection', (socket) => {
 		const currentIndex = ids.indexOf(gameState.turn);
 		const nextIndex = (currentIndex + 1) % ids.length;
 		gameState.turn = ids[nextIndex];
+
+		// RESET MOVES for the new active player
+		resetMovesForPlayer(gameState.turn);
+
 		io.emit('update', gameState);
+	}
+
+	function resetMovesForPlayer(playerId) {
+		for (let y = 0; y < 10; y++) {
+			for (let x = 0; x < 10; x++) {
+				const entity = gameState.grid[y][x];
+				if (entity && entity.owner === playerId) {
+					entity.hasMoved = false;
+				}
+			}
+		}
 	}
 
 	socket.on('disconnect', () => {
@@ -91,6 +118,7 @@ io.on('connection', (socket) => {
 		if (gameState.turn === socket.id) {
 			const ids = Object.keys(gameState.players);
 			gameState.turn = ids.length > 0 ? ids[0] : null;
+			if(gameState.turn) resetMovesForPlayer(gameState.turn);
 		}
 		console.log('Player disconnected');
 		io.emit('update', gameState);

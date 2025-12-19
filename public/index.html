@@ -79,6 +79,7 @@
             margin-top: 15px;
             display: flex;
             gap: 10px;
+            align-items: center;
         }
 
         .template {
@@ -98,6 +99,21 @@
             transform: translateY(-2px);
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
+
+        /* NEW End Turn Button Style */
+        #end-turn-btn {
+            background-color: #e74c3c;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            margin-left: 20px; /* Space from templates */
+            transition: background 0.2s;
+        }
+        #end-turn-btn:hover { background-color: #c0392b; }
+        #end-turn-btn:disabled { background-color: #ccc; cursor: not-allowed; }
 
         h2 { margin-top: 0; }
     </style>
@@ -124,7 +140,10 @@
             <div class="template" data-type="archer">🏹 Archer</div>
             <div class="template" data-type="wizard">🧙 Wizard</div>
             <div class="template" data-type="scout">🏇 Scout</div>
+
+            <button id="end-turn-btn">END TURN</button>
         </div>
+
         <p style="font-size: 0.8em; color: #666; margin-top: 10px;">Click to select unit. Click empty space to move. ESC to deselect.</p>
     </div>
 </div>

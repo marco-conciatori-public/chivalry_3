@@ -4,6 +4,7 @@ const ctx = canvas.getContext('2d');
 const status = document.getElementById('status');
 const playerListElement = document.getElementById('player-list');
 const connectionStatus = document.getElementById('connection-status');
+const endTurnBtn = document.getElementById('end-turn-btn');
 
 const GRID_SIZE = 10;
 const CELL_SIZE = canvas.width / GRID_SIZE;
@@ -25,12 +26,21 @@ socket.on('init', (data) => {
     connectionStatus.innerText = `Connected as ID: ${myId.substr(0,4)}...`;
     render();
     updateLegend();
+    updateUIControls();
 });
 
 socket.on('update', (state) => {
     localState = state;
+    // If our selection is no longer valid (e.g., unit died or moved), deselect
+    if (selectedCell) {
+        const entity = localState.grid[selectedCell.y][selectedCell.x];
+        if (!entity || entity.owner !== myId) {
+            selectedCell = null;
+        }
+    }
     render();
     updateLegend();
+    updateUIControls();
 });
 
 // DESELECT: Add Escape key handler
@@ -39,6 +49,12 @@ window.addEventListener('keydown', (e) => {
         deselectAll();
         render();
     }
+});
+
+// END TURN BUTTON
+endTurnBtn.addEventListener('click', () => {
+    socket.emit('endTurn');
+    deselectAll();
 });
 
 function deselectAll() {
@@ -50,6 +66,9 @@ function deselectAll() {
 // Select a template from the UI
 document.querySelectorAll('.template').forEach(el => {
     el.addEventListener('click', () => {
+        // Can only select templates if it's my turn
+        if (localState.turn !== myId) return;
+
         // If clicking the same one, toggle it off
         if (selectedTemplate === el.dataset.type) {
             deselectAll();
@@ -72,6 +91,9 @@ canvas.addEventListener('click', (e) => {
     // Safety check: ensure localState exists
     if (!localState) return;
 
+    // Prevent interaction if not my turn
+    if (localState.turn !== myId) return;
+
     const clickedEntity = localState.grid[y][x];
 
     // DESELECT: If clicking the currently selected cell, deselect it
@@ -88,6 +110,13 @@ canvas.addEventListener('click', (e) => {
     }
     // CASE 2: Select an owned entity to move
     else if (clickedEntity && clickedEntity.owner === myId) {
+        // CHECK IF ALREADY MOVED
+        if (clickedEntity.hasMoved) {
+            // Optional visual feedback (shake?)
+            console.log("This unit has already moved this turn.");
+            return;
+        }
+
         // Clear template selection if any
         if (selectedTemplate) {
             document.querySelectorAll('.template').forEach(t => t.classList.remove('selected-template'));
@@ -135,16 +164,29 @@ function updateLegend() {
     });
 }
 
+function updateUIControls() {
+    if (!localState) return;
+    const isMyTurn = localState.turn === myId;
+
+    // Enable/Disable End Turn Button
+    endTurnBtn.disabled = !isMyTurn;
+
+    // Visual cue for toolbar
+    const toolbar = document.getElementById('toolbar');
+    toolbar.style.opacity = isMyTurn ? '1' : '0.5';
+    toolbar.style.pointerEvents = isMyTurn ? 'auto' : 'none';
+}
+
 function render() {
     if (!localState) return;
 
     // Update the status message
     if (localState.turn === myId) {
         status.innerText = "YOUR TURN";
-        status.style.color = "#27ae60"; // Greenish
+        status.style.color = "#27ae60";
     } else {
         status.innerText = "Opponent's Turn...";
-        status.style.color = "#c0392b"; // Reddish
+        status.style.color = "#c0392b";
     }
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -192,12 +234,15 @@ function render() {
 
             // 5. Draw Entity Icon
             if (entity) {
-                // Determine color for text/icon - black usually contrasts well with light backgrounds
-                // For dark backgrounds, you might want white.
+                // Dim the unit if it has already moved
+                if (entity.hasMoved) {
+                    ctx.globalAlpha = 0.4; // Make exhausted units transparent
+                }
+
                 ctx.fillStyle = "#000";
 
                 // CENTER THE ICON
-                ctx.font = "24px Arial"; // Slightly larger font
+                ctx.font = "24px Arial";
                 ctx.textAlign = "center";
                 ctx.textBaseline = "middle";
                 const icon = icons[entity.type] || '❓';
@@ -207,6 +252,8 @@ function render() {
                 const centerY = y * CELL_SIZE + (CELL_SIZE / 2);
 
                 ctx.fillText(icon, centerX, centerY);
+
+                ctx.globalAlpha = 1.0; // Reset alpha
             }
         }
     }
