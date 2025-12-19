@@ -177,6 +177,12 @@ canvas.addEventListener('click', (e) => {
     if (interactionState === 'MENU') {
         hideContextMenu();
         interactionState = 'SELECTED';
+
+        // Toggle off: If clicking the same unit that opened the menu, stop here (menu stays closed).
+        if (selectedCell && selectedCell.x === x && selectedCell.y === y) {
+            render();
+            return;
+        }
         // Fallthrough to normal click processing
     }
 
