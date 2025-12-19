@@ -89,6 +89,9 @@ io.on('connection', (socket) => {
 	}
 
 	function endTurn() {
+		// Exhaust (gray out) all units for the player who is ending their turn
+		exhaustUnitsForPlayer(gameState.turn);
+
 		const ids = Object.keys(gameState.players);
 		// Simple round-robin turn logic
 		const currentIndex = ids.indexOf(gameState.turn);
@@ -99,6 +102,17 @@ io.on('connection', (socket) => {
 		resetMovesForPlayer(gameState.turn);
 
 		io.emit('update', gameState);
+	}
+
+	function exhaustUnitsForPlayer(playerId) {
+		for (let y = 0; y < 10; y++) {
+			for (let x = 0; x < 10; x++) {
+				const entity = gameState.grid[y][x];
+				if (entity && entity.owner === playerId) {
+					entity.hasMoved = true;
+				}
+			}
+		}
 	}
 
 	function resetMovesForPlayer(playerId) {
