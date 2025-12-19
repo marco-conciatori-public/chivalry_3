@@ -58,7 +58,7 @@ io.on('connection', (socket) => {
 				symbol: gameState.players[socket.id].symbol,
 				hasMoved: true, // Spawned units can't move same turn
 
-				// Spread the static stats (attack, defense, etc.)
+				// Spread the static stats (attack, defence, etc.)
 				...baseStats,
 
 				// Initialize dynamic variables
@@ -76,18 +76,25 @@ io.on('connection', (socket) => {
 
 		const entity = gameState.grid[from.y][from.x];
 
-		// Validate owner, adjacency, and IF IT HAS MOVED
-		if (entity && entity.owner === socket.id && !entity.hasMoved && isAdjacent(from, to) && !gameState.grid[to.y][to.x]) {
-			// Update facing direction based on movement
+		// Validate owner, hasn't moved, target is empty
+		if (entity &&
+			entity.owner === socket.id &&
+			!entity.hasMoved &&
+			!gameState.grid[to.y][to.x] &&
+			isReachable(from, to, entity.speed, gameState.grid) // Valid path check
+		) {
+			// Update facing direction based on movement (last step logic roughly)
 			const dx = to.x - from.x;
 			const dy = to.y - from.y;
 
-			// Simple 4-way direction logic for now (0:N, 2:E, 4:S, 6:W)
-			// You can expand this to 8-way (0-7) if you allow diagonal movement later
-			if (dy === -1) entity.facing_direction = 0; // North
-			if (dy === 1)  entity.facing_direction = 4; // South
-			if (dx === 1)  entity.facing_direction = 2; // East
-			if (dx === -1) entity.facing_direction = 6; // West
+			// Simple direction logic based on overall displacement
+			// (Note: With pathfinding, this might be better calculated by the first step,
+			// but simplified here to facing the destination)
+			if (Math.abs(dy) > Math.abs(dx)) {
+				entity.facing_direction = dy > 0 ? 4 : 0; // South or North
+			} else {
+				entity.facing_direction = dx > 0 ? 2 : 6; // East or West
+			}
 
 			// Update location
 			gameState.grid[to.y][to.x] = entity;
@@ -106,10 +113,45 @@ io.on('connection', (socket) => {
 		endTurn();
 	});
 
-	function isAdjacent(p1, p2) {
-		const dx = Math.abs(p1.x - p2.x);
-		const dy = Math.abs(p1.y - p2.y);
-		return (dx === 1 && dy === 0) || (dx === 0 && dy === 1);
+	// PATHFINDING (BFS)
+	// Checks if 'end' is reachable from 'start' within 'speed' steps on the grid
+	function isReachable(start, end, speed, grid) {
+		if (start.x === end.x && start.y === end.y) return false; // Moving to same spot is invalid action
+
+		let queue = [{x: start.x, y: start.y, dist: 0}];
+		let visited = new Set();
+		visited.add(`${start.x},${start.y}`);
+
+		while (queue.length > 0) {
+			const {x, y, dist} = queue.shift();
+
+			// Found target?
+			if (x === end.x && y === end.y) return true;
+
+			// Stop if we reached max speed range
+			if (dist >= speed) continue;
+
+			const dirs = [[0, 1], [0, -1], [1, 0], [-1, 0]];
+			for (const [dx, dy] of dirs) {
+				const nx = x + dx;
+				const ny = y + dy;
+
+				// Boundary check
+				if (nx >= 0 && nx < 10 && ny >= 0 && ny < 10) {
+					const key = `${nx},${ny}`;
+					if (!visited.has(key)) {
+						const isTarget = (nx === end.x && ny === end.y);
+						// We can only walk into empty cells or the target cell
+						// (Target cell must be empty for move, but isReachable just checks path connectivity)
+						if (isTarget || !grid[ny][nx]) {
+							visited.add(key);
+							queue.push({x: nx, y: ny, dist: dist + 1});
+						}
+					}
+				}
+			}
+		}
+		return false;
 	}
 
 	function endTurn() {

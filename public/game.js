@@ -19,6 +19,7 @@ let myId = null;
 let localState = null;
 let selectedCell = null; // {x, y}
 let selectedTemplate = null; // 'knight', etc.
+let validMoves = []; // Array of {x,y}
 
 socket.on('init', (data) => {
     myId = data.myId;
@@ -35,7 +36,7 @@ socket.on('update', (state) => {
     if (selectedCell) {
         const entity = localState.grid[selectedCell.y][selectedCell.x];
         if (!entity || entity.owner !== myId) {
-            selectedCell = null;
+            deselectAll();
         }
     }
     render();
@@ -60,6 +61,7 @@ endTurnBtn.addEventListener('click', () => {
 function deselectAll() {
     selectedCell = null;
     selectedTemplate = null;
+    validMoves = [];
     document.querySelectorAll('.template').forEach(t => t.classList.remove('selected-template'));
 }
 
@@ -75,6 +77,7 @@ document.querySelectorAll('.template').forEach(el => {
         } else {
             // Deselect any board entities first
             selectedCell = null;
+            validMoves = [];
             document.querySelectorAll('.template').forEach(t => t.classList.remove('selected-template'));
             el.classList.add('selected-template');
             selectedTemplate = el.dataset.type;
@@ -98,7 +101,7 @@ canvas.addEventListener('click', (e) => {
 
     // DESELECT: If clicking the currently selected cell, deselect it
     if (selectedCell && selectedCell.x === x && selectedCell.y === y) {
-        selectedCell = null;
+        deselectAll();
         render();
         return;
     }
@@ -112,7 +115,6 @@ canvas.addEventListener('click', (e) => {
     else if (clickedEntity && clickedEntity.owner === myId) {
         // CHECK IF ALREADY MOVED
         if (clickedEntity.hasMoved) {
-            // Optional visual feedback (shake?)
             console.log("This unit has already moved this turn.");
             return;
         }
@@ -122,20 +124,64 @@ canvas.addEventListener('click', (e) => {
             document.querySelectorAll('.template').forEach(t => t.classList.remove('selected-template'));
             selectedTemplate = null;
         }
+
         selectedCell = { x, y };
+        // Calculate valid moves based on speed
+        validMoves = getReachableCells(selectedCell, clickedEntity.speed, localState.grid);
     }
     // CASE 3: Move a previously selected entity
     else if (selectedCell && !clickedEntity) {
-        socket.emit('moveEntity', { from: selectedCell, to: { x, y } });
-        selectedCell = null;
+        // Check if the click is in validMoves
+        const isValid = validMoves.some(m => m.x === x && m.y === y);
+        if (isValid) {
+            socket.emit('moveEntity', { from: selectedCell, to: { x, y } });
+            deselectAll();
+        } else {
+            // Clicked outside range, deselect
+            deselectAll();
+        }
     }
     // CASE 4: Clicking opponent or empty space without valid action -> Deselect
     else {
-        selectedCell = null;
+        deselectAll();
     }
 
     render();
 });
+
+function getReachableCells(start, speed, grid) {
+    let cells = [];
+    let queue = [{x: start.x, y: start.y, dist: 0}];
+    let visited = new Set();
+    visited.add(`${start.x},${start.y}`);
+
+    while (queue.length > 0) {
+        const {x, y, dist} = queue.shift();
+
+        // Add to valid moves if it's not the start point
+        if (x !== start.x || y !== start.y) {
+            cells.push({x, y});
+        }
+
+        if (dist >= speed) continue;
+
+        const dirs = [[0, 1], [0, -1], [1, 0], [-1, 0]];
+        for (const [dx, dy] of dirs) {
+            const nx = x + dx;
+            const ny = y + dy;
+
+            if (nx >= 0 && nx < GRID_SIZE && ny >= 0 && ny < GRID_SIZE) {
+                const key = `${nx},${ny}`;
+                // Can only move into empty cells
+                if (!visited.has(key) && !grid[ny][nx]) {
+                    visited.add(key);
+                    queue.push({x: nx, y: ny, dist: dist + 1});
+                }
+            }
+        }
+    }
+    return cells;
+}
 
 function updateLegend() {
     if (!localState || !localState.players) return;
@@ -217,8 +263,9 @@ function render() {
                 ctx.lineWidth = 1; // Reset
             }
 
-            // 3. Highlight move hints
-            if (selectedCell && isAdjacent(selectedCell, {x, y}) && !entity) {
+            // 3. Highlight valid moves
+            const isReachable = validMoves.some(m => m.x === x && m.y === y);
+            if (selectedCell && isReachable && !entity) {
                 ctx.fillStyle = "rgba(46, 204, 113, 0.2)"; // Green move hint
                 ctx.fillRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
                 // Optional: small dot in center
@@ -257,10 +304,4 @@ function render() {
             }
         }
     }
-}
-
-function isAdjacent(p1, p2) {
-    const dx = Math.abs(p1.x - p2.x);
-    const dy = Math.abs(p1.y - p2.y);
-    return (dx + dy === 1);
 }

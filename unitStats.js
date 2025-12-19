@@ -2,10 +2,10 @@
 const unitStats = {
     knight: {
         attack: 70,
-        bonus_vs: '',
-        defense: 60,
+        bonus_vs: ['archer'], // Updated to array
+        defence: 60,
         has_shield: true,
-        speed: 1,
+        speed: 2,
         max_morale: 90,
         is_commander: false,
         is_ranged: false,
@@ -16,10 +16,10 @@ const unitStats = {
     },
     archer: {
         attack: 45,
-        bonus_vs: '',
-        defense: 20,
+        bonus_vs: ['scout'], // Updated to array
+        defence: 20,
         has_shield: false,
-        speed: 1,
+        speed: 2,
         max_morale: 60,
         is_commander: false,
         is_ranged: true,
@@ -30,8 +30,8 @@ const unitStats = {
     },
     wizard: {
         attack: 85,
-        bonus_vs: '',
-        defense: 10,
+        bonus_vs: ['knight'], // Updated to array
+        defence: 10,
         has_shield: false,
         speed: 1,
         max_morale: 40,
@@ -44,8 +44,8 @@ const unitStats = {
     },
     scout: {
         attack: 30,
-        bonus_vs: 'wizard',
-        defense: 30,
+        bonus_vs: ['wizard'], // Updated to array
+        defence: 30,
         has_shield: false,
         speed: 3,
         max_morale: 50,
