@@ -6,6 +6,7 @@ const playerListElement = document.getElementById('player-list');
 const connectionStatus = document.getElementById('connection-status');
 const endTurnBtn = document.getElementById('end-turn-btn');
 const contextMenu = document.getElementById('context-menu');
+const unitInfoContent = document.getElementById('unit-info-content');
 
 // Context Menu Buttons
 const btnAttack = document.getElementById('btn-attack');
@@ -55,6 +56,7 @@ socket.on('update', (state) => {
         } else {
             // Re-calculate possibilities based on new state
             recalculateOptions(entity);
+            updateUnitInfo(entity); // Update sidebar
         }
     }
     render();
@@ -129,11 +131,9 @@ canvas.addEventListener('click', (e) => {
 
     // 1. ROTATING MODE
     if (interactionState === 'ROTATING') {
-        // Check if clicked neighbor to set direction
         if (selectedCell) {
             const dx = x - selectedCell.x;
             const dy = y - selectedCell.y;
-            // Must be strictly adjacent
             if (Math.abs(dx) + Math.abs(dy) === 1) {
                 let direction = 0;
                 if (dy === -1) direction = 0; // N
@@ -142,12 +142,8 @@ canvas.addEventListener('click', (e) => {
                 if (dx === -1) direction = 6; // W
 
                 socket.emit('rotateEntity', { x: selectedCell.x, y: selectedCell.y, direction });
-                // Reset to selected state after rotate, or deselect?
-                // Prompt implies "clears the arrows". Doesn't explicitly say deselect.
-                // But normally we stay selected.
                 interactionState = 'SELECTED';
             } else {
-                // Clicked elsewhere -> Cancel rotation, restore selection view
                 interactionState = 'SELECTED';
             }
         }
@@ -157,13 +153,11 @@ canvas.addEventListener('click', (e) => {
 
     // 2. ATTACK MODE
     if (interactionState === 'ATTACK_TARGETING') {
-        // Check if clicked a valid target
         const isTarget = validAttackTargets.some(t => t.x === x && t.y === y);
         if (isTarget) {
             socket.emit('attackEntity', { attackerPos: selectedCell, targetPos: {x, y} });
-            resetSelection(); // Usually deselect after attack
+            resetSelection();
         } else {
-            // Cancel attack mode
             interactionState = 'SELECTED';
         }
         render();
@@ -172,20 +166,16 @@ canvas.addEventListener('click', (e) => {
 
     // 3. MENU OPEN
     if (interactionState === 'MENU') {
-        // If clicked anywhere on canvas while menu is open, we close menu.
-        // If clicked the unit again? Prompt says "Clicking a selected unit... opens menu".
-        // If already open, maybe toggle close? Or just keep open.
-        // Let's say clicking map closes menu and handles map click.
         hideContextMenu();
         interactionState = 'SELECTED';
-        // Fallthrough to normal click handling...
+        // Fallthrough
     }
 
     // 4. NORMAL SELECTION / MOVEMENT
 
     // Clicked SAME unit? -> MENU
     if (selectedCell && selectedCell.x === x && selectedCell.y === y) {
-        showContextMenu(e.clientX, e.clientY);
+        showContextMenu(e.clientX, e.clientY, clickedEntity); // Pass entity for validation
         interactionState = 'MENU';
         render();
         return;
@@ -202,20 +192,20 @@ canvas.addEventListener('click', (e) => {
         selectedCell = { x, y };
         interactionState = 'SELECTED';
         recalculateOptions(clickedEntity);
+        updateUnitInfo(clickedEntity);
     }
     // Move Logic
     else if (selectedCell && !clickedEntity) {
         const isValid = validMoves.some(m => m.x === x && m.y === y);
         if (isValid) {
             socket.emit('moveEntity', { from: selectedCell, to: { x, y } });
-            // Keep selection to allow chaining
             interactionState = 'SELECTED';
         } else {
-            resetSelection(); // Clicked invalid empty space
+            resetSelection();
         }
     }
     else {
-        resetSelection(); // Clicked enemy or invalid
+        resetSelection();
     }
 
     render();
@@ -231,6 +221,7 @@ function resetSelection() {
     validAttackTargets = [];
     hideContextMenu();
     document.querySelectorAll('.template').forEach(t => t.classList.remove('selected-template'));
+    updateUnitInfo(null);
 }
 
 function recalculateOptions(entity) {
@@ -244,21 +235,60 @@ function recalculateOptions(entity) {
     }
 }
 
-function showContextMenu(clientX, clientY) {
-    // Position menu near click, but keep within bounds
-    const menuWidth = 100; // approx
-    const menuHeight = 100;
+function showContextMenu(clientX, clientY, entity) {
+    // Enable/Disable buttons based on state
+    if (entity) {
+        btnRotate.disabled = entity.remainingMovement < 1;
+        btnAttack.disabled = entity.hasAttacked;
+    }
 
-    let left = clientX;
-    let top = clientY;
+    // Position menu relative to the canvas container (#game-area)
+    const gameAreaRect = document.getElementById('game-area').getBoundingClientRect();
 
-    contextMenu.style.left = `${left}px`;
-    contextMenu.style.top = `${top}px`;
+    // Calculate position relative to #game-area using the clicked cell's position
+    // This places the menu to the right of the selected cell
+    if (selectedCell) {
+        const menuLeft = (selectedCell.x * CELL_SIZE) + CELL_SIZE + 5;
+        const menuTop = (selectedCell.y * CELL_SIZE);
+
+        contextMenu.style.left = `${menuLeft}px`;
+        contextMenu.style.top = `${menuTop}px`;
+    } else {
+        // Fallback to mouse position relative to container
+        contextMenu.style.left = `${clientX - gameAreaRect.left}px`;
+        contextMenu.style.top = `${clientY - gameAreaRect.top}px`;
+    }
+
     contextMenu.style.display = 'flex';
 }
 
 function hideContextMenu() {
     contextMenu.style.display = 'none';
+}
+
+function updateUnitInfo(entity) {
+    if (!entity) {
+        unitInfoContent.innerHTML = '<em>Click a unit to see details</em>';
+        return;
+    }
+
+    const formatStat = (label, value) => `<div class="stat-row"><span>${label}:</span> <strong>${value}</strong></div>`;
+
+    unitInfoContent.innerHTML = `
+        ${formatStat('Type', entity.type.toUpperCase())}
+        <hr style="border: 0; border-top: 1px solid #eee; margin: 8px 0;">
+        ${formatStat('Health', `${entity.current_health}/${entity.max_health}`)}
+        ${formatStat('Moves', `${entity.remainingMovement}/${entity.speed}`)}
+        ${formatStat('Morale', `${entity.current_morale}/${entity.max_morale}`)}
+        <hr style="border: 0; border-top: 1px solid #eee; margin: 8px 0;">
+        ${formatStat('Attack', entity.attack)}
+        ${formatStat('Defense', entity.defence)}
+        ${formatStat('Range', entity.range)}
+        ${formatStat('Cost', entity.cost)}
+        <div class="stat-row" style="margin-top:5px; color:${entity.hasAttacked ? 'red' : 'green'}">
+            <span>Status:</span> <strong>${entity.hasAttacked ? 'Attacked' : 'Ready'}</strong>
+        </div>
+    `;
 }
 
 function getReachableCells(start, maxDist, grid) {
@@ -289,7 +319,6 @@ function getReachableCells(start, maxDist, grid) {
 }
 
 function getAttackableTargets(start, entity, grid) {
-    // Manhattan distance range check for all cells
     let targets = [];
     const range = entity.range;
 
@@ -298,7 +327,6 @@ function getAttackableTargets(start, entity, grid) {
             const dist = Math.abs(start.x - x) + Math.abs(start.y - y);
             if (dist <= range && dist > 0) {
                 const targetEntity = grid[y][x];
-                // Must be Enemy
                 if (targetEntity && targetEntity.owner !== myId) {
                     targets.push({x, y});
                 }
@@ -337,8 +365,6 @@ function updateUIControls() {
     toolbar.style.pointerEvents = isMyTurn ? 'auto' : 'none';
 }
 
-// --- RENDER ---
-
 function render() {
     if (!localState) return;
 
@@ -356,7 +382,7 @@ function render() {
         for (let x = 0; x < GRID_SIZE; x++) {
             const entity = localState.grid[y][x];
 
-            // 1. Cell Background (Owner Color)
+            // 1. Cell Background
             if (entity) {
                 const ownerData = localState.players[entity.owner];
                 const color = ownerData ? ownerData.color : '#999';
@@ -380,7 +406,6 @@ function render() {
 
             // A. ROTATION ARROWS
             if (interactionState === 'ROTATING' && selectedCell) {
-                // If this cell is adjacent to selectedCell, draw arrow
                 const dx = x - selectedCell.x;
                 const dy = y - selectedCell.y;
                 if (Math.abs(dx) + Math.abs(dy) === 1) {
@@ -392,21 +417,19 @@ function render() {
             else if (interactionState === 'ATTACK_TARGETING') {
                 const isTarget = validAttackTargets.some(t => t.x === x && t.y === y);
                 if (isTarget) {
-                    // Red Ticker Contour
                     ctx.strokeStyle = "red";
                     ctx.lineWidth = 3;
-                    ctx.setLineDash([5, 5]); // Ticker effect
+                    ctx.setLineDash([5, 5]);
                     ctx.strokeRect(x * CELL_SIZE + 2, y * CELL_SIZE + 2, CELL_SIZE - 4, CELL_SIZE - 4);
-                    ctx.setLineDash([]); // Reset
+                    ctx.setLineDash([]);
                     ctx.lineWidth = 1;
 
-                    // Light red tint
                     ctx.fillStyle = "rgba(255, 0, 0, 0.2)";
                     ctx.fillRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
                 }
             }
 
-            // C. MOVE HINTS (Standard Selected Mode)
+            // C. MOVE HINTS
             else if (interactionState === 'SELECTED' || interactionState === 'MENU') {
                 const isReachable = validMoves.some(m => m.x === x && m.y === y);
                 if (selectedCell && isReachable && !entity) {
@@ -425,8 +448,6 @@ function render() {
 
             // 5. Entity Icon
             if (entity) {
-                // Dim if no movement or exhausted
-                // If hasAttacked, they are usually fully done
                 if (entity.remainingMovement <= 0 && entity.hasAttacked) {
                     ctx.globalAlpha = 0.4;
                 }
@@ -440,12 +461,7 @@ function render() {
                 const centerY = y * CELL_SIZE + (CELL_SIZE / 2);
 
                 ctx.fillText(icon, centerX, centerY);
-
-                // Facing Indicator
-                // Only show bright facing if we have movement, else gray
                 drawFacingIndicator(ctx, x, y, entity.facing_direction, entity.remainingMovement > 0);
-
-                // Health Bar (Optional but useful for attack context)
                 drawHealthBar(ctx, x, y, entity.current_health, entity.max_health);
 
                 ctx.globalAlpha = 1.0;
@@ -489,11 +505,6 @@ function drawRotationArrow(ctx, gridX, gridY, dx, dy) {
     ctx.save();
     ctx.translate(cx, cy);
 
-    // Rotate to point away from center (the adjacent cell center relative to unit)
-    // Actually we want arrows pointing OUT from the unit?
-    // User said "displays 4 arrows around in the cells around the unit".
-    // Usually these indicate "Click here to face this way".
-    // So if I am at (0,0) relative, and draw at (1,0) [East], the arrow should point East.
     let rotation = 0;
     if (dx === 1) rotation = 0;
     if (dx === -1) rotation = Math.PI;
@@ -502,7 +513,6 @@ function drawRotationArrow(ctx, gridX, gridY, dx, dy) {
 
     ctx.rotate(rotation);
 
-    // Draw Arrow
     ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
     ctx.beginPath();
     ctx.moveTo(10, 0);

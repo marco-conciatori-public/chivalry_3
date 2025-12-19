@@ -15,7 +15,7 @@
             border-radius: 4px;
             z-index: 100;
             flex-direction: column;
-            min-width: 100px;
+            min-width: 120px;
         }
 
         #context-menu button {
@@ -28,24 +28,57 @@
             width: 100%;
         }
 
-        #context-menu button:hover {
+        #context-menu button:hover:not(:disabled) {
             background-color: #f0f0f0;
         }
 
         #context-menu button.danger {
             color: #d32f2f;
+            border-top: 1px solid #eee;
+        }
+
+        /* Disabled button state */
+        #context-menu button:disabled {
+            color: #aaa;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+
+        /* Unit Info Styles */
+        #unit-info-panel {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+        }
+        #unit-info-content {
+            font-size: 0.9em;
+            color: #444;
+        }
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
         }
     </style>
 </head>
 <body>
 
 <div id="app-container">
-    <!-- LEFT: Legend -->
+    <!-- LEFT: Legend & Info -->
     <div id="sidebar">
         <h3>Players</h3>
         <ul id="player-list">
             <!-- Populated by JS -->
         </ul>
+
+        <!-- New Unit Info Section -->
+        <div id="unit-info-panel">
+            <h3>Selected Unit</h3>
+            <div id="unit-info-content">
+                <em>Click a unit to see details</em>
+            </div>
+        </div>
+
         <div id="connection-status" style="font-size: 0.8em; color: #888; margin-top: auto;">Connecting...</div>
     </div>
 
@@ -55,7 +88,7 @@
 
         <div style="position: relative;">
             <canvas id="gameCanvas" width="400" height="400"></canvas>
-            <!-- Context Menu inserted here to be relative to game area or absolute to body -->
+            <!-- Context Menu -->
             <div id="context-menu">
                 <button id="btn-attack">Attack</button>
                 <button id="btn-rotate">Rotate</button>

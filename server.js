@@ -46,8 +46,10 @@ io.on('connection', (socket) => {
 				type: type,
 				owner: socket.id,
 				symbol: gameState.players[socket.id].symbol,
-				remainingMovement: 0,
-				hasAttacked: false, // Track attack state
+
+				// Spawn Constraints:
+				remainingMovement: 0, // Cannot move turn 1
+				hasAttacked: true,    // Cannot attack turn 1
 
 				...baseStats,
 
@@ -91,7 +93,6 @@ io.on('connection', (socket) => {
 		if (socket.id !== gameState.turn) return;
 
 		const entity = gameState.grid[y][x];
-		// Cost: 1 movement
 		if (entity && entity.owner === socket.id && entity.remainingMovement >= 1) {
 			entity.facing_direction = direction;
 			entity.remainingMovement -= 1;
@@ -106,41 +107,25 @@ io.on('connection', (socket) => {
 		const target = gameState.grid[targetPos.y][targetPos.x];
 
 		if (attacker && target && attacker.owner === socket.id && target.owner !== socket.id && !attacker.hasAttacked) {
-			// Check range (Manhattan distance for simplicity in grid)
-			// or Chebyshev if diagonals allowed. Let's use simple abs diff max for range.
 			const dist = Math.abs(attackerPos.x - targetPos.x) + Math.abs(attackerPos.y - targetPos.y);
 
-			// Allow attack?
 			if (dist <= attacker.range) {
-				// Calculate Damage
 				let damage = Math.max(0, attacker.attack - target.defence);
 
-				// Bonus Vs
 				if (attacker.bonus_vs.includes(target.type)) {
 					damage = Math.floor(damage * 1.5);
 				}
 
-				// Accuracy Check
-				const hit = Math.random() * 100 <= attacker.accuracy;
+				// Simple hit logic based on accuracy
+				const hit = Math.random() * 100 <= (attacker.accuracy === 0 ? 100 : attacker.accuracy);
 
-				// Melee units always hit if adjacent? Or just rely on accuracy?
-				// Let's rely on accuracy stat.
-				if (hit || attacker.accuracy === 0) { // 0 accuracy usually means always hit in some systems, or use 100 for always.
-					// Actually unitStats used 0 for knight/scout. Let's assume 0 means "Standard Melee Hit" (100%) or logic error in stats.
-					// Assuming 0 means 100 for melee in this context or fixing stats.
-					// Let's assume stats provided: Knight Accuracy 0.
-					// I will treat accuracy 0 as 100% for now to make game playable.
+				if (hit) {
 					target.current_health -= damage;
-				} else {
-					// Miss
 				}
 
 				attacker.hasAttacked = true;
-				// Attack consumes all movement? Or specific cost?
-				// Usually attacking ends movement in these games.
 				attacker.remainingMovement = 0;
 
-				// Check Death
 				if (target.current_health <= 0) {
 					gameState.grid[targetPos.y][targetPos.x] = null;
 				}
