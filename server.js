@@ -32,7 +32,13 @@ io.on('connection', (socket) => {
 
 	if (!gameState.turn) gameState.turn = socket.id;
 
-	socket.emit('init', { state: gameState, myId: socket.id });
+	// SEND UNIT STATS to client for the UI
+	socket.emit('init', {
+		state: gameState,
+		myId: socket.id,
+		unitStats: unitStats
+	});
+
 	io.emit('update', gameState);
 
 	socket.on('spawnEntity', ({ x, y, type }) => {

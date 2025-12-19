@@ -24,6 +24,7 @@ const icons = {
 
 let myId = null;
 let localState = null;
+let clientUnitStats = {}; // Store stats received from server
 
 // STATE MANAGEMENT
 let selectedCell = null; // {x, y}
@@ -39,6 +40,7 @@ let validAttackTargets = []; // Array of {x,y}
 socket.on('init', (data) => {
     myId = data.myId;
     localState = data.state;
+    clientUnitStats = data.unitStats; // Save stats for templates
     connectionStatus.innerText = `Connected as ID: ${myId.substr(0,4)}...`;
     resetSelection();
     render();
@@ -51,12 +53,14 @@ socket.on('update', (state) => {
     // Validate selection persistence
     if (selectedCell) {
         const entity = localState.grid[selectedCell.y][selectedCell.x];
-        if (!entity || entity.owner !== myId) {
+        // Note: We now allow selecting ANY unit, even if null (though null check handles below)
+        // If entity disappeared (died), deselect
+        if (!entity) {
             resetSelection();
         } else {
             // Re-calculate possibilities based on new state
             recalculateOptions(entity);
-            updateUnitInfo(entity); // Update sidebar
+            updateUnitInfo(entity, false); // Update sidebar (false = not template)
         }
     }
     render();
@@ -96,16 +100,22 @@ btnDeselect.addEventListener('click', () => {
     render();
 });
 
+// Template (Spawn Button) Selection
 document.querySelectorAll('.template').forEach(el => {
     el.addEventListener('click', () => {
+        // Can only select templates if it's my turn
         if (localState.turn !== myId) return;
-        resetSelection(); // Clear existing
-        if (selectedTemplate === el.dataset.type) {
-            // Toggle off
-        } else {
-            el.classList.add('selected-template');
-            selectedTemplate = el.dataset.type;
+
+        resetSelection(); // Deselect grid units and other templates
+
+        el.classList.add('selected-template');
+        selectedTemplate = el.dataset.type;
+
+        // Show info for this template
+        if (clientUnitStats[selectedTemplate]) {
+            updateUnitInfo(clientUnitStats[selectedTemplate], true);
         }
+
         render();
     });
 });
@@ -123,7 +133,6 @@ canvas.addEventListener('click', (e) => {
     }
 
     if (!localState) return;
-    if (localState.turn !== myId) return;
 
     const clickedEntity = localState.grid[y][x];
 
@@ -168,34 +177,47 @@ canvas.addEventListener('click', (e) => {
     if (interactionState === 'MENU') {
         hideContextMenu();
         interactionState = 'SELECTED';
-        // Fallthrough
+        // Fallthrough to normal click processing
     }
 
     // 4. NORMAL SELECTION / MOVEMENT
 
-    // Clicked SAME unit? -> MENU
-    if (selectedCell && selectedCell.x === x && selectedCell.y === y) {
-        showContextMenu(e.clientX, e.clientY, clickedEntity); // Pass entity for validation
-        interactionState = 'MENU';
+    // Clicked SAME unit? -> MENU (Only if we own it and it's our turn)
+    if (clickedEntity && selectedCell && selectedCell.x === x && selectedCell.y === y) {
+        if (clickedEntity.owner === myId && localState.turn === myId) {
+            showContextMenu(e.clientX, e.clientY, clickedEntity);
+            interactionState = 'MENU';
+        } else {
+            // Just re-selecting same enemy/exhausted unit - do nothing or maybe refresh info
+        }
         render();
         return;
     }
 
-    // Spawn Logic
-    if (selectedTemplate && !clickedEntity) {
-        socket.emit('spawnEntity', { x, y, type: selectedTemplate });
-        resetSelection();
-    }
-    // Select Owned Unit
-    else if (clickedEntity && clickedEntity.owner === myId) {
-        resetSelection();
+    // Clicked ANY Unit -> Select it (Exclusive Selection)
+    if (clickedEntity) {
+        resetSelection(); // Clears templates and previous grid selection
         selectedCell = { x, y };
         interactionState = 'SELECTED';
-        recalculateOptions(clickedEntity);
-        updateUnitInfo(clickedEntity);
+
+        // Show info
+        updateUnitInfo(clickedEntity, false);
+
+        // Only calculate options if we control it and it's our turn
+        if (clickedEntity.owner === myId && localState.turn === myId) {
+            recalculateOptions(clickedEntity);
+        }
     }
-    // Move Logic
+    // Spawn Logic (Empty Cell + Template Selected)
+    else if (selectedTemplate && !clickedEntity) {
+        if (localState.turn === myId) {
+            socket.emit('spawnEntity', { x, y, type: selectedTemplate });
+            resetSelection();
+        }
+    }
+    // Move Logic (Empty Cell + Unit Selected)
     else if (selectedCell && !clickedEntity) {
+        // Only allow move if we have valid moves (implies we own it and it's our turn)
         const isValid = validMoves.some(m => m.x === x && m.y === y);
         if (isValid) {
             socket.emit('moveEntity', { from: selectedCell, to: { x, y } });
@@ -221,7 +243,7 @@ function resetSelection() {
     validAttackTargets = [];
     hideContextMenu();
     document.querySelectorAll('.template').forEach(t => t.classList.remove('selected-template'));
-    updateUnitInfo(null);
+    updateUnitInfo(null, false);
 }
 
 function recalculateOptions(entity) {
@@ -236,25 +258,19 @@ function recalculateOptions(entity) {
 }
 
 function showContextMenu(clientX, clientY, entity) {
-    // Enable/Disable buttons based on state
     if (entity) {
         btnRotate.disabled = entity.remainingMovement < 1;
         btnAttack.disabled = entity.hasAttacked;
     }
 
-    // Position menu relative to the canvas container (#game-area)
     const gameAreaRect = document.getElementById('game-area').getBoundingClientRect();
 
-    // Calculate position relative to #game-area using the clicked cell's position
-    // This places the menu to the right of the selected cell
     if (selectedCell) {
         const menuLeft = (selectedCell.x * CELL_SIZE) + CELL_SIZE + 5;
         const menuTop = (selectedCell.y * CELL_SIZE);
-
         contextMenu.style.left = `${menuLeft}px`;
         contextMenu.style.top = `${menuTop}px`;
     } else {
-        // Fallback to mouse position relative to container
         contextMenu.style.left = `${clientX - gameAreaRect.left}px`;
         contextMenu.style.top = `${clientY - gameAreaRect.top}px`;
     }
@@ -266,7 +282,7 @@ function hideContextMenu() {
     contextMenu.style.display = 'none';
 }
 
-function updateUnitInfo(entity) {
+function updateUnitInfo(entity, isTemplate) {
     if (!entity) {
         unitInfoContent.innerHTML = '<em>Click a unit to see details</em>';
         return;
@@ -274,20 +290,60 @@ function updateUnitInfo(entity) {
 
     const formatStat = (label, value) => `<div class="stat-row"><span>${label}:</span> <strong>${value}</strong></div>`;
 
+    // Calculate dynamic values for display
+
+    // Type (Template just has keys, Entity has .type)
+    const type = isTemplate ? selectedTemplate : entity.type;
+
+    // Health
+    const currentHealth = isTemplate ? entity.max_health : entity.current_health;
+    const maxHealth = entity.max_health;
+
+    // Moves
+    const currentMoves = isTemplate ? entity.speed : entity.remainingMovement;
+    const maxMoves = entity.speed;
+
+    // Attacks (If template, assumed 1/1. If entity, check hasAttacked)
+    // "Attacks 0/1" means 0 attacks left out of 1.
+    const attacksLeft = isTemplate ? 1 : (entity.hasAttacked ? 0 : 1);
+    const maxAttacks = 1;
+
+    // Morale
+    const currentMorale = isTemplate ? entity.max_morale : entity.current_morale;
+    const maxMorale = entity.max_morale;
+
+    // Bonus Vs
+    let bonusDisplay = '';
+    if (entity.bonus_vs && entity.bonus_vs.length > 0) {
+        bonusDisplay = entity.bonus_vs.join(', ');
+    } else {
+        bonusDisplay = 'None';
+    }
+
+    let extraRows = '';
+
+    // Condition: "when a unit in the grid is selected... don't show the 'Cost', but the 'Bonus against'"
+    // Implication: If isTemplate, Show Cost, maybe hide Bonus?
+    // "Cost" is generally useful for templates.
+    if (!isTemplate) {
+        extraRows += formatStat('Bonus against', bonusDisplay);
+    } else {
+        extraRows += formatStat('Cost', entity.cost || '-');
+        extraRows += formatStat('Bonus against', bonusDisplay);
+    }
+
     unitInfoContent.innerHTML = `
-        ${formatStat('Type', entity.type.toUpperCase())}
+        ${formatStat('Type', (type || 'Unknown').toUpperCase())}
         <hr style="border: 0; border-top: 1px solid #eee; margin: 8px 0;">
-        ${formatStat('Health', `${entity.current_health}/${entity.max_health}`)}
-        ${formatStat('Moves', `${entity.remainingMovement}/${entity.speed}`)}
-        ${formatStat('Morale', `${entity.current_morale}/${entity.max_morale}`)}
+        ${formatStat('Health', `${currentHealth}/${maxHealth}`)}
+        ${formatStat('Moves', `${currentMoves}/${maxMoves}`)}
+        ${formatStat('Attacks', `${attacksLeft}/${maxAttacks}`)}
+        ${formatStat('Morale', `${currentMorale}/${maxMorale}`)}
         <hr style="border: 0; border-top: 1px solid #eee; margin: 8px 0;">
         ${formatStat('Attack', entity.attack)}
         ${formatStat('Defense', entity.defence)}
         ${formatStat('Range', entity.range)}
-        ${formatStat('Cost', entity.cost)}
-        <div class="stat-row" style="margin-top:5px; color:${entity.hasAttacked ? 'red' : 'green'}">
-            <span>Status:</span> <strong>${entity.hasAttacked ? 'Attacked' : 'Ready'}</strong>
-        </div>
+        ${extraRows}
     `;
 }
 
@@ -432,6 +488,7 @@ function render() {
             // C. MOVE HINTS
             else if (interactionState === 'SELECTED' || interactionState === 'MENU') {
                 const isReachable = validMoves.some(m => m.x === x && m.y === y);
+                // Only show hints if we have selected an entity we own and it's our turn
                 if (selectedCell && isReachable && !entity) {
                     ctx.fillStyle = "rgba(46, 204, 113, 0.2)";
                     ctx.fillRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
@@ -461,6 +518,8 @@ function render() {
                 const centerY = y * CELL_SIZE + (CELL_SIZE / 2);
 
                 ctx.fillText(icon, centerX, centerY);
+
+                // Always show facing and health
                 drawFacingIndicator(ctx, x, y, entity.facing_direction, entity.remainingMovement > 0);
                 drawHealthBar(ctx, x, y, entity.current_health, entity.max_health);
 
