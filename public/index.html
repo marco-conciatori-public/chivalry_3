@@ -1,27 +1,135 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>Grid Game Skeleton</title>
-    <link rel="icon" type="image/png" href="/images/crossed_swords.png">
+    <title>Grid Game</title>
+    <!-- Simple sword favicon -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚔️</text></svg>">
     <style>
-        canvas { border: 2px solid #333; cursor: pointer; }
-        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; }
-		.template:hover { background: #eee; }
-		.selected-template { background: #add8e6 !important; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #f0f2f5;
+        }
+
+        /* Main container for Layout (Legend Left, Game Right) */
+        #app-container {
+            display: flex;
+            gap: 30px;
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        /* Sidebar Legend */
+        #sidebar {
+            width: 200px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #player-list {
+            list-style: none;
+            padding: 0;
+            margin: 10px 0;
+        }
+
+        .player-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+            padding: 8px;
+            border-radius: 6px;
+            background: #f8f9fa;
+        }
+
+        .player-color-box {
+            width: 16px;
+            height: 16px;
+            border-radius: 4px;
+            margin-right: 10px;
+        }
+
+        .current-turn-marker {
+            margin-left: auto;
+            font-size: 12px;
+            font-weight: bold;
+            color: #555;
+        }
+
+        /* Game Area */
+        #game-area {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        canvas {
+            border: 2px solid #333;
+            cursor: pointer;
+            background-color: #fff;
+        }
+
+        /* Toolbar */
+        #toolbar {
+            margin-top: 15px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .template {
+            border: 1px solid #ccc;
+            padding: 8px 15px;
+            cursor: pointer;
+            border-radius: 4px;
+            user-select: none;
+            transition: all 0.2s;
+            background: white;
+        }
+
+        .template:hover { background: #eee; }
+        .selected-template {
+            background: #e3f2fd !important;
+            border-color: #2196f3 !important;
+            transform: translateY(-2px);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        h2 { margin-top: 0; }
     </style>
 </head>
 <body>
-    <h2 id="status">Waiting for players...</h2>
-    <canvas id="gameCanvas" width="400" height="400"></canvas>
 
-	<div id="toolbar" style="margin-top: 10px; display: flex; gap: 10px;">
-		<div class="template" data-type="knight" style="border: 1px solid #000; padding: 10px; cursor: pointer;">⚔️ Knight</div>
-		<div class="template" data-type="archer" style="border: 1px solid #000; padding: 10px; cursor: pointer;">🏹 Archer</div>
-		<div class="template" data-type="wizard" style="border: 1px solid #000; padding: 10px; cursor: pointer;">🧙 Wizard</div>
-		<div class="template" data-type="scout" style="border: 1px solid #000; padding: 10px; cursor: pointer;">🏇 Scout</div>
-	</div>
+<div id="app-container">
+    <!-- LEFT: Legend -->
+    <div id="sidebar">
+        <h3>Players</h3>
+        <ul id="player-list">
+            <!-- Populated by JS -->
+        </ul>
+        <div id="connection-status" style="font-size: 0.8em; color: #888; margin-top: auto;">Connecting...</div>
+    </div>
 
-    <script src="/socket.io/socket.io.js"></script>
-    <script src="game.js"></script>
+    <!-- RIGHT: Game Board -->
+    <div id="game-area">
+        <h2 id="status">Waiting for players...</h2>
+        <canvas id="gameCanvas" width="400" height="400"></canvas>
+
+        <div id="toolbar">
+            <div class="template" data-type="knight">⚔️ Knight</div>
+            <div class="template" data-type="archer">🏹 Archer</div>
+            <div class="template" data-type="wizard">🧙 Wizard</div>
+            <div class="template" data-type="scout">🏇 Scout</div>
+        </div>
+        <p style="font-size: 0.8em; color: #666; margin-top: 10px;">Click to select unit. Click empty space to move. ESC to deselect.</p>
+    </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="game.js"></script>
 </body>
 </html>

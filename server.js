@@ -10,32 +10,47 @@ app.use(express.static('public'));
 
 // Basic Game State
 let gameState = {
-    grid: Array(10).fill(null).map(() => Array(10).fill(null)),
-    players: {}, // Store player info by socket ID
-    turn: null   // ID of the player whose turn it is
+	grid: Array(10).fill(null).map(() => Array(10).fill(null)),
+	players: {}, // Store player info by socket ID
+	turn: null   // ID of the player whose turn it is
 };
 
+// Fixed color palette for players
+const PLAYER_COLORS = ['#3498db', '#e74c3c', '#2ecc71', '#f1c40f', '#9b59b6'];
+
 io.on('connection', (socket) => {
-    console.log('A player connected:', socket.id);
+	console.log('A player connected:', socket.id);
 
-    // Assign player a symbol (X or O) and add to state
-    const playerSymbol = Object.keys(gameState.players).length === 0 ? 'X' : 'O';
-    gameState.players[socket.id] = { symbol: playerSymbol };
+	// Assign player a symbol (X or O) and a color
+	const existingPlayers = Object.keys(gameState.players);
+	const playerSymbol = existingPlayers.length === 0 ? 'X' : 'O';
+	// cycle through colors based on number of players
+	const playerColor = PLAYER_COLORS[existingPlayers.length % PLAYER_COLORS.length];
 
-    // Set first player as the starting turn
-    if (!gameState.turn) gameState.turn = socket.id;
+	gameState.players[socket.id] = {
+		symbol: playerSymbol,
+		color: playerColor,
+		id: socket.id // Store ID inside the object for easier client access
+	};
 
-    // Send initial state to the new player
-    socket.emit('init', { state: gameState, myId: socket.id });
+	// Set first player as the starting turn
+	if (!gameState.turn) gameState.turn = socket.id;
+
+	// Send initial state to the new player
+	socket.emit('init', { state: gameState, myId: socket.id });
+
+	// Broadcast update to everyone so they see the new player in the legend
+	io.emit('update', gameState);
 
 	socket.on('spawnEntity', ({ x, y, type }) => {
 		if (socket.id !== gameState.turn) return;
-		
+
 		// Check if cell is empty
 		if (!gameState.grid[y][x]) {
 			gameState.grid[y][x] = {
 				type: type,
 				owner: socket.id,
+				// We don't strictly need symbol anymore if we have color, but keeping it for safety
 				symbol: gameState.players[socket.id].symbol
 			};
 			endTurn();
@@ -46,7 +61,7 @@ io.on('connection', (socket) => {
 		if (socket.id !== gameState.turn) return;
 
 		const entity = gameState.grid[from.y][from.x];
-		
+
 		// Validate owner and adjacency
 		if (entity && entity.owner === socket.id && isAdjacent(from, to) && !gameState.grid[to.y][to.x]) {
 			gameState.grid[to.y][to.x] = entity;
@@ -63,15 +78,23 @@ io.on('connection', (socket) => {
 
 	function endTurn() {
 		const ids = Object.keys(gameState.players);
-		gameState.turn = ids.find(id => id !== gameState.turn) || ids[0];
+		// Simple round-robin turn logic
+		const currentIndex = ids.indexOf(gameState.turn);
+		const nextIndex = (currentIndex + 1) % ids.length;
+		gameState.turn = ids[nextIndex];
 		io.emit('update', gameState);
 	}
 
-    socket.on('disconnect', () => {
-        delete gameState.players[socket.id];
-        if (gameState.turn === socket.id) gameState.turn = null;
-        console.log('Player disconnected');
-    });
+	socket.on('disconnect', () => {
+		delete gameState.players[socket.id];
+		// If the active player left, reset turn
+		if (gameState.turn === socket.id) {
+			const ids = Object.keys(gameState.players);
+			gameState.turn = ids.length > 0 ? ids[0] : null;
+		}
+		console.log('Player disconnected');
+		io.emit('update', gameState);
+	});
 });
 
 server.listen(3000, () => console.log('Server running on http://localhost:3000'));
