@@ -295,22 +295,22 @@ function updateUnitInfo(entity, isTemplate) {
     // Type (Template just has keys, Entity has .type)
     const type = isTemplate ? selectedTemplate : entity.type;
 
-    // Health
-    const currentHealth = isTemplate ? entity.max_health : entity.current_health;
-    const maxHealth = entity.max_health;
+    // Health: Show only max for templates, Current/Max for units
+    const healthDisplay = isTemplate ? entity.max_health : `${entity.current_health}/${entity.max_health}`;
 
-    // Moves
-    const currentMoves = isTemplate ? entity.speed : entity.remainingMovement;
-    const maxMoves = entity.speed;
+    // Moves: Show only max for templates, Current/Max for units
+    const movesDisplay = isTemplate ? entity.speed : `${entity.remainingMovement}/${entity.speed}`;
 
-    // Attacks (If template, assumed 1/1. If entity, check hasAttacked)
-    // "Attacks 0/1" means 0 attacks left out of 1.
-    const attacksLeft = isTemplate ? 1 : (entity.hasAttacked ? 0 : 1);
-    const maxAttacks = 1;
+    // Attacks: Hide row for templates
+    let attacksRow = '';
+    if (!isTemplate) {
+        // "Attacks 0/1" means 0 attacks left out of 1.
+        const attacksLeft = entity.hasAttacked ? 0 : 1;
+        attacksRow = formatStat('Attacks', `${attacksLeft}/1`);
+    }
 
-    // Morale
-    const currentMorale = isTemplate ? entity.max_morale : entity.current_morale;
-    const maxMorale = entity.max_morale;
+    // Morale: Show only max for templates, Current/Max for units
+    const moraleDisplay = isTemplate ? entity.max_morale : `${entity.current_morale}/${entity.max_morale}`;
 
     // Bonus Vs
     let bonusDisplay = '';
@@ -322,23 +322,22 @@ function updateUnitInfo(entity, isTemplate) {
 
     let extraRows = '';
 
-    // Condition: "when a unit in the grid is selected... don't show the 'Cost', but the 'Bonus against'"
-    // Implication: If isTemplate, Show Cost, maybe hide Bonus?
-    // "Cost" is generally useful for templates.
     if (!isTemplate) {
+        // Unit selected: Show Bonus
         extraRows += formatStat('Bonus against', bonusDisplay);
     } else {
-        extraRows += formatStat('Cost', entity.cost || '-');
+        // Template selected: Show Bonus, then Cost at the very bottom
         extraRows += formatStat('Bonus against', bonusDisplay);
+        extraRows += formatStat('Cost', entity.cost || '-');
     }
 
     unitInfoContent.innerHTML = `
         ${formatStat('Type', (type || 'Unknown').toUpperCase())}
         <hr style="border: 0; border-top: 1px solid #eee; margin: 8px 0;">
-        ${formatStat('Health', `${currentHealth}/${maxHealth}`)}
-        ${formatStat('Moves', `${currentMoves}/${maxMoves}`)}
-        ${formatStat('Attacks', `${attacksLeft}/${maxAttacks}`)}
-        ${formatStat('Morale', `${currentMorale}/${maxMorale}`)}
+        ${formatStat('Health', healthDisplay)}
+        ${formatStat('Moves', movesDisplay)}
+        ${attacksRow}
+        ${formatStat('Morale', moraleDisplay)}
         <hr style="border: 0; border-top: 1px solid #eee; margin: 8px 0;">
         ${formatStat('Attack', entity.attack)}
         ${formatStat('Defense', entity.defence)}
