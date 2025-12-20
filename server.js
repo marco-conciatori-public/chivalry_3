@@ -27,7 +27,8 @@ io.on('connection', (socket) => {
 	gameState.players[socket.id] = {
 		symbol: playerSymbol,
 		color: playerColor,
-		id: socket.id
+		id: socket.id,
+		gold: 2000 // Starting Gold
 	};
 
 	if (!gameState.turn) gameState.turn = socket.id;
@@ -44,9 +45,20 @@ io.on('connection', (socket) => {
 	socket.on('spawnEntity', ({ x, y, type }) => {
 		if (socket.id !== gameState.turn) return;
 
+		const player = gameState.players[socket.id];
+		if (!player) return;
+
 		if (!gameState.grid[y][x]) {
 			const baseStats = unitStats[type];
 			if (!baseStats) return;
+
+			// Check if player has enough gold
+			if (player.gold < baseStats.cost) {
+				return; // Not enough gold
+			}
+
+			// Deduct Gold
+			player.gold -= baseStats.cost;
 
 			gameState.grid[y][x] = {
 				type: type,

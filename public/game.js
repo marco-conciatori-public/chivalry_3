@@ -334,11 +334,9 @@ function updateUnitInfo(entity, isTemplate) {
     const moraleDisplay = isTemplate ? entity.max_morale : `${entity.current_morale}/${entity.max_morale}`;
 
     // Bonus Vs
-    let bonusDisplay = '';
+    let bonusDisplay = 'None';
     if (entity.bonus_vs && entity.bonus_vs.length > 0) {
         bonusDisplay = entity.bonus_vs.join(', ');
-    } else {
-        bonusDisplay = 'None';
     }
 
     // Cost (Display logic: Only for templates, and placed below name)
@@ -407,8 +405,12 @@ function updateLegend() {
             li.style.border = '2px solid #333';
             li.style.fontWeight = 'bold';
         }
+
+        // Show Gold amount for me and others (or hide for others if desired, currently shown for all)
+        const goldDisplay = p.gold !== undefined ? ` (${p.gold}g)` : '';
+
         li.innerHTML = `<div class="player-color-box" style="background-color: ${p.color}"></div>
-                        <span>${isMe ? "You" : "Player"}</span>
+                        <span>${isMe ? "You" : "Player"}${goldDisplay}</span>
                         ${isTurn ? '<span class="current-turn-marker">TURN</span>' : ''}`;
         playerListElement.appendChild(li);
     });
