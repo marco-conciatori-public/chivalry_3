@@ -1,8 +1,8 @@
-Una sola volta all'inizio
+Una sola volta all'inizio, nella cartella principale del progetto, esegui i comandi:
 	npm init -y
 	npm install express socket.io
 
-Fai partire il server
+Fai partire il server con il comando:
 	node server.js
 
 In un browser connettiti a
