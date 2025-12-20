@@ -537,7 +537,7 @@ function render() {
 function drawFacingIndicator(ctx, gridX, gridY, direction, isActive) {
     const cx = gridX * CELL_SIZE + (CELL_SIZE / 2);
     const cy = gridY * CELL_SIZE + (CELL_SIZE / 2);
-    const radius = CELL_SIZE / 2.5;
+    const radius = CELL_SIZE / 2.2;
 
     ctx.save();
     ctx.translate(cx, cy);
@@ -551,13 +551,13 @@ function drawFacingIndicator(ctx, gridX, gridY, direction, isActive) {
     ctx.rotate(rotation);
     ctx.beginPath();
     ctx.moveTo(radius, 0);
-    ctx.lineTo(radius - 6, -4);
-    ctx.lineTo(radius - 6, 4);
+    ctx.lineTo(radius - 8, -6);
+    ctx.lineTo(radius - 8, 6);
     ctx.closePath();
     ctx.fillStyle = isActive ? "#FFD700" : "#555";
     ctx.fill();
-    ctx.strokeStyle = "#333";
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = "#000";
+    ctx.lineWidth = 2;
     ctx.stroke();
     ctx.restore();
 }
