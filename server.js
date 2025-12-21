@@ -23,10 +23,15 @@ io.on('connection', (socket) => {
 	const playerSymbol = existingPlayers.length === 0 ? 'X' : 'O';
 	const playerColor = constants.PLAYER_COLORS[existingPlayers.length % constants.PLAYER_COLORS.length];
 
+	// Assign a default name based on join order
+	const playerCount = existingPlayers.length + 1;
+	const defaultName = `Player${playerCount}`;
+
 	gameState.players[socket.id] = {
 		symbol: playerSymbol,
 		color: playerColor,
 		id: socket.id,
+		name: defaultName,
 		gold: constants.STARTING_GOLD
 	};
 
@@ -40,6 +45,21 @@ io.on('connection', (socket) => {
 	});
 
 	io.emit('update', gameState);
+
+	// Handle Name Changes
+	socket.on('changeName', (newName) => {
+		const player = gameState.players[socket.id];
+		if (player) {
+			// Basic sanitization
+			const cleanName = newName.trim().substring(0, 12) || player.name;
+			const oldName = player.name;
+			player.name = cleanName;
+
+			io.emit('update', gameState);
+			// Optional: Log name change?
+			// io.emit('gameLog', { message: `${oldName} changed name to ${cleanName}` });
+		}
+	});
 
 	socket.on('spawnEntity', ({ x, y, type }) => {
 		if (socket.id !== gameState.turn) return;
@@ -66,7 +86,7 @@ io.on('connection', (socket) => {
 				facing_direction: 0
 			};
 
-			io.emit('gameLog', { message: `Player ${player.symbol} recruited a ${type}.` });
+			io.emit('gameLog', { message: `${player.name} recruited a ${type}.` });
 			io.emit('update', gameState);
 		}
 	});
@@ -113,10 +133,9 @@ io.on('connection', (socket) => {
 		const attacker = gameState.grid[attackerPos.y][attackerPos.x];
 		const target = gameState.grid[targetPos.y][targetPos.x];
 
-		// Collect logs and visual events to send to client
 		const combatResults = {
-			events: [], // { x, y, type: 'damage'|'death', value: number|string, color: string }
-			logs: []    // Strings
+			events: [],
+			logs: []
 		};
 
 		// Basic validation
@@ -124,9 +143,9 @@ io.on('connection', (socket) => {
 			const dist = Math.abs(attackerPos.x - targetPos.x) + Math.abs(attackerPos.y - targetPos.y);
 
 			if (dist <= attacker.range) {
-				const attPlayer = gameState.players[attacker.owner].symbol;
-				const defPlayer = gameState.players[target.owner].symbol;
-				combatResults.logs.push(`[${attPlayer}] ${attacker.type} attacks [${defPlayer}] ${target.type}!`);
+				const attName = gameState.players[attacker.owner].name;
+				const defName = gameState.players[target.owner].name;
+				combatResults.logs.push(`[${attName}] ${attacker.type} attacks [${defName}] ${target.type}!`);
 
 				// Perform the main attack
 				performCombat(attacker, attackerPos, target, targetPos, false, combatResults);
@@ -141,21 +160,16 @@ io.on('connection', (socket) => {
 		}
 	});
 
-	/**
-	 * Calculates and applies damage between an attacker and a target.
-	 * Now accepts 'combatResults' to record events.
-	 */
 	function performCombat(attacker, attackerPos, defender, defenderPos, isRetaliation, combatResults) {
 		// 1. Calculate and Apply Primary Damage
 		const damage = calculateDamage(attacker, attackerPos, defender, defenderPos, false);
 
-		// Record Event
 		combatResults.events.push({
 			x: defenderPos.x,
 			y: defenderPos.y,
 			type: 'damage',
 			value: damage,
-			color: '#e74c3c' // Red for damage
+			color: '#e74c3c'
 		});
 
 		const killed = applyDamage(defender, defenderPos, damage);
@@ -194,20 +208,17 @@ io.on('connection', (socket) => {
 			const dist = Math.abs(attackerPos.x - defenderPos.x) + Math.abs(attackerPos.y - defenderPos.y);
 			if (dist === 1) {
 				combatResults.logs.push(`-- ${defender.type} retaliates!`);
-				// Defender strikes back!
 				performCombat(defender, defenderPos, attacker, attackerPos, true, combatResults);
 			}
 		}
 	}
 
 	function calculateDamage(attacker, attackerPos, defender, defenderPos, isSplash) {
-		// --- BONUS DAMAGE ---
 		let bonusDamage = 0;
 		if (attacker.bonus_vs && attacker.bonus_vs.includes(defender.type)) {
 			bonusDamage = constants.BONUS_DAMAGE;
 		}
 
-		// --- BONUS SHIELD ---
 		let bonusShield = 0;
 		if (defender.has_shield) {
 			const dx = attackerPos.x - defenderPos.x;
@@ -315,7 +326,7 @@ io.on('connection', (socket) => {
 			u.hasAttacked = false;
 		});
 
-		io.emit('gameLog', { message: `Turn changed to Player ${nextPlayer.symbol}.` });
+		io.emit('gameLog', { message: `Turn changed to ${nextPlayer.name}.` });
 		io.emit('update', gameState);
 	}
 
@@ -345,5 +356,6 @@ io.on('connection', (socket) => {
 		io.emit('update', gameState);
 	});
 });
+// changeable
 
 server.listen(3000, () => console.log('Server running on http://localhost:3000'));

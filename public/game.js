@@ -106,34 +106,16 @@ function showFloatingText(gridX, gridY, text, color) {
     el.style.color = color;
 
     // Position carefully.
-    // Canvas is relative, but overlay is absolute over it.
-    // We need pixel coordinates relative to the canvas container.
-    // Since #game-area handles the layout, we can just use the grid coordinates * CELL_SIZE
-    // plus offset for the canvas position.
-
-    // Note: The #overlay-layer is directly on top of the canvas wrapper.
-    // We just need grid coords converted to pixels.
-    // Add some random offset so texts don't overlap perfectly
     const jitterX = (Math.random() * 20) - 10;
     const jitterY = (Math.random() * 20) - 10;
 
     const left = (gridX * CELL_SIZE) + (CELL_SIZE / 2) + jitterX;
     const top = (gridY * CELL_SIZE) + (CELL_SIZE / 2) + jitterY;
 
-    // Adjust for canvas position if necessary (if overlay-layer matches canvas size exactly)
-    // Here we assume overlay-layer is child of game-area
-    // Actually, to be safe, let's append directly to document body and use page coords,
-    // OR ensure overlay-layer is positioned relative to the game board container.
-    // In HTML, overlay-layer is in #game-area (position relative).
-    // The canvas is also there.
-
-    // Correction: The canvas has a header above it ("Waiting for players...").
-    // We need to target the canvas specific offset.
-    // Let's use getBoundingClientRect() to be safe.
+    // Canvas is relative to game-area
     const canvasRect = canvas.getBoundingClientRect();
     const gameAreaRect = document.getElementById('game-area').getBoundingClientRect();
 
-    // Offset within the game-area
     const offsetLeft = canvasRect.left - gameAreaRect.left;
     const offsetTop = canvasRect.top - gameAreaRect.top;
 
@@ -142,7 +124,6 @@ function showFloatingText(gridX, gridY, text, color) {
 
     document.getElementById('game-area').appendChild(el);
 
-    // Remove after animation
     setTimeout(() => {
         el.remove();
     }, 1500);
@@ -434,9 +415,63 @@ function updateLegend() {
             li.style.fontWeight = 'bold';
         }
         const goldDisplay = p.gold !== undefined ? ` (${p.gold}g)` : '';
-        li.innerHTML = `<div class="player-color-box" style="background-color: ${p.color}"></div>
-                        <span>${isMe ? "You" : "Player"}${goldDisplay}</span>
-                        ${isTurn ? '<span class="current-turn-marker">TURN</span>' : ''}`;
+
+        // Color Box
+        const colorBox = document.createElement('div');
+        colorBox.className = 'player-color-box';
+        colorBox.style.backgroundColor = p.color;
+
+        // Name Span (Editable if 'You')
+        const nameSpan = document.createElement('span');
+        nameSpan.innerText = `${p.name}${isMe ? " (You)" : ""}${goldDisplay}`;
+
+        if (isMe) {
+            nameSpan.style.cursor = 'pointer';
+            nameSpan.title = 'Double-click to rename';
+
+            // Edit Name Handler
+            nameSpan.ondblclick = (e) => {
+                e.stopPropagation(); // prevent other clicks
+
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.value = p.name;
+                input.style.maxWidth = '100px';
+                input.style.padding = '2px';
+                input.style.border = '1px solid #aaa';
+                input.style.borderRadius = '3px';
+
+                const save = () => {
+                    const newName = input.value.trim();
+                    if (newName && newName !== p.name) {
+                        socket.emit('changeName', newName);
+                    } else {
+                        updateLegend(); // Revert if empty or same
+                    }
+                };
+
+                // Save on blur or enter
+                input.onblur = save;
+                input.onkeydown = (e) => {
+                    if (e.key === 'Enter') {
+                        save();
+                    }
+                    e.stopPropagation(); // Stop game hotkeys like 'Escape'
+                };
+
+                li.replaceChild(input, nameSpan);
+                input.focus();
+            };
+        }
+
+        const turnMarker = document.createElement('span');
+        turnMarker.className = 'current-turn-marker';
+        turnMarker.innerText = isTurn ? 'TURN' : '';
+
+        li.appendChild(colorBox);
+        li.appendChild(nameSpan);
+        li.appendChild(turnMarker);
+
         playerListElement.appendChild(li);
     });
 }
@@ -485,7 +520,9 @@ function render() {
         status.innerText = "YOUR TURN";
         status.style.color = "#27ae60";
     } else {
-        status.innerText = "Opponent's Turn...";
+        const turnPlayer = localState.players[localState.turn];
+        const turnName = turnPlayer ? turnPlayer.name : "Opponent";
+        status.innerText = `${turnName}'s Turn...`;
         status.style.color = "#c0392b";
     }
 
