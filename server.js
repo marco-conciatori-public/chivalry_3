@@ -172,6 +172,8 @@ io.on('connection', (socket) => {
 			color: '#e74c3c'
 		});
 
+		combatResults.logs.push(` -> Dealt ${damage} damage to ${defender.type}.`);
+
 		const killed = applyDamage(defender, defenderPos, damage);
 
 		if (killed) {
@@ -194,6 +196,9 @@ io.on('connection', (socket) => {
 					if (neighborUnit) {
 						const splashDamage = calculateDamage(attacker, attackerPos, neighborUnit, pos, true);
 						combatResults.events.push({ x: pos.x, y: pos.y, type: 'damage', value: splashDamage, color: '#e67e22' }); // Orange for splash
+
+						combatResults.logs.push(` -> Splash hit ${neighborUnit.type} for ${splashDamage} damage.`);
+
 						const splashKilled = applyDamage(neighborUnit, pos, splashDamage);
 						if (splashKilled) {
 							combatResults.events.push({ x: pos.x, y: pos.y, type: 'death', value: '💀' });
@@ -356,6 +361,5 @@ io.on('connection', (socket) => {
 		io.emit('update', gameState);
 	});
 });
-// changeable
 
 server.listen(3000, () => console.log('Server running on http://localhost:3000'));
