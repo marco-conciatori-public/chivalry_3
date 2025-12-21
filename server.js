@@ -59,10 +59,8 @@ io.on('connection', (socket) => {
 				type: type,
 				owner: socket.id,
 				symbol: gameState.players[socket.id].symbol,
-				// Spawn Constraints:
-				remainingMovement: 0, // Cannot move turn 1
-				hasAttacked: true,    // Cannot attack turn 1
-
+				remainingMovement: 0,
+				hasAttacked: true,
 				...baseStats,
 				current_health: baseStats.max_health,
 				current_morale: baseStats.max_morale,
@@ -183,28 +181,44 @@ io.on('connection', (socket) => {
 
 	function calculateDamage(attacker, attackerPos, defender, defenderPos, isSplash) {
 		// --- BONUS DAMAGE ---
-		// Added if attacker has bonus_vs the defender type
 		let bonusDamage = 0;
 		if (attacker.bonus_vs && attacker.bonus_vs.includes(defender.type)) {
 			bonusDamage = GAME_CONSTANTS.BONUS_DAMAGE;
 		}
 
 		// --- BONUS SHIELD ---
-		// Added if defender has shield AND is facing the attacker
+		// Added if defender has shield AND is facing the attacker OR attacker is on the left flank
 		let bonusShield = 0;
 		if (defender.has_shield) {
-			// Check facing
-			// 0:N (y-1), 2:E (x+1), 4:S (y+1), 6:W (x-1)
+			// Check relative position
 			const dx = attackerPos.x - defenderPos.x;
 			const dy = attackerPos.y - defenderPos.y;
 
-			let isFacing = false;
-			if (defender.facing_direction === 0 && dx === 0 && dy < 0) isFacing = true; // Attacker is North
-			if (defender.facing_direction === 4 && dx === 0 && dy > 0) isFacing = true; // Attacker is South
-			if (defender.facing_direction === 2 && dx > 0 && dy === 0) isFacing = true; // Attacker is East
-			if (defender.facing_direction === 6 && dx < 0 && dy === 0) isFacing = true; // Attacker is West
+			let isShielded = false;
+			// 0:North, 2:East, 4:South, 6:West
 
-			if (isFacing) {
+			// Defender Facing North (0) -> Shield covers Front (North, dy<0) and Left (West, dx<0)
+			if (defender.facing_direction === 0) {
+				if (dy < 0 && dx === 0) isShielded = true; // Front
+				if (dx < 0 && dy === 0) isShielded = true; // Left
+			}
+			// Defender Facing East (2) -> Shield covers Front (East, dx>0) and Left (North, dy<0)
+			if (defender.facing_direction === 2) {
+				if (dx > 0 && dy === 0) isShielded = true; // Front
+				if (dy < 0 && dx === 0) isShielded = true; // Left
+			}
+			// Defender Facing South (4) -> Shield covers Front (South, dy>0) and Left (East, dx>0)
+			if (defender.facing_direction === 4) {
+				if (dy > 0 && dx === 0) isShielded = true; // Front
+				if (dx > 0 && dy === 0) isShielded = true; // Left
+			}
+			// Defender Facing West (6) -> Shield covers Front (West, dx<0) and Left (South, dy>0)
+			if (defender.facing_direction === 6) {
+				if (dx < 0 && dy === 0) isShielded = true; // Front
+				if (dy > 0 && dx === 0) isShielded = true; // Left
+			}
+
+			if (isShielded) {
 				bonusShield = GAME_CONSTANTS.BONUS_SHIELD;
 			}
 		}
@@ -214,23 +228,25 @@ io.on('connection', (socket) => {
 
 		// --- DEFENSE FACTOR ---
 		const defenseFactor = 1 - ((defender.defence + bonusShield) / 100);
-		// Ensure defense doesn't heal (cap at 0 damage or cap max defense?)
-		// Usually capped so defense < 100. If defense > 100, factor < 0 -> healing.
-		// Let's clamp factor to min 0.
-		const clampedDefenseFactor = Math.max(0.1, defenseFactor);
+		const clampedDefenseFactor = Math.max(0, defenseFactor);
 
 		let baseDamage = (attacker.attack + bonusDamage) * healthPct * clampedDefenseFactor;
 
 		// --- RANGED / SPLASH MODIFIERS ---
 		if (attacker.is_ranged) {
 			if (isSplash) {
-				// Splash Formula: uses (100 - accuracy)
+				// Splash Formula
 				baseDamage *= ((100 - attacker.accuracy) / 100);
 			} else {
-				// Direct Hit Formula: uses accuracy
+				// Direct Hit Formula
 				baseDamage *= (attacker.accuracy / 100);
 			}
 		}
+
+		// --- RANDOM FACTOR (+/- 20%) ---
+		// Generates a float between 0.8 and 1.2
+		const randomFactor = 0.8 + (Math.random() * 0.4);
+		baseDamage *= randomFactor;
 
 		return Math.floor(baseDamage);
 	}
