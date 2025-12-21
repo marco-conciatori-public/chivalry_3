@@ -9,6 +9,10 @@ module.exports = {
     // Combat Mechanics
     BONUS_DAMAGE: 20,
     BONUS_SHIELD: 20,
+    // missing health cannot reduce attack damage below 20%
+    MIN_DAMAGE_REDUCTION_BY_HEALTH: 0.2,
+    // defense cannot reduce incoming damage below 10%
+    MAX_DAMAGE_REDUCTION_BY_DEFENSE: 0.1,
 
     // Random Damage Variance (0.8 to 1.2 = +/- 20%)
     DAMAGE_RANDOM_BASE: 0.8,

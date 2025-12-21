@@ -251,11 +251,11 @@ io.on('connection', (socket) => {
 			}
 		}
 
-		const healthPct = attacker.current_health / attacker.max_health;
+		const healthFactor = constants.MIN_DAMAGE_REDUCTION_BY_HEALTH + ((attacker.current_health / attacker.max_health) * (1 - constants.MIN_DAMAGE_REDUCTION_BY_HEALTH));
 		const defenseFactor = 1 - ((defender.defence + bonusShield) / 100);
-		const clampedDefenseFactor = Math.max(0, defenseFactor);
+		const clampedDefenseFactor = Math.max(constants.MAX_DAMAGE_REDUCTION_BY_DEFENSE, defenseFactor);
 
-		let baseDamage = (attacker.attack + bonusDamage) * healthPct * clampedDefenseFactor;
+		let baseDamage = (attacker.attack + bonusDamage) * healthFactor * clampedDefenseFactor;
 
 		if (attacker.is_ranged) {
 			if (isSplash) {
