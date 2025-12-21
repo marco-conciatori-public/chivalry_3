@@ -52,12 +52,8 @@ io.on('connection', (socket) => {
 		if (player) {
 			// Basic sanitization
 			const cleanName = newName.trim().substring(0, 12) || player.name;
-			const oldName = player.name;
 			player.name = cleanName;
-
 			io.emit('update', gameState);
-			// Optional: Log name change?
-			// io.emit('gameLog', { message: `${oldName} changed name to ${cleanName}` });
 		}
 	});
 
@@ -86,7 +82,8 @@ io.on('connection', (socket) => {
 				facing_direction: 0
 			};
 
-			io.emit('gameLog', { message: `${player.name} recruited a ${type}.` });
+			// Log with Tags
+			io.emit('gameLog', { message: `{p:${player.name}} recruited a {u:${type}:${x}:${y}}.` });
 			io.emit('update', gameState);
 		}
 	});
@@ -145,7 +142,9 @@ io.on('connection', (socket) => {
 			if (dist <= attacker.range) {
 				const attName = gameState.players[attacker.owner].name;
 				const defName = gameState.players[target.owner].name;
-				combatResults.logs.push(`[${attName}] ${attacker.type} attacks [${defName}] ${target.type}!`);
+
+				// Log with Tags
+				combatResults.logs.push(`[{p:${attName}}] {u:${attacker.type}:${attackerPos.x}:${attackerPos.y}} attacks [{p:${defName}}] {u:${target.type}:${targetPos.x}:${targetPos.y}}!`);
 
 				// Perform the main attack
 				performCombat(attacker, attackerPos, target, targetPos, false, combatResults);
@@ -172,13 +171,13 @@ io.on('connection', (socket) => {
 			color: '#e74c3c'
 		});
 
-		combatResults.logs.push(` -> Dealt ${damage} damage to ${defender.type}.`);
+		combatResults.logs.push(` -> Dealt ${damage} damage to {u:${defender.type}:${defenderPos.x}:${defenderPos.y}}.`);
 
 		const killed = applyDamage(defender, defenderPos, damage);
 
 		if (killed) {
 			combatResults.events.push({ x: defenderPos.x, y: defenderPos.y, type: 'death', value: '💀' });
-			combatResults.logs.push(`-- ${defender.type} was destroyed!`);
+			combatResults.logs.push(`-- {u:${defender.type}:${defenderPos.x}:${defenderPos.y}} was destroyed!`);
 		}
 
 		// 2. Ranged Splash Damage (Only on primary attack, not retaliation)
@@ -197,7 +196,7 @@ io.on('connection', (socket) => {
 						const splashDamage = calculateDamage(attacker, attackerPos, neighborUnit, pos, true);
 						combatResults.events.push({ x: pos.x, y: pos.y, type: 'damage', value: splashDamage, color: '#e67e22' }); // Orange for splash
 
-						combatResults.logs.push(` -> Splash hit ${neighborUnit.type} for ${splashDamage} damage.`);
+						combatResults.logs.push(` -> Splash hit {u:${neighborUnit.type}:${pos.x}:${pos.y}} for ${splashDamage} damage.`);
 
 						const splashKilled = applyDamage(neighborUnit, pos, splashDamage);
 						if (splashKilled) {
@@ -212,7 +211,7 @@ io.on('connection', (socket) => {
 		if (!isRetaliation && defender.current_health > 0 && defender.is_melee_capable) {
 			const dist = Math.abs(attackerPos.x - defenderPos.x) + Math.abs(attackerPos.y - defenderPos.y);
 			if (dist === 1) {
-				combatResults.logs.push(`-- ${defender.type} retaliates!`);
+				combatResults.logs.push(`-- {u:${defender.type}:${defenderPos.x}:${defenderPos.y}} retaliates!`);
 				performCombat(defender, defenderPos, attacker, attackerPos, true, combatResults);
 			}
 		}
@@ -331,7 +330,7 @@ io.on('connection', (socket) => {
 			u.hasAttacked = false;
 		});
 
-		io.emit('gameLog', { message: `Turn changed to ${nextPlayer.name}.` });
+		io.emit('gameLog', { message: `Turn changed to {p:${nextPlayer.name}}.` });
 		io.emit('update', gameState);
 	}
 

@@ -10,6 +10,15 @@ const unitInfoContent = document.getElementById('unit-info-content');
 const logContent = document.getElementById('log-content');
 const overlayLayer = document.getElementById('overlay-layer');
 
+// --- INJECT CUSTOM LOG STYLES ---
+const style = document.createElement('style');
+style.innerHTML = `
+    .log-player { font-weight: bold; color: #333; }
+    .log-unit { font-weight: bold; color: #3498db; cursor: pointer; }
+    .log-unit:hover { text-decoration: underline; }
+`;
+document.head.appendChild(style);
+
 // Context Menu Buttons
 const btnAttack = document.getElementById('btn-attack');
 const btnRotate = document.getElementById('btn-rotate');
@@ -93,10 +102,52 @@ socket.on('combatResults', (data) => {
 function addLogEntry(msg) {
     const div = document.createElement('div');
     div.className = 'log-entry';
-    div.innerText = msg;
+
+    // Parse tags: {p:Name} -> Bold, {u:Type:x:y} -> Bold Blue Link
+    // Note: We use regex replace to convert the custom format to HTML
+
+    let formattedMsg = msg
+        .replace(/{p:([^}]+)}/g, '<span class="log-player">$1</span>')
+        .replace(/{u:([^:]+):(\d+):(\d+)}/g, '<span class="log-unit" data-x="$2" data-y="$3">$1</span>');
+
+    div.innerHTML = formattedMsg;
+
+    // Add Click Listeners for units
+    div.querySelectorAll('.log-unit').forEach(span => {
+        span.onclick = () => {
+            const x = parseInt(span.dataset.x);
+            const y = parseInt(span.dataset.y);
+            selectUnitFromLog(x, y);
+        };
+    });
+
     logContent.appendChild(div);
     // Scroll to bottom
     logContent.scrollTop = logContent.scrollHeight;
+}
+
+function selectUnitFromLog(x, y) {
+    if (!localState) return;
+
+    // Check bounds
+    if (x < 0 || x >= GRID_SIZE || y < 0 || y >= GRID_SIZE) return;
+
+    resetSelection(); // Clear previous selection
+
+    // Select the cell
+    selectedCell = { x, y };
+    interactionState = 'SELECTED';
+
+    // Update info panel
+    const entity = localState.grid[y][x];
+    updateUnitInfo(entity, false);
+
+    // If it's my unit and my turn, calculate options
+    if (entity && entity.owner === myId && localState.turn === myId) {
+        recalculateOptions(entity);
+    }
+
+    render();
 }
 
 function showFloatingText(gridX, gridY, text, color) {
