@@ -1,4 +1,16 @@
 add terrain cells
     implement terrain cells logic
-directional arrow more visible
-implement attack logic
+implement morale logic
+add commander unit
+    implement commander unit abilities
+decide unit types
+gray out unaffordable units in recruitment screen
+when a unit attacks, it should be facing the target OR it should automatically turn to face the target
+fog of war?
+other combat bonuses?
+    high ground bonus
+    flanking bonus
+    rear attack bonus
+    charge bonus
+    defensive bonus (e.g., in cover, behind shield wall)
+special abilities for units?
