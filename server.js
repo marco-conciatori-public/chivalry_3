@@ -1,7 +1,8 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
-const { unitStats, GAME_CONSTANTS } = require('./unitStats');
+const unitStats = require('./unitStats');
+const constants = require('./constants');
 
 const app = express();
 const server = http.createServer(app);
@@ -10,25 +11,23 @@ const io = new Server(server);
 app.use(express.static('public'));
 
 let gameState = {
-	grid: Array(10).fill(null).map(() => Array(10).fill(null)),
+	grid: Array(constants.GRID_SIZE).fill(null).map(() => Array(constants.GRID_SIZE).fill(null)),
 	players: {},
 	turn: null
 };
-
-const PLAYER_COLORS = ['#3498db', '#e74c3c', '#2ecc71', '#f1c40f', '#9b59b6'];
 
 io.on('connection', (socket) => {
 	console.log('A player connected:', socket.id);
 
 	const existingPlayers = Object.keys(gameState.players);
 	const playerSymbol = existingPlayers.length === 0 ? 'X' : 'O';
-	const playerColor = PLAYER_COLORS[existingPlayers.length % PLAYER_COLORS.length];
+	const playerColor = constants.PLAYER_COLORS[existingPlayers.length % constants.PLAYER_COLORS.length];
 
 	gameState.players[socket.id] = {
 		symbol: playerSymbol,
 		color: playerColor,
 		id: socket.id,
-		gold: 2000
+		gold: constants.STARTING_GOLD
 	};
 
 	if (!gameState.turn) gameState.turn = socket.id;
@@ -80,7 +79,6 @@ io.on('connection', (socket) => {
 			const dist = getPathDistance(from, to, gameState.grid);
 
 			if (dist > 0 && entity.remainingMovement >= dist) {
-				// Update facing
 				const dx = to.x - from.x;
 				const dy = to.y - from.y;
 				if (Math.abs(dy) > Math.abs(dx)) {
@@ -133,7 +131,7 @@ io.on('connection', (socket) => {
 	/**
 	 * Calculates and applies damage between an attacker and a target.
 	 * Handles Ranged splash damage and Melee retaliation.
-	 * @param {Object} attacker - The attacking unit object
+	 * * @param {Object} attacker - The attacking unit object
 	 * @param {Object} attackerPos - {x, y}
 	 * @param {Object} defender - The defending unit object
 	 * @param {Object} defenderPos - {x, y}
@@ -154,7 +152,7 @@ io.on('connection', (socket) => {
 			];
 
 			neighbors.forEach(pos => {
-				if (pos.x >= 0 && pos.x < 10 && pos.y >= 0 && pos.y < 10) {
+				if (pos.x >= 0 && pos.x < constants.GRID_SIZE && pos.y >= 0 && pos.y < constants.GRID_SIZE) {
 					const neighborUnit = gameState.grid[pos.y][pos.x];
 					if (neighborUnit) {
 						const splashDamage = calculateDamage(attacker, attackerPos, neighborUnit, pos, true);
@@ -183,7 +181,7 @@ io.on('connection', (socket) => {
 		// --- BONUS DAMAGE ---
 		let bonusDamage = 0;
 		if (attacker.bonus_vs && attacker.bonus_vs.includes(defender.type)) {
-			bonusDamage = GAME_CONSTANTS.BONUS_DAMAGE;
+			bonusDamage = constants.BONUS_DAMAGE;
 		}
 
 		// --- BONUS SHIELD ---
@@ -219,7 +217,7 @@ io.on('connection', (socket) => {
 			}
 
 			if (isShielded) {
-				bonusShield = GAME_CONSTANTS.BONUS_SHIELD;
+				bonusShield = constants.BONUS_SHIELD;
 			}
 		}
 
@@ -243,9 +241,9 @@ io.on('connection', (socket) => {
 			}
 		}
 
-		// --- RANDOM FACTOR (+/- 20%) ---
-		// Generates a float between 0.8 and 1.2
-		const randomFactor = 0.8 + (Math.random() * 0.4);
+		// --- RANDOM FACTOR ---
+		// Generates a float based on constants
+		const randomFactor = constants.DAMAGE_RANDOM_BASE + (Math.random() * constants.DAMAGE_RANDOM_VARIANCE);
 		baseDamage *= randomFactor;
 
 		return Math.floor(baseDamage);
@@ -276,7 +274,7 @@ io.on('connection', (socket) => {
 			for (const [dx, dy] of dirs) {
 				const nx = x + dx;
 				const ny = y + dy;
-				if (nx >= 0 && nx < 10 && ny >= 0 && ny < 10) {
+				if (nx >= 0 && nx < constants.GRID_SIZE && ny >= 0 && ny < constants.GRID_SIZE) {
 					const key = `${nx},${ny}`;
 					if (!visited.has(key)) {
 						const isTarget = (nx === end.x && ny === end.y);
@@ -311,8 +309,8 @@ io.on('connection', (socket) => {
 	}
 
 	function modifyUnitsForPlayer(playerId, callback) {
-		for (let y = 0; y < 10; y++) {
-			for (let x = 0; x < 10; x++) {
+		for (let y = 0; y < constants.GRID_SIZE; y++) {
+			for (let x = 0; x < constants.GRID_SIZE; x++) {
 				const entity = gameState.grid[y][x];
 				if (entity && entity.owner === playerId) {
 					callback(entity);

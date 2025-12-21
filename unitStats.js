@@ -1,5 +1,5 @@
 // Base stats for all unit types
-const unitStats = {
+module.exports = {
     knight: {
         attack: 70,
         bonus_vs: ['archer'],
@@ -61,10 +61,3 @@ const unitStats = {
         cost: 60
     }
 };
-
-const GAME_CONSTANTS = {
-    BONUS_DAMAGE: 20,
-    BONUS_SHIELD: 20
-};
-
-module.exports = { unitStats, GAME_CONSTANTS };
