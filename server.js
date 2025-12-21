@@ -92,6 +92,8 @@ io.on('connection', (socket) => {
 				hasAttacked: true,
 				...baseStats,
 				current_health: baseStats.max_health,
+				// raw_morale tracks persistent changes (damage, kills)
+				raw_morale: baseStats.initial_morale,
 				current_morale: baseStats.initial_morale,
 				facing_direction: 0,
 				is_commander: isCommander,
@@ -106,6 +108,9 @@ io.on('connection', (socket) => {
 				msg += ".";
 			}
 			io.emit('gameLog', { message: msg });
+
+			// Recalculate morale for everyone (adjacency changed)
+			updateAllUnitsMorale();
 			io.emit('update', gameState);
 		}
 	});
@@ -136,6 +141,9 @@ io.on('connection', (socket) => {
 				entity.remainingMovement -= dist;
 				gameState.grid[to.y][to.x] = entity;
 				gameState.grid[from.y][from.x] = null;
+
+				// Recalculate morale for everyone (positions changed)
+				updateAllUnitsMorale();
 				io.emit('update', gameState);
 			}
 		}
@@ -149,6 +157,9 @@ io.on('connection', (socket) => {
 
 			entity.facing_direction = direction;
 			entity.remainingMovement -= 1;
+
+			// Recalculate morale for everyone (facing changed, affects flanks/rear)
+			updateAllUnitsMorale();
 			io.emit('update', gameState);
 		}
 	});
@@ -184,6 +195,8 @@ io.on('connection', (socket) => {
 				attacker.hasAttacked = true;
 				attacker.remainingMovement = 0;
 
+				// Update morale after combat
+				updateAllUnitsMorale();
 				io.emit('update', gameState);
 				io.emit('combatResults', combatResults);
 			}
@@ -193,6 +206,16 @@ io.on('connection', (socket) => {
 	function performCombat(attacker, attackerPos, defender, defenderPos, isRetaliation, combatResults) {
 		// 1. Calculate and Apply Primary Damage
 		const damage = calculateDamage(attacker, attackerPos, defender, defenderPos, false);
+
+		// --- MORALE CHANGE: Damage Taken ---
+		// Damage taken reduces raw_morale by the same amount
+		defender.raw_morale -= damage;
+
+		// --- MORALE CHANGE: Damage Inflicted ---
+		// Increases attacker raw_morale by half the amount (not for splash)
+		if (!isRetaliation || defender.is_melee_capable) {
+			attacker.raw_morale += Math.floor(damage / 2);
+		}
 
 		combatResults.events.push({
 			x: defenderPos.x,
@@ -209,6 +232,9 @@ io.on('connection', (socket) => {
 		if (killed) {
 			combatResults.events.push({ x: defenderPos.x, y: defenderPos.y, type: 'death', value: '💀' });
 			combatResults.logs.push(`-- {u:${defender.type}:${defenderPos.x}:${defenderPos.y}} was destroyed!`);
+
+			// --- MORALE CHANGE: Unit Destroyed (Adjacent) ---
+			applyDeathMoraleEffects(defenderPos, defender.owner);
 		}
 
 		// 2. Ranged Splash Damage (Only on primary attack, not retaliation)
@@ -225,6 +251,10 @@ io.on('connection', (socket) => {
 					const neighborUnit = gameState.grid[pos.y][pos.x];
 					if (neighborUnit) {
 						const splashDamage = calculateDamage(attacker, attackerPos, neighborUnit, pos, true);
+
+						// Splash damage also reduces morale of the victim
+						neighborUnit.raw_morale -= splashDamage;
+
 						combatResults.events.push({ x: pos.x, y: pos.y, type: 'damage', value: splashDamage, color: '#e67e22' }); // Orange for splash
 
 						combatResults.logs.push(` -> Splash hit {u:${neighborUnit.type}:${pos.x}:${pos.y}} for ${splashDamage} damage.`);
@@ -232,6 +262,8 @@ io.on('connection', (socket) => {
 						const splashKilled = applyDamage(neighborUnit, pos, splashDamage);
 						if (splashKilled) {
 							combatResults.events.push({ x: pos.x, y: pos.y, type: 'death', value: '💀' });
+							// --- MORALE CHANGE: Unit Destroyed (Adjacent) for splash victim ---
+							applyDeathMoraleEffects(pos, neighborUnit.owner);
 						}
 					}
 				}
@@ -247,6 +279,31 @@ io.on('connection', (socket) => {
 				performCombat(defender, defenderPos, attacker, attackerPos, true, combatResults);
 			}
 		}
+	}
+
+	function applyDeathMoraleEffects(pos, ownerId) {
+		// Check all adjacent units
+		const neighbors = [
+			{x: pos.x, y: pos.y - 1},
+			{x: pos.x, y: pos.y + 1},
+			{x: pos.x - 1, y: pos.y},
+			{x: pos.x + 1, y: pos.y}
+		];
+
+		neighbors.forEach(n => {
+			if (n.x >= 0 && n.x < constants.GRID_SIZE && n.y >= 0 && n.y < constants.GRID_SIZE) {
+				const witness = gameState.grid[n.y][n.x];
+				if (witness && !witness.is_fleeing) {
+					if (witness.owner === ownerId) {
+						// Adjacent ALLY destroyed
+						witness.raw_morale -= 10;
+					} else {
+						// Adjacent ENEMY destroyed
+						witness.raw_morale += 10;
+					}
+				}
+			}
+		});
 	}
 
 	function calculateDamage(attacker, attackerPos, defender, defenderPos, isSplash) {
@@ -345,12 +402,130 @@ io.on('connection', (socket) => {
 		return -1;
 	}
 
+	// --- MORALE CALCULATIONS ---
+
+	function updateAllUnitsMorale() {
+		for (let y = 0; y < constants.GRID_SIZE; y++) {
+			for (let x = 0; x < constants.GRID_SIZE; x++) {
+				const entity = gameState.grid[y][x];
+				if (entity) {
+					calculateCurrentMorale(entity, x, y);
+				}
+			}
+		}
+	}
+
+	function calculateCurrentMorale(unit, x, y) {
+		// 1. Start with Persistent Morale (Initial - Damage + Kills/Witness)
+		// Ensure raw morale doesn't exceed 100 before modifiers (optional design choice, sticking to max_morale for final)
+		if (unit.raw_morale > constants.MAX_MORALE) unit.raw_morale = constants.MAX_MORALE;
+
+		let morale = unit.raw_morale;
+
+		// 2. Position Modifiers
+		let adjacentAllies = 0;
+		let adjacentEnemies = 0;
+		let flankingEnemies = 0;
+		let rearEnemies = 0;
+
+		const neighbors = [
+			{dx: 0, dy: -1}, // N
+			{dx: 0, dy: 1},  // S
+			{dx: -1, dy: 0}, // W
+			{dx: 1, dy: 0}   // E
+		];
+
+		neighbors.forEach(({dx, dy}) => {
+			const nx = x + dx;
+			const ny = y + dy;
+			if (nx >= 0 && nx < constants.GRID_SIZE && ny >= 0 && ny < constants.GRID_SIZE) {
+				const other = gameState.grid[ny][nx];
+				if (other && !other.is_fleeing) {
+					if (other.owner === unit.owner) {
+						adjacentAllies++;
+					} else {
+						adjacentEnemies++;
+
+						// Check Flanking/Rear
+						// Helper to determine relation based on unit.facing_direction
+						// 0=N, 2=E, 4=S, 6=W
+						const relation = getRelativePosition(unit.facing_direction, dx, dy);
+						if (relation === 'FLANK') flankingEnemies++;
+						if (relation === 'REAR') rearEnemies++;
+					}
+				}
+			}
+		});
+
+		// +10 per adjacent ally
+		morale += (adjacentAllies * 10);
+
+		// -10 per adjacent enemy BEYOND FIRST
+		if (adjacentEnemies > 1) {
+			morale -= ((adjacentEnemies - 1) * 10);
+		}
+
+		// -10 per flanking enemy
+		morale -= (flankingEnemies * 10);
+
+		// -20 per rear enemy
+		morale -= (rearEnemies * 20);
+
+		// Commander Bonuses
+		if (unit.is_commander) {
+			morale += 20;
+		}
+
+		// Allied Commander nearby?
+		// Check if there is a commander of same owner within range
+		// Don't count self
+		if (!unit.is_commander) {
+			let commanderNearby = false;
+			// Iterate grid to find commander - not efficient but grid is small (10x10)
+			for(let cy=0; cy<constants.GRID_SIZE; cy++) {
+				for(let cx=0; cx<constants.GRID_SIZE; cx++) {
+					const cUnit = gameState.grid[cy][cx];
+					if (cUnit && cUnit.owner === unit.owner && cUnit.is_commander && !cUnit.is_fleeing) {
+						const dist = Math.abs(x - cx) + Math.abs(y - cy);
+						if (dist <= constants.COMMANDER_INFLUENCE_RANGE) {
+							commanderNearby = true;
+						}
+					}
+				}
+			}
+			if (commanderNearby) morale += 10;
+		}
+
+		// Cap at MAX_MORALE
+		if (morale > constants.MAX_MORALE) morale = constants.MAX_MORALE;
+
+		unit.current_morale = morale;
+	}
+
+	function getRelativePosition(facing, dx, dy) {
+		// facing: 0=N (dy=-1), 2=E (dx=1), 4=S (dy=1), 6=W (dx=-1)
+
+		// REAR CHECK
+		if (facing === 0 && dy === 1 && dx === 0) return 'REAR';
+		if (facing === 2 && dx === -1 && dy === 0) return 'REAR';
+		if (facing === 4 && dy === -1 && dx === 0) return 'REAR';
+		if (facing === 6 && dx === 1 && dy === 0) return 'REAR';
+
+		// FLANK CHECK (Sides)
+		if (facing === 0 && dy === 0) return 'FLANK'; // Left/Right for North
+		if (facing === 4 && dy === 0) return 'FLANK'; // Left/Right for South
+		if (facing === 2 && dx === 0) return 'FLANK'; // Top/Bottom for East
+		if (facing === 6 && dx === 0) return 'FLANK'; // Top/Bottom for West
+
+		return 'FRONT';
+	}
+
 	// --- MORALE & FLEEING LOGIC ---
 
 	function handleMoralePhase(playerId) {
-		// We need a list of units to process.
-		// We modify units in place, but if they move, coordinates change.
-		// Safer to gather all units first.
+		// Ensure calculations are up to date before checking
+		updateAllUnitsMorale();
+
 		let unitsToProcess = [];
 		for (let y = 0; y < constants.GRID_SIZE; y++) {
 			for (let x = 0; x < constants.GRID_SIZE; x++) {
@@ -364,7 +539,6 @@ io.on('connection', (socket) => {
 		unitsToProcess.forEach(item => {
 			const { x, y, entity } = item;
 
-			// Re-verify unit exists at this location (in case previous unit moved into this one somehow, though unlikely in single pass)
 			if (gameState.grid[y][x] !== entity) return;
 
 			// 1. Check Morale Threshold
@@ -400,6 +574,9 @@ io.on('connection', (socket) => {
 				}
 			}
 		});
+
+		// Recalculate again after fleeing movements
+		updateAllUnitsMorale();
 	}
 
 	function handleFleeingMovement(entity, startX, startY) {

@@ -20,5 +20,6 @@ module.exports = {
 
     // Morale Mechanics
     MORALE_THRESHOLD: 30,
-    MAX_MORALE: 100
+    MAX_MORALE: 100,
+    COMMANDER_INFLUENCE_RANGE: 4
 };
