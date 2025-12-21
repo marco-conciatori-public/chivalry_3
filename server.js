@@ -65,6 +65,8 @@ io.on('connection', (socket) => {
 				current_morale: baseStats.max_morale,
 				facing_direction: 0
 			};
+
+			io.emit('gameLog', { message: `Player ${player.symbol} recruited a ${type}.` });
 			io.emit('update', gameState);
 		}
 	});
@@ -111,36 +113,57 @@ io.on('connection', (socket) => {
 		const attacker = gameState.grid[attackerPos.y][attackerPos.x];
 		const target = gameState.grid[targetPos.y][targetPos.x];
 
+		// Collect logs and visual events to send to client
+		const combatResults = {
+			events: [], // { x, y, type: 'damage'|'death', value: number|string, color: string }
+			logs: []    // Strings
+		};
+
 		// Basic validation
 		if (attacker && target && attacker.owner === socket.id && target.owner !== socket.id && !attacker.hasAttacked) {
 			const dist = Math.abs(attackerPos.x - targetPos.x) + Math.abs(attackerPos.y - targetPos.y);
 
 			if (dist <= attacker.range) {
+				const attPlayer = gameState.players[attacker.owner].symbol;
+				const defPlayer = gameState.players[target.owner].symbol;
+				combatResults.logs.push(`[${attPlayer}] ${attacker.type} attacks [${defPlayer}] ${target.type}!`);
+
 				// Perform the main attack
-				performCombat(attacker, attackerPos, target, targetPos, false);
+				performCombat(attacker, attackerPos, target, targetPos, false, combatResults);
 
 				// Set attacker state
 				attacker.hasAttacked = true;
 				attacker.remainingMovement = 0;
 
 				io.emit('update', gameState);
+				io.emit('combatResults', combatResults);
 			}
 		}
 	});
 
 	/**
 	 * Calculates and applies damage between an attacker and a target.
-	 * Handles Ranged splash damage and Melee retaliation.
-	 * * @param {Object} attacker - The attacking unit object
-	 * @param {Object} attackerPos - {x, y}
-	 * @param {Object} defender - The defending unit object
-	 * @param {Object} defenderPos - {x, y}
-	 * @param {Boolean} isRetaliation - True if this is a counter-attack
+	 * Now accepts 'combatResults' to record events.
 	 */
-	function performCombat(attacker, attackerPos, defender, defenderPos, isRetaliation) {
+	function performCombat(attacker, attackerPos, defender, defenderPos, isRetaliation, combatResults) {
 		// 1. Calculate and Apply Primary Damage
 		const damage = calculateDamage(attacker, attackerPos, defender, defenderPos, false);
-		applyDamage(defender, defenderPos, damage);
+
+		// Record Event
+		combatResults.events.push({
+			x: defenderPos.x,
+			y: defenderPos.y,
+			type: 'damage',
+			value: damage,
+			color: '#e74c3c' // Red for damage
+		});
+
+		const killed = applyDamage(defender, defenderPos, damage);
+
+		if (killed) {
+			combatResults.events.push({ x: defenderPos.x, y: defenderPos.y, type: 'death', value: '💀' });
+			combatResults.logs.push(`-- ${defender.type} was destroyed!`);
+		}
 
 		// 2. Ranged Splash Damage (Only on primary attack, not retaliation)
 		if (attacker.is_ranged && !isRetaliation) {
@@ -156,23 +179,23 @@ io.on('connection', (socket) => {
 					const neighborUnit = gameState.grid[pos.y][pos.x];
 					if (neighborUnit) {
 						const splashDamage = calculateDamage(attacker, attackerPos, neighborUnit, pos, true);
-						applyDamage(neighborUnit, pos, splashDamage);
+						combatResults.events.push({ x: pos.x, y: pos.y, type: 'damage', value: splashDamage, color: '#e67e22' }); // Orange for splash
+						const splashKilled = applyDamage(neighborUnit, pos, splashDamage);
+						if (splashKilled) {
+							combatResults.events.push({ x: pos.x, y: pos.y, type: 'death', value: '💀' });
+						}
 					}
 				}
 			});
 		}
 
 		// 3. Retaliation Logic
-		// Triggers if:
-		// - Not a retaliation itself (prevent loops)
-		// - Defender is still alive
-		// - Defender is melee capable
-		// - Attacker is adjacent
 		if (!isRetaliation && defender.current_health > 0 && defender.is_melee_capable) {
 			const dist = Math.abs(attackerPos.x - defenderPos.x) + Math.abs(attackerPos.y - defenderPos.y);
 			if (dist === 1) {
+				combatResults.logs.push(`-- ${defender.type} retaliates!`);
 				// Defender strikes back!
-				performCombat(defender, defenderPos, attacker, attackerPos, true);
+				performCombat(defender, defenderPos, attacker, attackerPos, true, combatResults);
 			}
 		}
 	}
@@ -185,35 +208,27 @@ io.on('connection', (socket) => {
 		}
 
 		// --- BONUS SHIELD ---
-		// Added if defender has shield AND is facing the attacker OR attacker is on the left flank
 		let bonusShield = 0;
 		if (defender.has_shield) {
-			// Check relative position
 			const dx = attackerPos.x - defenderPos.x;
 			const dy = attackerPos.y - defenderPos.y;
 
 			let isShielded = false;
-			// 0:North, 2:East, 4:South, 6:West
-
-			// Defender Facing North (0) -> Shield covers Front (North, dy<0) and Left (West, dx<0)
 			if (defender.facing_direction === 0) {
-				if (dy < 0 && dx === 0) isShielded = true; // Front
-				if (dx < 0 && dy === 0) isShielded = true; // Left
+				if (dy < 0 && dx === 0) isShielded = true;
+				if (dx < 0 && dy === 0) isShielded = true;
 			}
-			// Defender Facing East (2) -> Shield covers Front (East, dx>0) and Left (North, dy<0)
 			if (defender.facing_direction === 2) {
-				if (dx > 0 && dy === 0) isShielded = true; // Front
-				if (dy < 0 && dx === 0) isShielded = true; // Left
+				if (dx > 0 && dy === 0) isShielded = true;
+				if (dy < 0 && dx === 0) isShielded = true;
 			}
-			// Defender Facing South (4) -> Shield covers Front (South, dy>0) and Left (East, dx>0)
 			if (defender.facing_direction === 4) {
-				if (dy > 0 && dx === 0) isShielded = true; // Front
-				if (dx > 0 && dy === 0) isShielded = true; // Left
+				if (dy > 0 && dx === 0) isShielded = true;
+				if (dx > 0 && dy === 0) isShielded = true;
 			}
-			// Defender Facing West (6) -> Shield covers Front (West, dx<0) and Left (South, dy>0)
 			if (defender.facing_direction === 6) {
-				if (dx < 0 && dy === 0) isShielded = true; // Front
-				if (dy > 0 && dx === 0) isShielded = true; // Left
+				if (dx < 0 && dy === 0) isShielded = true;
+				if (dy > 0 && dx === 0) isShielded = true;
 			}
 
 			if (isShielded) {
@@ -221,28 +236,20 @@ io.on('connection', (socket) => {
 			}
 		}
 
-		// --- HEALTH PERCENTAGE FACTOR ---
 		const healthPct = attacker.current_health / attacker.max_health;
-
-		// --- DEFENSE FACTOR ---
 		const defenseFactor = 1 - ((defender.defence + bonusShield) / 100);
 		const clampedDefenseFactor = Math.max(0, defenseFactor);
 
 		let baseDamage = (attacker.attack + bonusDamage) * healthPct * clampedDefenseFactor;
 
-		// --- RANGED / SPLASH MODIFIERS ---
 		if (attacker.is_ranged) {
 			if (isSplash) {
-				// Splash Formula
 				baseDamage *= ((100 - attacker.accuracy) / 100);
 			} else {
-				// Direct Hit Formula
 				baseDamage *= (attacker.accuracy / 100);
 			}
 		}
 
-		// --- RANDOM FACTOR ---
-		// Generates a float based on constants
 		const randomFactor = constants.DAMAGE_RANDOM_BASE + (Math.random() * constants.DAMAGE_RANDOM_VARIANCE);
 		baseDamage *= randomFactor;
 
@@ -254,7 +261,9 @@ io.on('connection', (socket) => {
 		if (unit.current_health <= 0) {
 			unit.current_health = 0;
 			gameState.grid[pos.y][pos.x] = null; // Destroy unit
+			return true; // Killed
 		}
+		return false; // Survived
 	}
 
 	socket.on('endTurn', () => {
@@ -299,12 +308,14 @@ io.on('connection', (socket) => {
 		const currentIndex = ids.indexOf(gameState.turn);
 		const nextIndex = (currentIndex + 1) % ids.length;
 		gameState.turn = ids[nextIndex];
+		const nextPlayer = gameState.players[gameState.turn];
 
 		modifyUnitsForPlayer(gameState.turn, (u) => {
 			u.remainingMovement = u.speed;
 			u.hasAttacked = false;
 		});
 
+		io.emit('gameLog', { message: `Turn changed to Player ${nextPlayer.symbol}.` });
 		io.emit('update', gameState);
 	}
 

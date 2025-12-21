@@ -7,6 +7,8 @@ const connectionStatus = document.getElementById('connection-status');
 const endTurnBtn = document.getElementById('end-turn-btn');
 const contextMenu = document.getElementById('context-menu');
 const unitInfoContent = document.getElementById('unit-info-content');
+const logContent = document.getElementById('log-content');
+const overlayLayer = document.getElementById('overlay-layer');
 
 // Context Menu Buttons
 const btnAttack = document.getElementById('btn-attack');
@@ -47,27 +49,104 @@ socket.on('init', (data) => {
     render();
     updateLegend();
     updateUIControls();
+    addLogEntry("Welcome to Grid War!");
 });
 
 socket.on('update', (state) => {
     localState = state;
-    // Validate selection persistence
     if (selectedCell) {
         const entity = localState.grid[selectedCell.y][selectedCell.x];
-        // Note: We now allow selecting ANY unit, even if null (though null check handles below)
-        // If entity disappeared (died), deselect
         if (!entity) {
             resetSelection();
         } else {
-            // Re-calculate possibilities based on new state
             recalculateOptions(entity);
-            updateUnitInfo(entity, false); // Update sidebar (false = not template)
+            updateUnitInfo(entity, false);
         }
     }
     render();
     updateLegend();
     updateUIControls();
 });
+
+socket.on('gameLog', (data) => {
+    addLogEntry(data.message);
+});
+
+socket.on('combatResults', (data) => {
+    // 1. Process Logs
+    if (data.logs) {
+        data.logs.forEach(msg => addLogEntry(msg));
+    }
+
+    // 2. Process Visual Events (Floating Text)
+    if (data.events) {
+        data.events.forEach(ev => {
+            if (ev.type === 'damage' || ev.type === 'death') {
+                showFloatingText(ev.x, ev.y, ev.value, ev.color || 'red');
+            }
+        });
+    }
+});
+
+// --- HELPER: Logs & Effects ---
+
+function addLogEntry(msg) {
+    const div = document.createElement('div');
+    div.className = 'log-entry';
+    div.innerText = msg;
+    logContent.appendChild(div);
+    // Scroll to bottom
+    logContent.scrollTop = logContent.scrollHeight;
+}
+
+function showFloatingText(gridX, gridY, text, color) {
+    const el = document.createElement('div');
+    el.className = 'floating-text';
+    el.innerText = text;
+    el.style.color = color;
+
+    // Position carefully.
+    // Canvas is relative, but overlay is absolute over it.
+    // We need pixel coordinates relative to the canvas container.
+    // Since #game-area handles the layout, we can just use the grid coordinates * CELL_SIZE
+    // plus offset for the canvas position.
+
+    // Note: The #overlay-layer is directly on top of the canvas wrapper.
+    // We just need grid coords converted to pixels.
+    // Add some random offset so texts don't overlap perfectly
+    const jitterX = (Math.random() * 20) - 10;
+    const jitterY = (Math.random() * 20) - 10;
+
+    const left = (gridX * CELL_SIZE) + (CELL_SIZE / 2) + jitterX;
+    const top = (gridY * CELL_SIZE) + (CELL_SIZE / 2) + jitterY;
+
+    // Adjust for canvas position if necessary (if overlay-layer matches canvas size exactly)
+    // Here we assume overlay-layer is child of game-area
+    // Actually, to be safe, let's append directly to document body and use page coords,
+    // OR ensure overlay-layer is positioned relative to the game board container.
+    // In HTML, overlay-layer is in #game-area (position relative).
+    // The canvas is also there.
+
+    // Correction: The canvas has a header above it ("Waiting for players...").
+    // We need to target the canvas specific offset.
+    // Let's use getBoundingClientRect() to be safe.
+    const canvasRect = canvas.getBoundingClientRect();
+    const gameAreaRect = document.getElementById('game-area').getBoundingClientRect();
+
+    // Offset within the game-area
+    const offsetLeft = canvasRect.left - gameAreaRect.left;
+    const offsetTop = canvasRect.top - gameAreaRect.top;
+
+    el.style.left = `${offsetLeft + left}px`;
+    el.style.top = `${offsetTop + top}px`;
+
+    document.getElementById('game-area').appendChild(el);
+
+    // Remove after animation
+    setTimeout(() => {
+        el.remove();
+    }, 1500);
+}
 
 // --- INPUT HANDLERS ---
 
@@ -104,15 +183,14 @@ btnDeselect.addEventListener('click', () => {
 // Template (Spawn Button) Selection
 document.querySelectorAll('.template').forEach(el => {
     el.addEventListener('click', () => {
-        // Can only select templates if it's my turn
         if (localState.turn !== myId) return;
+        if (el.classList.contains('disabled')) return; // Prevent clicking disabled
 
-        resetSelection(); // Deselect grid units and other templates
+        resetSelection();
 
         el.classList.add('selected-template');
         selectedTemplate = el.dataset.type;
 
-        // Show info for this template
         if (clientUnitStats[selectedTemplate]) {
             updateUnitInfo(clientUnitStats[selectedTemplate], true);
         }
@@ -126,7 +204,6 @@ canvas.addEventListener('click', (e) => {
     const x = Math.floor((e.clientX - rect.left) / CELL_SIZE);
     const y = Math.floor((e.clientY - rect.top) / CELL_SIZE);
 
-    // Bounds check
     if (x < 0 || x >= GRID_SIZE || y < 0 || y >= GRID_SIZE) {
         resetSelection();
         render();
@@ -137,19 +214,16 @@ canvas.addEventListener('click', (e) => {
 
     const clickedEntity = localState.grid[y][x];
 
-    // --- INTERACTION STATE MACHINE ---
-
-    // 1. ROTATING MODE
     if (interactionState === 'ROTATING') {
         if (selectedCell) {
             const dx = x - selectedCell.x;
             const dy = y - selectedCell.y;
             if (Math.abs(dx) + Math.abs(dy) === 1) {
                 let direction = 0;
-                if (dy === -1) direction = 0; // N
-                if (dx === 1)  direction = 2; // E
-                if (dy === 1)  direction = 4; // S
-                if (dx === -1) direction = 6; // W
+                if (dy === -1) direction = 0;
+                if (dx === 1)  direction = 2;
+                if (dy === 1)  direction = 4;
+                if (dx === -1) direction = 6;
 
                 socket.emit('rotateEntity', { x: selectedCell.x, y: selectedCell.y, direction });
                 interactionState = 'SELECTED';
@@ -161,7 +235,6 @@ canvas.addEventListener('click', (e) => {
         return;
     }
 
-    // 2. ATTACK MODE
     if (interactionState === 'ATTACK_TARGETING') {
         const isTarget = validAttackTargets.some(t => t.x === x && t.y === y);
         if (isTarget) {
@@ -174,57 +247,42 @@ canvas.addEventListener('click', (e) => {
         return;
     }
 
-    // 3. MENU OPEN
     if (interactionState === 'MENU') {
         hideContextMenu();
         interactionState = 'SELECTED';
-
-        // Toggle off: If clicking the same unit that opened the menu, stop here (menu stays closed).
         if (selectedCell && selectedCell.x === x && selectedCell.y === y) {
             render();
             return;
         }
-        // Fallthrough to normal click processing
     }
 
-    // 4. NORMAL SELECTION / MOVEMENT
-
-    // Clicked SAME unit? -> MENU (Only if we own it and it's our turn)
     if (clickedEntity && selectedCell && selectedCell.x === x && selectedCell.y === y) {
         if (clickedEntity.owner === myId && localState.turn === myId) {
             showContextMenu(e.clientX, e.clientY, clickedEntity);
             interactionState = 'MENU';
-        } else {
-            // Just re-selecting same enemy/exhausted unit - do nothing or maybe refresh info
         }
         render();
         return;
     }
 
-    // Clicked ANY Unit -> Select it (Exclusive Selection)
     if (clickedEntity) {
-        resetSelection(); // Clears templates and previous grid selection
+        resetSelection();
         selectedCell = { x, y };
         interactionState = 'SELECTED';
 
-        // Show info
         updateUnitInfo(clickedEntity, false);
 
-        // Only calculate options if we control it and it's our turn
         if (clickedEntity.owner === myId && localState.turn === myId) {
             recalculateOptions(clickedEntity);
         }
     }
-    // Spawn Logic (Empty Cell + Template Selected)
     else if (selectedTemplate && !clickedEntity) {
         if (localState.turn === myId) {
             socket.emit('spawnEntity', { x, y, type: selectedTemplate });
             resetSelection();
         }
     }
-    // Move Logic (Empty Cell + Unit Selected)
     else if (selectedCell && !clickedEntity) {
-        // Only allow move if we have valid moves (implies we own it and it's our turn)
         const isValid = validMoves.some(m => m.x === x && m.y === y);
         if (isValid) {
             socket.emit('moveEntity', { from: selectedCell, to: { x, y } });
@@ -255,10 +313,7 @@ function resetSelection() {
 }
 
 function recalculateOptions(entity) {
-    // Moves
     validMoves = getReachableCells(selectedCell, entity.remainingMovement, localState.grid);
-
-    // Attacks
     validAttackTargets = [];
     cellsInAttackRange = [];
     if (!entity.hasAttacked) {
@@ -308,48 +363,19 @@ function updateUnitInfo(entity, isTemplate) {
         unitInfoContent.innerHTML = '<em>Click a unit to see details</em>';
         return;
     }
-
     const formatStat = (label, value) => `<div class="stat-row"><span>${label}:</span> <strong>${value}</strong></div>`;
-
-    // Calculate dynamic values for display
-
-    // Type (Template just has keys, Entity has .type)
     const type = isTemplate ? selectedTemplate : entity.type;
-
-    // Health: Show only max for templates, Current/Max for units
     const healthDisplay = isTemplate ? entity.max_health : `${entity.current_health}/${entity.max_health}`;
-
-    // Moves: Show only max for templates, Current/Max for units
     const movesDisplay = isTemplate ? entity.speed : `${entity.remainingMovement}/${entity.speed}`;
-
-    // Attacks: Hide row for templates
     let attacksRow = '';
     if (!isTemplate) {
-        // "Attacks 0/1" means 0 attacks left out of 1.
         const attacksLeft = entity.hasAttacked ? 0 : 1;
         attacksRow = formatStat('Attacks', `${attacksLeft}/1`);
     }
-
-    // Morale: Show only max for templates, Current/Max for units
     const moraleDisplay = isTemplate ? entity.max_morale : `${entity.current_morale}/${entity.max_morale}`;
-
-    // Bonus Vs
-    let bonusDisplay = '';
-    if (entity.bonus_vs && entity.bonus_vs.length > 0) {
-        bonusDisplay = entity.bonus_vs.join(', ');
-    } else {
-        bonusDisplay = 'None';
-    }
-
-    // Cost (Display logic: Only for templates, and placed below name)
-    let costRow = '';
-    if (isTemplate) {
-        costRow = formatStat('Cost', entity.cost || '-');
-    }
-
-    // Extra Rows (Bonus against is always at bottom now)
-    let extraRows = '';
-    extraRows += formatStat('Bonus against', bonusDisplay);
+    let bonusDisplay = (entity.bonus_vs && entity.bonus_vs.length > 0) ? entity.bonus_vs.join(', ') : 'None';
+    let costRow = isTemplate ? formatStat('Cost', entity.cost || '-') : '';
+    let extraRows = formatStat('Bonus against', bonusDisplay);
 
     unitInfoContent.innerHTML = `
         <div style="font-size: 1.1em; font-weight: bold; margin-bottom: 5px;">${(type || 'Unknown').toUpperCase()}</div>
@@ -407,10 +433,7 @@ function updateLegend() {
             li.style.border = '2px solid #333';
             li.style.fontWeight = 'bold';
         }
-
-        // Show Gold amount for me and others (or hide for others if desired, currently shown for all)
         const goldDisplay = p.gold !== undefined ? ` (${p.gold}g)` : '';
-
         li.innerHTML = `<div class="player-color-box" style="background-color: ${p.color}"></div>
                         <span>${isMe ? "You" : "Player"}${goldDisplay}</span>
                         ${isTurn ? '<span class="current-turn-marker">TURN</span>' : ''}`;
@@ -430,9 +453,6 @@ function updateUIControls() {
     // 2. Handle Toolbar Interaction (Global)
     const toolbar = document.getElementById('toolbar');
     toolbar.style.opacity = isMyTurn ? '1' : '0.5';
-
-    // If it's not our turn, disable the whole toolbar.
-    // If it IS our turn, allow events so we can click specific valid units.
     toolbar.style.pointerEvents = isMyTurn ? 'auto' : 'none';
 
     // 3. Handle Individual Unit Costs
@@ -440,7 +460,6 @@ function updateUIControls() {
         const type = el.dataset.type;
         const stats = clientUnitStats[type];
 
-        // Safety check: ensure we have stats and player data
         if (stats && myPlayer) {
             // Check if gold is sufficient
             if (myPlayer.gold < stats.cost) {
@@ -449,16 +468,11 @@ function updateUIControls() {
                 el.classList.remove('disabled');
             }
 
-            // OPTIONAL: Update the button text to show cost (Quality of Life)
-            // If you want to keep it simple, you can remove this block.
+            // Update text to include Cost
             const icon = type === 'knight' ? '⚔️' :
                 type === 'archer' ? '🏹' :
                     type === 'wizard' ? '🧙' : '🏇';
-
-            // Capitalize first letter
             const name = type.charAt(0).toUpperCase() + type.slice(1);
-
-            // Update text to include Cost
             el.innerHTML = `${icon} ${name} <span style="font-size:0.8em; color:#666;">(${stats.cost}g)</span>`;
         }
     });
@@ -534,7 +548,6 @@ function render() {
             // C. MOVE HINTS
             else if (interactionState === 'SELECTED' || interactionState === 'MENU') {
                 const isReachable = validMoves.some(m => m.x === x && m.y === y);
-                // Only show hints if we have selected an entity we own and it's our turn
                 if (selectedCell && isReachable && !entity) {
                     ctx.fillStyle = "rgba(46, 204, 113, 0.2)";
                     ctx.fillRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
@@ -565,7 +578,6 @@ function render() {
 
                 ctx.fillText(icon, centerX, centerY);
 
-                // Always show facing and health
                 drawFacingIndicator(ctx, x, y, entity.facing_direction, entity.remainingMovement > 0);
                 drawHealthBar(ctx, x, y, entity.current_health, entity.max_health);
 

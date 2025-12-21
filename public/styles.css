@@ -54,6 +54,34 @@ body {
     color: #555;
 }
 
+/* Log Panel */
+#log-panel {
+    margin-top: 20px;
+    border-top: 1px solid #ddd;
+    flex-grow: 1; /* Take remaining space */
+    display: flex;
+    flex-direction: column;
+    min-height: 200px;
+    max-height: 300px;
+}
+
+#log-content {
+    flex-grow: 1;
+    overflow-y: auto;
+    font-size: 0.8em;
+    padding: 8px;
+    background: #f9f9f9;
+    border: 1px solid #eee;
+    border-radius: 4px;
+    color: #333;
+}
+
+.log-entry {
+    margin-bottom: 4px;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 2px;
+}
+
 /* Game Area */
 #game-area {
     display: flex;
@@ -93,6 +121,16 @@ canvas {
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
+/* Disabled Template State */
+.template.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    filter: grayscale(100%);
+    pointer-events: none; /* Prevents clicking and hover effects */
+    background-color: #f0f0f0;
+    border-color: #ddd;
+}
+
 /* End Turn Button Style */
 #end-turn-btn {
     background-color: #e74c3c;
@@ -110,12 +148,20 @@ canvas {
 
 h2 { margin-top: 0; }
 
-/* Disabled Template State */
-.template.disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    filter: grayscale(100%);
-    pointer-events: none; /* Prevents clicking and hover effects */
-    background-color: #f0f0f0;
-    border-color: #ddd;
+/* Floating Text Animation */
+.floating-text {
+    position: absolute;
+    font-family: 'Arial', sans-serif;
+    font-weight: bold;
+    font-size: 18px;
+    pointer-events: none;
+    animation: floatUp 1.5s ease-out forwards;
+    text-shadow: 1px 1px 0 #fff, -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff;
+    z-index: 1000;
+}
+
+@keyframes floatUp {
+    0% { transform: translateY(0); opacity: 1; }
+    50% { opacity: 1; }
+    100% { transform: translateY(-40px); opacity: 0; }
 }
