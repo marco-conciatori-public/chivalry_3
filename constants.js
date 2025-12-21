@@ -16,5 +16,9 @@ module.exports = {
 
     // Random Damage Variance (0.8 to 1.2 = +/- 20%)
     DAMAGE_RANDOM_BASE: 0.8,
-    DAMAGE_RANDOM_VARIANCE: 0.4
+    DAMAGE_RANDOM_VARIANCE: 0.4,
+
+    // Morale Mechanics
+    MORALE_THRESHOLD: 30,
+    MAX_MORALE: 100
 };

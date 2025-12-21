@@ -290,6 +290,9 @@ canvas.addEventListener('click', (e) => {
 
     if (clickedEntity && selectedCell && selectedCell.x === x && selectedCell.y === y) {
         if (clickedEntity.owner === myId && localState.turn === myId) {
+            // Cannot control fleeing units
+            if (clickedEntity.is_fleeing) return;
+
             showContextMenu(e.clientX, e.clientY, clickedEntity);
             interactionState = 'MENU';
         }
@@ -305,7 +308,9 @@ canvas.addEventListener('click', (e) => {
         updateUnitInfo(clickedEntity, false);
 
         if (clickedEntity.owner === myId && localState.turn === myId) {
-            recalculateOptions(clickedEntity);
+            if (!clickedEntity.is_fleeing) {
+                recalculateOptions(clickedEntity);
+            }
         }
     }
     else if (selectedTemplate && !clickedEntity) {
@@ -345,6 +350,13 @@ function resetSelection() {
 }
 
 function recalculateOptions(entity) {
+    if (entity.is_fleeing) {
+        validMoves = [];
+        validAttackTargets = [];
+        cellsInAttackRange = [];
+        return;
+    }
+
     validMoves = getReachableCells(selectedCell, entity.remainingMovement, localState.grid);
     validAttackTargets = [];
     cellsInAttackRange = [];
@@ -396,21 +408,38 @@ function updateUnitInfo(entity, isTemplate) {
         return;
     }
     const formatStat = (label, value) => `<div class="stat-row"><span>${label}:</span> <strong>${value}</strong></div>`;
-    const type = isTemplate ? selectedTemplate : entity.type;
+
+    // Type + Commander Status
+    let typeDisplay = (isTemplate ? selectedTemplate : entity.type).toUpperCase();
+    if (!isTemplate && entity.is_commander) {
+        typeDisplay += ' 👑';
+    }
+
     const healthDisplay = isTemplate ? entity.max_health : `${entity.current_health}/${entity.max_health}`;
     const movesDisplay = isTemplate ? entity.speed : `${entity.remainingMovement}/${entity.speed}`;
+
     let attacksRow = '';
     if (!isTemplate) {
         const attacksLeft = entity.hasAttacked ? 0 : 1;
         attacksRow = formatStat('Attacks', `${attacksLeft}/1`);
     }
+
     const moraleDisplay = isTemplate ? entity.initial_morale : `${entity.current_morale}/${entity.initial_morale}`;
+
     let bonusDisplay = (entity.bonus_vs && entity.bonus_vs.length > 0) ? entity.bonus_vs.join(', ') : 'None';
     let costRow = isTemplate ? formatStat('Cost', entity.cost || '-') : '';
     let extraRows = formatStat('Bonus against', bonusDisplay);
 
+    let statusEffect = '';
+    if (!isTemplate && entity.is_fleeing) {
+        statusEffect = `<div style="color:red; font-weight:bold; margin:5px 0;">⚠ FLEEING</div>`;
+    } else if (!isTemplate && entity.is_commander) {
+        statusEffect = `<div style="color:gold; font-weight:bold; margin:5px 0;">♛ COMMANDER</div>`;
+    }
+
     unitInfoContent.innerHTML = `
-        <div style="font-size: 1.1em; font-weight: bold; margin-bottom: 5px;">${(type || 'Unknown').toUpperCase()}</div>
+        <div style="font-size: 1.1em; font-weight: bold; margin-bottom: 5px;">${typeDisplay}</div>
+        ${statusEffect}
         ${costRow}
         <hr style="border: 0; border-top: 1px solid #eee; margin: 8px 0;">
         ${formatStat('Health', healthDisplay)}
@@ -665,6 +694,18 @@ function render() {
                 const centerY = y * CELL_SIZE + (CELL_SIZE / 2);
 
                 ctx.fillText(icon, centerX, centerY);
+
+                // Draw Commander Crown
+                if (entity.is_commander) {
+                    ctx.font = "14px Arial";
+                    ctx.fillText("👑", centerX, centerY - 14); // Position above unit
+                }
+
+                // Draw Fleeing Flag
+                if (entity.is_fleeing) {
+                    ctx.font = "14px Arial";
+                    ctx.fillText("🏳️", centerX + 12, centerY - 12);
+                }
 
                 drawFacingIndicator(ctx, x, y, entity.facing_direction, entity.remainingMovement > 0);
                 drawHealthBar(ctx, x, y, entity.current_health, entity.max_health);

@@ -68,6 +68,20 @@ io.on('connection', (socket) => {
 
 			if (player.gold < baseStats.cost) return;
 
+			// Check if this is the first unit for the player (Commander Logic)
+			let hasUnits = false;
+			for(let r=0; r<constants.GRID_SIZE; r++) {
+				for(let c=0; c<constants.GRID_SIZE; c++) {
+					if (gameState.grid[r][c] && gameState.grid[r][c].owner === socket.id) {
+						hasUnits = true;
+						break;
+					}
+				}
+				if(hasUnits) break;
+			}
+
+			const isCommander = !hasUnits;
+
 			player.gold -= baseStats.cost;
 
 			gameState.grid[y][x] = {
@@ -79,11 +93,19 @@ io.on('connection', (socket) => {
 				...baseStats,
 				current_health: baseStats.max_health,
 				current_morale: baseStats.initial_morale,
-				facing_direction: 0
+				facing_direction: 0,
+				is_commander: isCommander,
+				is_fleeing: false
 			};
 
 			// Log with Tags
-			io.emit('gameLog', { message: `{p:${player.name}} recruited a {u:${type}:${x}:${y}}.` });
+			let msg = `{p:${player.name}} recruited a {u:${type}:${x}:${y}}`;
+			if (isCommander) {
+				msg += " as their Commander!";
+			} else {
+				msg += ".";
+			}
+			io.emit('gameLog', { message: msg });
 			io.emit('update', gameState);
 		}
 	});
@@ -95,6 +117,11 @@ io.on('connection', (socket) => {
 		const targetCell = gameState.grid[to.y][to.x];
 
 		if (entity && entity.owner === socket.id && !targetCell) {
+			// Prevent controlling fleeing units
+			if (entity.is_fleeing) {
+				return;
+			}
+
 			const dist = getPathDistance(from, to, gameState.grid);
 
 			if (dist > 0 && entity.remainingMovement >= dist) {
@@ -118,6 +145,8 @@ io.on('connection', (socket) => {
 		if (socket.id !== gameState.turn) return;
 		const entity = gameState.grid[y][x];
 		if (entity && entity.owner === socket.id && entity.remainingMovement >= 1) {
+			if (entity.is_fleeing) return; // Cannot control fleeing units
+
 			entity.facing_direction = direction;
 			entity.remainingMovement -= 1;
 			io.emit('update', gameState);
@@ -129,6 +158,8 @@ io.on('connection', (socket) => {
 
 		const attacker = gameState.grid[attackerPos.y][attackerPos.x];
 		const target = gameState.grid[targetPos.y][targetPos.x];
+
+		if (attacker && attacker.is_fleeing) return; // Fleeing units cannot attack
 
 		const combatResults = {
 			events: [],
@@ -208,6 +239,7 @@ io.on('connection', (socket) => {
 		}
 
 		// 3. Retaliation Logic
+		// Note: Fleeing units CAN retaliate if attacked
 		if (!isRetaliation && defender.current_health > 0 && defender.is_melee_capable) {
 			const dist = Math.abs(attackerPos.x - defenderPos.x) + Math.abs(attackerPos.y - defenderPos.y);
 			if (dist === 1) {
@@ -313,6 +345,181 @@ io.on('connection', (socket) => {
 		return -1;
 	}
 
+	// --- MORALE & FLEEING LOGIC ---
+
+	function handleMoralePhase(playerId) {
+		// We need a list of units to process.
+		// We modify units in place, but if they move, coordinates change.
+		// Safer to gather all units first.
+		let unitsToProcess = [];
+		for (let y = 0; y < constants.GRID_SIZE; y++) {
+			for (let x = 0; x < constants.GRID_SIZE; x++) {
+				const entity = gameState.grid[y][x];
+				if (entity && entity.owner === playerId) {
+					unitsToProcess.push({ x, y, entity });
+				}
+			}
+		}
+
+		unitsToProcess.forEach(item => {
+			const { x, y, entity } = item;
+
+			// Re-verify unit exists at this location (in case previous unit moved into this one somehow, though unlikely in single pass)
+			if (gameState.grid[y][x] !== entity) return;
+
+			// 1. Check Morale Threshold
+			if (entity.current_morale < constants.MORALE_THRESHOLD) {
+				const fleeingProb = 1 - (entity.current_morale / constants.MORALE_THRESHOLD);
+				const roll = Math.random();
+
+				if (roll < fleeingProb) {
+					// Unit IS fleeing (either starts or continues)
+					const wasFleeing = entity.is_fleeing;
+					entity.is_fleeing = true;
+
+					if (wasFleeing) {
+						io.emit('gameLog', { message: `! {u:${entity.type}:${x}:${y}} is still in panic and flees!` });
+					} else {
+						io.emit('gameLog', { message: `! {u:${entity.type}:${x}:${y}} morale breaks! It starts fleeing!` });
+					}
+
+					handleFleeingMovement(entity, x, y);
+
+				} else {
+					// Unit passes check
+					if (entity.is_fleeing) {
+						entity.is_fleeing = false;
+						io.emit('gameLog', { message: `* {u:${entity.type}:${x}:${y}} has regained control.` });
+					}
+				}
+			} else {
+				// Morale is fine
+				if (entity.is_fleeing) {
+					entity.is_fleeing = false;
+					io.emit('gameLog', { message: `* {u:${entity.type}:${x}:${y}} has stopped fleeing.` });
+				}
+			}
+		});
+	}
+
+	function handleFleeingMovement(entity, startX, startY) {
+		// Unit cannot attack
+		entity.hasAttacked = true;
+		entity.remainingMovement = 0; // Will be set to 0 after move to prevent player control
+
+		// Find nearest border
+		// Borders are x=0, x=9, y=0, y=9
+		const targets = [];
+		// Top row
+		for(let i=0; i<constants.GRID_SIZE; i++) targets.push({x:i, y:0});
+		// Bottom row
+		for(let i=0; i<constants.GRID_SIZE; i++) targets.push({x:i, y:constants.GRID_SIZE-1});
+		// Left col
+		for(let i=0; i<constants.GRID_SIZE; i++) targets.push({x:0, y:i});
+		// Right col
+		for(let i=0; i<constants.GRID_SIZE; i++) targets.push({x:constants.GRID_SIZE-1, y:i});
+
+		// Find closest target by Manhattan distance that is reachable or at least close
+		let bestTarget = null;
+		let minDist = Infinity;
+
+		// Simple check for closest border point mathematically first
+		// Distance to Left (x), Right (9-x), Top (y), Bottom (9-y)
+		const dLeft = startX;
+		const dRight = (constants.GRID_SIZE - 1) - startX;
+		const dTop = startY;
+		const dBottom = (constants.GRID_SIZE - 1) - startY;
+
+		const absoluteMin = Math.min(dLeft, dRight, dTop, dBottom);
+
+		// Target coordinates for that minimum
+		let targetX = startX;
+		let targetY = startY;
+
+		if (dLeft === absoluteMin) targetX = 0;
+		else if (dRight === absoluteMin) targetX = constants.GRID_SIZE - 1;
+		else if (dTop === absoluteMin) targetY = 0;
+		else if (dBottom === absoluteMin) targetY = constants.GRID_SIZE - 1;
+
+		// Pathfinding to this target
+		// We use a simplified BFS to find the first step towards the border
+		// Because getPathDistance is for checking full paths, let's adapt a simple move logic.
+		// A fleeing unit moves 'speed' tiles.
+
+		let currentX = startX;
+		let currentY = startY;
+		let movesLeft = entity.speed;
+
+		// Safety break
+		let steps = 0;
+		while (movesLeft > 0 && steps < 20) {
+			steps++;
+
+			// If we are at border, POOF
+			if (currentX === 0 || currentX === constants.GRID_SIZE-1 ||
+				currentY === 0 || currentY === constants.GRID_SIZE-1) {
+				// Destroy unit
+				gameState.grid[startY][startX] = null; // Remove from old spot (or current spot if moved)
+				if (currentY !== startY || currentX !== startX) {
+					// Clean up intermediate if we implemented step-by-step update,
+					// but here we just update grid at the end.
+				}
+				io.emit('combatResults', {
+					events: [{ x: currentX, y: currentY, type: 'death', value: '💨' }],
+					logs: [`-- {u:${entity.type}:${startX}:${startY}} fled the battlefield!`]
+				});
+				// Ensure grid is clear at start pos if we haven't updated it yet
+				gameState.grid[startY][startX] = null;
+				return; // Done
+			}
+
+			// Determine direction to border
+			let dx = 0;
+			let dy = 0;
+
+			// Simple greedy approach towards closest border edge
+			if (dLeft === absoluteMin) dx = -1;
+			else if (dRight === absoluteMin) dx = 1;
+			else if (dTop === absoluteMin) dy = -1;
+			else if (dBottom === absoluteMin) dy = 1;
+
+			// Check if blocked
+			const nextX = currentX + dx;
+			const nextY = currentY + dy;
+
+			if (gameState.grid[nextY][nextX] === null) {
+				// Move there
+				currentX = nextX;
+				currentY = nextY;
+				movesLeft--;
+
+				// Update direction visual
+				if (dy !== 0) entity.facing_direction = dy > 0 ? 4 : 0;
+				else entity.facing_direction = dx > 0 ? 2 : 6;
+
+			} else {
+				// Blocked! Panic freeze or try random?
+				// For simplicity, if blocked, it stops moving this turn.
+				break;
+			}
+		}
+
+		// Apply movement
+		if (currentX !== startX || currentY !== startY) {
+			gameState.grid[currentY][currentX] = entity;
+			gameState.grid[startY][startX] = null;
+			// Check border condition again in case it landed ON border with last step
+			if (currentX === 0 || currentX === constants.GRID_SIZE-1 ||
+				currentY === 0 || currentY === constants.GRID_SIZE-1) {
+				gameState.grid[currentY][currentX] = null;
+				io.emit('combatResults', {
+					events: [{ x: currentX, y: currentY, type: 'death', value: '💨' }],
+					logs: [`-- {u:${entity.type}:${startX}:${startY}} fled the battlefield!`]
+				});
+			}
+		}
+	}
+
 	function endTurn() {
 		modifyUnitsForPlayer(gameState.turn, (u) => {
 			u.remainingMovement = 0;
@@ -331,6 +538,10 @@ io.on('connection', (socket) => {
 		});
 
 		io.emit('gameLog', { message: `Turn changed to {p:${nextPlayer.name}}.` });
+
+		// Start of Turn Morale Phase
+		handleMoralePhase(gameState.turn);
+
 		io.emit('update', gameState);
 	}
 
