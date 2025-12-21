@@ -78,7 +78,7 @@ io.on('connection', (socket) => {
 				hasAttacked: true,
 				...baseStats,
 				current_health: baseStats.max_health,
-				current_morale: baseStats.max_morale,
+				current_morale: baseStats.initial_morale,
 				facing_direction: 0
 			};
 

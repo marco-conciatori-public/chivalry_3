@@ -404,7 +404,7 @@ function updateUnitInfo(entity, isTemplate) {
         const attacksLeft = entity.hasAttacked ? 0 : 1;
         attacksRow = formatStat('Attacks', `${attacksLeft}/1`);
     }
-    const moraleDisplay = isTemplate ? entity.max_morale : `${entity.current_morale}/${entity.max_morale}`;
+    const moraleDisplay = isTemplate ? entity.initial_morale : `${entity.current_morale}/${entity.initial_morale}`;
     let bonusDisplay = (entity.bonus_vs && entity.bonus_vs.length > 0) ? entity.bonus_vs.join(', ') : 'None';
     let costRow = isTemplate ? formatStat('Cost', entity.cost || '-') : '';
     let extraRows = formatStat('Bonus against', bonusDisplay);
