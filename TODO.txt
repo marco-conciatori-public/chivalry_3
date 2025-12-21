@@ -1,4 +1,4 @@
-add terrain cells
+add terrain types
     implement terrain cells logic
 implement morale logic
 add commander unit
