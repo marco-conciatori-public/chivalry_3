@@ -102,7 +102,7 @@ io.on('connection', (socket) => {
 			};
 
 			// Log with Tags
-			let msg = `{p:${player.name}} recruited a {u:${type}:${x}:${y}}`;
+			let msg = `{p:${player.name}} recruited a {u:${type}:${x}:${y}:${player.id}}`;
 			if (isCommander) {
 				msg += " as their Commander!";
 			} else {
@@ -183,11 +183,8 @@ io.on('connection', (socket) => {
 			const dist = Math.abs(attackerPos.x - targetPos.x) + Math.abs(attackerPos.y - targetPos.y);
 
 			if (dist <= attacker.range) {
-				const attName = gameState.players[attacker.owner].name;
-				const defName = gameState.players[target.owner].name;
-
-				// Log with Tags
-				combatResults.logs.push(`[{p:${attName}}] {u:${attacker.type}:${attackerPos.x}:${attackerPos.y}} attacks [{p:${defName}}] {u:${target.type}:${targetPos.x}:${targetPos.y}}!`);
+				// Log with Tags - UPDATED: No [PlayerName] prefix, just colored units
+				combatResults.logs.push(`{u:${attacker.type}:${attackerPos.x}:${attackerPos.y}:${attacker.owner}} attacks {u:${target.type}:${targetPos.x}:${targetPos.y}:${target.owner}}!`);
 
 				// Perform the main attack
 				performCombat(attacker, attackerPos, target, targetPos, false, combatResults);
@@ -226,13 +223,13 @@ io.on('connection', (socket) => {
 			color: '#e74c3c'
 		});
 
-		combatResults.logs.push(` -> Dealt ${damage} damage to {u:${defender.type}:${defenderPos.x}:${defenderPos.y}}.`);
+		combatResults.logs.push(` -> Dealt ${damage} damage to {u:${defender.type}:${defenderPos.x}:${defenderPos.y}:${defender.owner}}.`);
 
 		const killed = applyDamage(defender, defenderPos, damage);
 
 		if (killed) {
 			combatResults.events.push({ x: defenderPos.x, y: defenderPos.y, type: 'death', value: '💀' });
-			combatResults.logs.push(`-- {u:${defender.type}:${defenderPos.x}:${defenderPos.y}} was destroyed!`);
+			combatResults.logs.push(`-- {u:${defender.type}:${defenderPos.x}:${defenderPos.y}:${defender.owner}} was destroyed!`);
 
 			// --- MORALE CHANGE: Unit Destroyed (Adjacent) ---
 			applyDeathMoraleEffects(defenderPos, defender.owner);
@@ -258,7 +255,7 @@ io.on('connection', (socket) => {
 
 						combatResults.events.push({ x: pos.x, y: pos.y, type: 'damage', value: splashDamage, color: '#e67e22' }); // Orange for splash
 
-						combatResults.logs.push(` -> Splash hit {u:${neighborUnit.type}:${pos.x}:${pos.y}} for ${splashDamage} damage.`);
+						combatResults.logs.push(` -> Splash hit {u:${neighborUnit.type}:${pos.x}:${pos.y}:${neighborUnit.owner}} for ${splashDamage} damage.`);
 
 						const splashKilled = applyDamage(neighborUnit, pos, splashDamage);
 						if (splashKilled) {
@@ -276,7 +273,7 @@ io.on('connection', (socket) => {
 		if (!isRetaliation && defender.current_health > 0 && defender.is_melee_capable) {
 			const dist = Math.abs(attackerPos.x - defenderPos.x) + Math.abs(attackerPos.y - defenderPos.y);
 			if (dist === 1) {
-				combatResults.logs.push(`-- {u:${defender.type}:${defenderPos.x}:${defenderPos.y}} retaliates!`);
+				combatResults.logs.push(`-- {u:${defender.type}:${defenderPos.x}:${defenderPos.y}:${defender.owner}} retaliates!`);
 				performCombat(defender, defenderPos, attacker, attackerPos, true, combatResults);
 			}
 		}
@@ -575,9 +572,9 @@ io.on('connection', (socket) => {
 					entity.is_fleeing = true;
 
 					if (wasFleeing) {
-						io.emit('gameLog', { message: `! {u:${entity.type}:${x}:${y}} is still in panic and flees!` });
+						io.emit('gameLog', { message: `! {u:${entity.type}:${x}:${y}:${entity.owner}} is still in panic and flees!` });
 					} else {
-						io.emit('gameLog', { message: `! {u:${entity.type}:${x}:${y}} morale breaks! It starts fleeing!` });
+						io.emit('gameLog', { message: `! {u:${entity.type}:${x}:${y}:${entity.owner}} morale breaks! It starts fleeing!` });
 					}
 
 					handleFleeingMovement(entity, x, y);
@@ -586,14 +583,14 @@ io.on('connection', (socket) => {
 					// Unit passes check
 					if (entity.is_fleeing) {
 						entity.is_fleeing = false;
-						io.emit('gameLog', { message: `* {u:${entity.type}:${x}:${y}} has regained control.` });
+						io.emit('gameLog', { message: `* {u:${entity.type}:${x}:${y}:${entity.owner}} has regained control.` });
 					}
 				}
 			} else {
 				// Morale is fine
 				if (entity.is_fleeing) {
 					entity.is_fleeing = false;
-					io.emit('gameLog', { message: `* {u:${entity.type}:${x}:${y}} has stopped fleeing.` });
+					io.emit('gameLog', { message: `* {u:${entity.type}:${x}:${y}:${entity.owner}} has stopped fleeing.` });
 				}
 			}
 		});
@@ -669,7 +666,7 @@ io.on('connection', (socket) => {
 
 				io.emit('combatResults', {
 					events: [{ x: finalPos.x, y: finalPos.y, type: 'death', value: '💨' }],
-					logs: [`-- {u:${entity.type}:${startX}:${startY}} fled the battlefield!`]
+					logs: [`-- {u:${entity.type}:${startX}:${startY}:${entity.owner}} fled the battlefield!`]
 				});
 				// Entity is gone (grid is null)
 			} else {
@@ -678,7 +675,7 @@ io.on('connection', (socket) => {
 			}
 		} else {
 			// No path to border found (Trapped)
-			io.emit('gameLog', { message: `! {u:${entity.type}:${startX}:${startY}} is trapped and panicking!` });
+			io.emit('gameLog', { message: `! {u:${entity.type}:${startX}:${startY}:${entity.owner}} is trapped and panicking!` });
 		}
 	}
 

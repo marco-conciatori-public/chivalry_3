@@ -14,8 +14,8 @@ const overlayLayer = document.getElementById('overlay-layer');
 const style = document.createElement('style');
 style.innerHTML = `
     .log-player { font-weight: bold; color: #333; }
-    .log-unit { font-weight: bold; color: #3498db; cursor: pointer; }
-    .log-unit:hover { text-decoration: underline; }
+    .log-unit { font-weight: bold; cursor: pointer; }
+    .log-unit:hover { text-decoration: underline; filter: brightness(0.8); }
 `;
 document.head.appendChild(style);
 
@@ -104,12 +104,15 @@ function addLogEntry(msg) {
     const div = document.createElement('div');
     div.className = 'log-entry';
 
-    // Parse tags: {p:Name} -> Bold, {u:Type:x:y} -> Bold Blue Link
-    // Note: We use regex replace to convert the custom format to HTML
+    // Parse tags: {p:Name} -> Bold
+    // {u:Type:x:y:ownerId} -> Bold Colored Link
 
     let formattedMsg = msg
         .replace(/{p:([^}]+)}/g, '<span class="log-player">$1</span>')
-        .replace(/{u:([^:]+):(\d+):(\d+)}/g, '<span class="log-unit" data-x="$2" data-y="$3">$1</span>');
+        .replace(/{u:([^:]+):(\d+):(\d+):([^}]+)}/g, (match, type, x, y, ownerId) => {
+            const color = localState.players[ownerId] ? localState.players[ownerId].color : '#3498db';
+            return `<span class="log-unit" style="color: ${color}" data-x="${x}" data-y="${y}">${type}</span>`;
+        });
 
     div.innerHTML = formattedMsg;
 
@@ -133,6 +136,10 @@ function selectUnitFromLog(x, y) {
     // Check bounds
     if (x < 0 || x >= GRID_SIZE || y < 0 || y >= GRID_SIZE) return;
 
+    // CHECK: Is there a unit there? If not (dead/fled), do nothing.
+    const entity = localState.grid[y][x];
+    if (!entity) return;
+
     resetSelection(); // Clear previous selection
 
     // Select the cell
@@ -140,7 +147,6 @@ function selectUnitFromLog(x, y) {
     interactionState = 'SELECTED';
 
     // Update info panel
-    const entity = localState.grid[y][x];
     updateUnitInfo(entity, false);
 
     // If it's my unit and my turn, calculate options
