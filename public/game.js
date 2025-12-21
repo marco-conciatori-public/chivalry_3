@@ -419,12 +419,49 @@ function updateLegend() {
 }
 
 function updateUIControls() {
-    if (!localState) return;
+    if (!localState || !myId) return;
+
     const isMyTurn = localState.turn === myId;
+    const myPlayer = localState.players[myId];
+
+    // 1. Handle End Turn Button
     endTurnBtn.disabled = !isMyTurn;
+
+    // 2. Handle Toolbar Interaction (Global)
     const toolbar = document.getElementById('toolbar');
     toolbar.style.opacity = isMyTurn ? '1' : '0.5';
+
+    // If it's not our turn, disable the whole toolbar.
+    // If it IS our turn, allow events so we can click specific valid units.
     toolbar.style.pointerEvents = isMyTurn ? 'auto' : 'none';
+
+    // 3. Handle Individual Unit Costs
+    document.querySelectorAll('.template').forEach(el => {
+        const type = el.dataset.type;
+        const stats = clientUnitStats[type];
+
+        // Safety check: ensure we have stats and player data
+        if (stats && myPlayer) {
+            // Check if gold is sufficient
+            if (myPlayer.gold < stats.cost) {
+                el.classList.add('disabled');
+            } else {
+                el.classList.remove('disabled');
+            }
+
+            // OPTIONAL: Update the button text to show cost (Quality of Life)
+            // If you want to keep it simple, you can remove this block.
+            const icon = type === 'knight' ? '⚔️' :
+                type === 'archer' ? '🏹' :
+                    type === 'wizard' ? '🧙' : '🏇';
+
+            // Capitalize first letter
+            const name = type.charAt(0).toUpperCase() + type.slice(1);
+
+            // Update text to include Cost
+            el.innerHTML = `${icon} ${name} <span style="font-size:0.8em; color:#666;">(${stats.cost}g)</span>`;
+        }
+    });
 }
 
 function render() {

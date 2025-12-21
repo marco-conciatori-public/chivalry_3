@@ -109,3 +109,13 @@ canvas {
 #end-turn-btn:disabled { background-color: #ccc; cursor: not-allowed; }
 
 h2 { margin-top: 0; }
+
+/* Disabled Template State */
+.template.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    filter: grayscale(100%);
+    pointer-events: none; /* Prevents clicking and hover effects */
+    background-color: #f0f0f0;
+    border-color: #ddd;
+}
