@@ -36,6 +36,7 @@ const icons = {
 let myId = null;
 let localState = null;
 let clientUnitStats = {}; // Store stats received from server
+let currentMoraleBreakdown = null; // Store for tooltip
 
 // STATE MANAGEMENT
 let selectedCell = null; // {x, y}
@@ -402,11 +403,55 @@ function hideContextMenu() {
     contextMenu.style.display = 'none';
 }
 
+// Tooltip Logic
+const tooltipEl = document.createElement('div');
+tooltipEl.id = 'morale-tooltip';
+tooltipEl.style.display = 'none';
+document.body.appendChild(tooltipEl);
+
+function showMoraleTooltip(e, breakdown) {
+    if (!breakdown || breakdown.length === 0) return;
+
+    let html = '';
+    breakdown.forEach(item => {
+        const colorClass = item.value >= 0 ? 'positive' : 'negative';
+        const sign = item.value >= 0 ? '+' : '';
+        html += `
+            <div class="tooltip-row">
+                <span>${item.label}</span>
+                <span class="tooltip-val ${colorClass}">${sign}${item.value}</span>
+            </div>
+        `;
+    });
+
+    tooltipEl.innerHTML = html;
+    tooltipEl.style.display = 'block';
+    moveTooltip(e);
+}
+
+function moveTooltip(e) {
+    tooltipEl.style.left = `${e.pageX + 15}px`;
+    tooltipEl.style.top = `${e.pageY + 15}px`;
+}
+
+function hideMoraleTooltip() {
+    tooltipEl.style.display = 'none';
+}
+
 function updateUnitInfo(entity, isTemplate) {
+    // Reset tooltip data
+    currentMoraleBreakdown = null;
+
     if (!entity) {
         unitInfoContent.innerHTML = '<em>Click a unit to see details</em>';
         return;
     }
+
+    // Capture breakdown if it exists
+    if (!isTemplate && entity.morale_breakdown) {
+        currentMoraleBreakdown = entity.morale_breakdown;
+    }
+
     const formatStat = (label, value) => `<div class="stat-row"><span>${label}:</span> <strong>${value}</strong></div>`;
 
     // Type + Commander Status
@@ -425,6 +470,17 @@ function updateUnitInfo(entity, isTemplate) {
     }
 
     const moraleDisplay = isTemplate ? entity.initial_morale : `${entity.current_morale}/${entity.initial_morale}`;
+
+    // Custom label for Morale to enable Tooltip
+    let moraleRow = '';
+    if (!isTemplate) {
+        moraleRow = `<div class="stat-row">
+            <span id="morale-stat-label" class="interactive-label">Morale:</span> 
+            <strong>${moraleDisplay}</strong>
+        </div>`;
+    } else {
+        moraleRow = formatStat('Morale', moraleDisplay);
+    }
 
     let bonusDisplay = (entity.bonus_vs && entity.bonus_vs.length > 0) ? entity.bonus_vs.join(', ') : 'None';
     let costRow = isTemplate ? formatStat('Cost', entity.cost || '-') : '';
@@ -445,13 +501,23 @@ function updateUnitInfo(entity, isTemplate) {
         ${formatStat('Health', healthDisplay)}
         ${formatStat('Moves', movesDisplay)}
         ${attacksRow}
-        ${formatStat('Morale', moraleDisplay)}
+        ${moraleRow}
         <hr style="border: 0; border-top: 1px solid #eee; margin: 8px 0;">
         ${formatStat('Attack', entity.attack)}
         ${formatStat('Defense', entity.defence)}
         ${formatStat('Range', entity.range)}
         ${extraRows}
     `;
+
+    // Attach listener if not template
+    if (!isTemplate) {
+        const el = document.getElementById('morale-stat-label');
+        if (el) {
+            el.addEventListener('mouseenter', (e) => showMoraleTooltip(e, currentMoraleBreakdown));
+            el.addEventListener('mousemove', moveTooltip);
+            el.addEventListener('mouseleave', hideMoraleTooltip);
+        }
+    }
 }
 
 function getReachableCells(start, maxDist, grid) {

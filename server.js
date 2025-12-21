@@ -97,7 +97,8 @@ io.on('connection', (socket) => {
 				current_morale: baseStats.initial_morale,
 				facing_direction: 0,
 				is_commander: isCommander,
-				is_fleeing: false
+				is_fleeing: false,
+				morale_breakdown: [] // Will be populated by updateAllUnitsMorale
 			};
 
 			// Log with Tags
@@ -416,11 +417,21 @@ io.on('connection', (socket) => {
 	}
 
 	function calculateCurrentMorale(unit, x, y) {
+		// Breakdown Array for Client Tooltip
+		let breakdown = [];
+
 		// 1. Start with Persistent Morale (Initial - Damage + Kills/Witness)
-		// Ensure raw morale doesn't exceed 100 before modifiers (optional design choice, sticking to max_morale for final)
 		if (unit.raw_morale > constants.MAX_MORALE) unit.raw_morale = constants.MAX_MORALE;
 
 		let morale = unit.raw_morale;
+
+		breakdown.push({ label: "Base Stats", value: unit.initial_morale });
+
+		// Show diff between Raw and Initial as "Battle Events"
+		const eventDiff = unit.raw_morale - unit.initial_morale;
+		if (eventDiff !== 0) {
+			breakdown.push({ label: "Battle Events", value: eventDiff });
+		}
 
 		// 2. Position Modifiers
 		let adjacentAllies = 0;
@@ -457,31 +468,39 @@ io.on('connection', (socket) => {
 			}
 		});
 
-		// +10 per adjacent ally
-		morale += (adjacentAllies * 10);
-
-		// -10 per adjacent enemy BEYOND FIRST
-		if (adjacentEnemies > 1) {
-			morale -= ((adjacentEnemies - 1) * 10);
+		if (adjacentAllies > 0) {
+			const val = adjacentAllies * 10;
+			morale += val;
+			breakdown.push({ label: "Adj. Allies", value: val });
 		}
 
-		// -10 per flanking enemy
-		morale -= (flankingEnemies * 10);
+		if (adjacentEnemies > 1) {
+			const val = -((adjacentEnemies - 1) * 10);
+			morale += val;
+			breakdown.push({ label: "Swarmed", value: val });
+		}
 
-		// -20 per rear enemy
-		morale -= (rearEnemies * 20);
+		if (flankingEnemies > 0) {
+			const val = -(flankingEnemies * 10);
+			morale += val;
+			breakdown.push({ label: "Flanked", value: val });
+		}
+
+		if (rearEnemies > 0) {
+			const val = -(rearEnemies * 20);
+			morale += val;
+			breakdown.push({ label: "Rear Att.", value: val });
+		}
 
 		// Commander Bonuses
 		if (unit.is_commander) {
 			morale += 20;
+			breakdown.push({ label: "Commander", value: 20 });
 		}
 
 		// Allied Commander nearby?
-		// Check if there is a commander of same owner within range
-		// Don't count self
 		if (!unit.is_commander) {
 			let commanderNearby = false;
-			// Iterate grid to find commander - not efficient but grid is small (10x10)
 			for(let cy=0; cy<constants.GRID_SIZE; cy++) {
 				for(let cx=0; cx<constants.GRID_SIZE; cx++) {
 					const cUnit = gameState.grid[cy][cx];
@@ -493,13 +512,17 @@ io.on('connection', (socket) => {
 					}
 				}
 			}
-			if (commanderNearby) morale += 10;
+			if (commanderNearby) {
+				morale += 10;
+				breakdown.push({ label: "Cmdr Aura", value: 10 });
+			}
 		}
 
 		// Cap at MAX_MORALE
 		if (morale > constants.MAX_MORALE) morale = constants.MAX_MORALE;
 
 		unit.current_morale = morale;
+		unit.morale_breakdown = breakdown;
 	}
 
 	function getRelativePosition(facing, dx, dy) {
