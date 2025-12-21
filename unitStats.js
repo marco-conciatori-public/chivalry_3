@@ -13,7 +13,7 @@ const unitStats = {
         is_melee_capable: true,
         range: 1,
         max_health: 100,
-        cost: 100 // New Stat
+        cost: 100
     },
     archer: {
         attack: 45,
@@ -28,7 +28,7 @@ const unitStats = {
         is_melee_capable: false,
         range: 3,
         max_health: 50,
-        cost: 80 // New Stat
+        cost: 80
     },
     wizard: {
         attack: 85,
@@ -43,7 +43,7 @@ const unitStats = {
         is_melee_capable: false,
         range: 2,
         max_health: 40,
-        cost: 120 // New Stat
+        cost: 120
     },
     scout: {
         attack: 30,
@@ -58,8 +58,13 @@ const unitStats = {
         is_melee_capable: true,
         range: 1,
         max_health: 60,
-        cost: 60 // New Stat
+        cost: 60
     }
 };
 
-module.exports = unitStats;
+const GAME_CONSTANTS = {
+    BONUS_DAMAGE: 20,
+    BONUS_SHIELD: 20
+};
+
+module.exports = { unitStats, GAME_CONSTANTS };

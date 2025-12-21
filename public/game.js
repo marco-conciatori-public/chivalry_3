@@ -334,9 +334,11 @@ function updateUnitInfo(entity, isTemplate) {
     const moraleDisplay = isTemplate ? entity.max_morale : `${entity.current_morale}/${entity.max_morale}`;
 
     // Bonus Vs
-    let bonusDisplay = 'None';
+    let bonusDisplay = '';
     if (entity.bonus_vs && entity.bonus_vs.length > 0) {
         bonusDisplay = entity.bonus_vs.join(', ');
+    } else {
+        bonusDisplay = 'None';
     }
 
     // Cost (Display logic: Only for templates, and placed below name)
