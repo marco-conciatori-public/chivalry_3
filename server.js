@@ -607,116 +607,78 @@ io.on('connection', (socket) => {
 		entity.hasAttacked = true;
 		entity.remainingMovement = 0; // Will be set to 0 after move to prevent player control
 
-		// Find nearest border
-		// Borders are x=0, x=9, y=0, y=9
-		const targets = [];
-		// Top row
-		for(let i=0; i<constants.GRID_SIZE; i++) targets.push({x:i, y:0});
-		// Bottom row
-		for(let i=0; i<constants.GRID_SIZE; i++) targets.push({x:i, y:constants.GRID_SIZE-1});
-		// Left col
-		for(let i=0; i<constants.GRID_SIZE; i++) targets.push({x:0, y:i});
-		// Right col
-		for(let i=0; i<constants.GRID_SIZE; i++) targets.push({x:constants.GRID_SIZE-1, y:i});
+		// BFS to find shortest path to ANY border cell
+		let queue = [{ x: startX, y: startY, path: [] }];
+		let visited = new Set();
+		visited.add(`${startX},${startY}`);
 
-		// Find closest target by Manhattan distance that is reachable or at least close
-		let bestTarget = null;
-		let minDist = Infinity;
+		let foundPath = null;
 
-		// Simple check for closest border point mathematically first
-		// Distance to Left (x), Right (9-x), Top (y), Bottom (9-y)
-		const dLeft = startX;
-		const dRight = (constants.GRID_SIZE - 1) - startX;
-		const dTop = startY;
-		const dBottom = (constants.GRID_SIZE - 1) - startY;
+		while (queue.length > 0) {
+			const { x, y, path } = queue.shift();
 
-		const absoluteMin = Math.min(dLeft, dRight, dTop, dBottom);
-
-		// Target coordinates for that minimum
-		let targetX = startX;
-		let targetY = startY;
-
-		if (dLeft === absoluteMin) targetX = 0;
-		else if (dRight === absoluteMin) targetX = constants.GRID_SIZE - 1;
-		else if (dTop === absoluteMin) targetY = 0;
-		else if (dBottom === absoluteMin) targetY = constants.GRID_SIZE - 1;
-
-		// Pathfinding to this target
-		// We use a simplified BFS to find the first step towards the border
-		// Because getPathDistance is for checking full paths, let's adapt a simple move logic.
-		// A fleeing unit moves 'speed' tiles.
-
-		let currentX = startX;
-		let currentY = startY;
-		let movesLeft = entity.speed;
-
-		// Safety break
-		let steps = 0;
-		while (movesLeft > 0 && steps < 20) {
-			steps++;
-
-			// If we are at border, POOF
-			if (currentX === 0 || currentX === constants.GRID_SIZE-1 ||
-				currentY === 0 || currentY === constants.GRID_SIZE-1) {
-				// Destroy unit
-				gameState.grid[startY][startX] = null; // Remove from old spot (or current spot if moved)
-				if (currentY !== startY || currentX !== startX) {
-					// Clean up intermediate if we implemented step-by-step update,
-					// but here we just update grid at the end.
-				}
-				io.emit('combatResults', {
-					events: [{ x: currentX, y: currentY, type: 'death', value: '💨' }],
-					logs: [`-- {u:${entity.type}:${startX}:${startY}} fled the battlefield!`]
-				});
-				// Ensure grid is clear at start pos if we haven't updated it yet
-				gameState.grid[startY][startX] = null;
-				return; // Done
+			// Check if we reached a border
+			if (x === 0 || x === constants.GRID_SIZE - 1 || y === 0 || y === constants.GRID_SIZE - 1) {
+				foundPath = path;
+				break;
 			}
 
-			// Determine direction to border
-			let dx = 0;
-			let dy = 0;
+			const dirs = [[0, 1], [0, -1], [1, 0], [-1, 0]];
+			for (const [dx, dy] of dirs) {
+				const nx = x + dx;
+				const ny = y + dy;
 
-			// Simple greedy approach towards closest border edge
-			if (dLeft === absoluteMin) dx = -1;
-			else if (dRight === absoluteMin) dx = 1;
-			else if (dTop === absoluteMin) dy = -1;
-			else if (dBottom === absoluteMin) dy = 1;
-
-			// Check if blocked
-			const nextX = currentX + dx;
-			const nextY = currentY + dy;
-
-			if (gameState.grid[nextY][nextX] === null) {
-				// Move there
-				currentX = nextX;
-				currentY = nextY;
-				movesLeft--;
-
-				// Update direction visual
-				if (dy !== 0) entity.facing_direction = dy > 0 ? 4 : 0;
-				else entity.facing_direction = dx > 0 ? 2 : 6;
-
-			} else {
-				// Blocked! Panic freeze or try random?
-				// For simplicity, if blocked, it stops moving this turn.
-				break;
+				if (nx >= 0 && nx < constants.GRID_SIZE && ny >= 0 && ny < constants.GRID_SIZE) {
+					const key = `${nx},${ny}`;
+					// Can only move into empty cells
+					if (!visited.has(key) && !gameState.grid[ny][nx]) {
+						visited.add(key);
+						queue.push({ x: nx, y: ny, path: [...path, { x: nx, y: ny }] });
+					}
+				}
 			}
 		}
 
-		// Apply movement
-		if (currentX !== startX || currentY !== startY) {
-			gameState.grid[currentY][currentX] = entity;
+		if (foundPath) {
+			// Determine how far we can move along this path
+			const stepsToTake = Math.min(foundPath.length, entity.speed);
+			let finalPos = { x: startX, y: startY };
+
+			for (let i = 0; i < stepsToTake; i++) {
+				const nextStep = foundPath[i];
+
+				// Update facing based on move direction
+				const dx = nextStep.x - finalPos.x;
+				const dy = nextStep.y - finalPos.y;
+
+				if (dy > 0) entity.facing_direction = 4;
+				else if (dy < 0) entity.facing_direction = 0;
+				else if (dx > 0) entity.facing_direction = 2;
+				else if (dx < 0) entity.facing_direction = 6;
+
+				finalPos = nextStep;
+			}
+
+			// Remove from old position
 			gameState.grid[startY][startX] = null;
-			// Check border condition again in case it landed ON border with last step
-			if (currentX === 0 || currentX === constants.GRID_SIZE-1 ||
-				currentY === 0 || currentY === constants.GRID_SIZE-1) {
-				gameState.grid[currentY][currentX] = null;
+
+			// Check if the final position is a border (Escaped)
+			// Note: If we started at border, foundPath is empty, finalPos is startPos -> Escaped.
+			if (finalPos.x === 0 || finalPos.x === constants.GRID_SIZE - 1 ||
+				finalPos.y === 0 || finalPos.y === constants.GRID_SIZE - 1) {
+
 				io.emit('combatResults', {
-					events: [{ x: currentX, y: currentY, type: 'death', value: '💨' }],
+					events: [{ x: finalPos.x, y: finalPos.y, type: 'death', value: '💨' }],
 					logs: [`-- {u:${entity.type}:${startX}:${startY}} fled the battlefield!`]
 				});
+				// Entity is gone (grid is null)
+			} else {
+				// Move to new position
+				gameState.grid[finalPos.y][finalPos.x] = entity;
 			}
+		} else {
+			// No path to border found (Trapped)
+			io.emit('gameLog', { message: `! {u:${entity.type}:${startX}:${startY}} is trapped and panicking!` });
 		}
 	}
 
