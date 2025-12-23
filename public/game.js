@@ -42,7 +42,6 @@ let currentMoraleBreakdown = null; // Store for tooltip
 let selectedCell = null; // {x, y}
 let selectedTemplate = null;
 
-// Interaction Modes: 'NONE', 'SELECTED', 'MENU', 'ATTACK_TARGETING', 'ROTATING'
 let interactionState = 'NONE';
 let validMoves = []; // Array of {x,y}
 let validAttackTargets = []; // Array of {x,y}
@@ -53,7 +52,7 @@ let cellsInAttackRange = []; // Array of {x,y}
 socket.on('init', (data) => {
     myId = data.myId;
     localState = data.state;
-    clientUnitStats = data.unitStats; // Save stats for templates
+    clientUnitStats = data.unitStats; 
     connectionStatus.innerText = `Connected as ID: ${myId.substr(0,4)}...`;
     resetSelection();
     render();
@@ -83,12 +82,9 @@ socket.on('gameLog', (data) => {
 });
 
 socket.on('combatResults', (data) => {
-    // 1. Process Logs
     if (data.logs) {
         data.logs.forEach(msg => addLogEntry(msg));
     }
-
-    // 2. Process Visual Events (Floating Text)
     if (data.events) {
         data.events.forEach(ev => {
             if (ev.type === 'damage' || ev.type === 'death') {
@@ -104,9 +100,6 @@ function addLogEntry(msg) {
     const div = document.createElement('div');
     div.className = 'log-entry';
 
-    // Parse tags: {p:Name} -> Bold
-    // {u:Type:x:y:ownerId} -> Bold Colored Link
-
     let formattedMsg = msg
         .replace(/{p:([^}]+)}/g, '<span class="log-player">$1</span>')
         .replace(/{u:([^:]+):(\d+):(\d+):([^}]+)}/g, (match, type, x, y, ownerId) => {
@@ -116,7 +109,6 @@ function addLogEntry(msg) {
 
     div.innerHTML = formattedMsg;
 
-    // Add Click Listeners for units
     div.querySelectorAll('.log-unit').forEach(span => {
         span.onclick = () => {
             const x = parseInt(span.dataset.x);
@@ -126,34 +118,24 @@ function addLogEntry(msg) {
     });
 
     logContent.appendChild(div);
-    // Scroll to bottom
     logContent.scrollTop = logContent.scrollHeight;
 }
 
 function selectUnitFromLog(x, y) {
     if (!localState) return;
-
-    // Check bounds
     if (x < 0 || x >= GRID_SIZE || y < 0 || y >= GRID_SIZE) return;
-
-    // CHECK: Is there a unit there? If not (dead/fled), do nothing.
     const entity = localState.grid[y][x];
     if (!entity) return;
 
-    resetSelection(); // Clear previous selection
-
-    // Select the cell
+    resetSelection(); 
     selectedCell = { x, y };
     interactionState = 'SELECTED';
 
-    // Update info panel
     updateUnitInfo(entity, false);
 
-    // If it's my unit and my turn, calculate options
     if (entity && entity.owner === myId && localState.turn === myId) {
         recalculateOptions(entity);
     }
-
     render();
 }
 
@@ -163,17 +145,13 @@ function showFloatingText(gridX, gridY, text, color) {
     el.innerText = text;
     el.style.color = color;
 
-    // Position carefully.
     const jitterX = (Math.random() * 20) - 10;
     const jitterY = (Math.random() * 20) - 10;
-
     const left = (gridX * CELL_SIZE) + (CELL_SIZE / 2) + jitterX;
     const top = (gridY * CELL_SIZE) + (CELL_SIZE / 2) + jitterY;
 
-    // Canvas is relative to game-area
     const canvasRect = canvas.getBoundingClientRect();
     const gameAreaRect = document.getElementById('game-area').getBoundingClientRect();
-
     const offsetLeft = canvasRect.left - gameAreaRect.left;
     const offsetTop = canvasRect.top - gameAreaRect.top;
 
@@ -181,10 +159,7 @@ function showFloatingText(gridX, gridY, text, color) {
     el.style.top = `${offsetTop + top}px`;
 
     document.getElementById('game-area').appendChild(el);
-
-    setTimeout(() => {
-        el.remove();
-    }, 1500);
+    setTimeout(() => { el.remove(); }, 1500);
 }
 
 // --- INPUT HANDLERS ---
@@ -201,7 +176,6 @@ endTurnBtn.addEventListener('click', () => {
     resetSelection();
 });
 
-// Menu Button Handlers
 btnAttack.addEventListener('click', () => {
     interactionState = 'ATTACK_TARGETING';
     hideContextMenu();
@@ -219,11 +193,10 @@ btnDeselect.addEventListener('click', () => {
     render();
 });
 
-// Template (Spawn Button) Selection
 document.querySelectorAll('.template').forEach(el => {
     el.addEventListener('click', () => {
         if (localState.turn !== myId) return;
-        if (el.classList.contains('disabled')) return; // Prevent clicking disabled
+        if (el.classList.contains('disabled')) return; 
 
         resetSelection();
 
@@ -233,7 +206,6 @@ document.querySelectorAll('.template').forEach(el => {
         if (clientUnitStats[selectedTemplate]) {
             updateUnitInfo(clientUnitStats[selectedTemplate], true);
         }
-
         render();
     });
 });
@@ -248,7 +220,6 @@ canvas.addEventListener('click', (e) => {
         render();
         return;
     }
-
     if (!localState) return;
 
     const clickedEntity = localState.grid[y][x];
@@ -297,9 +268,7 @@ canvas.addEventListener('click', (e) => {
 
     if (clickedEntity && selectedCell && selectedCell.x === x && selectedCell.y === y) {
         if (clickedEntity.owner === myId && localState.turn === myId) {
-            // Cannot control fleeing units
             if (clickedEntity.is_fleeing) return;
-
             showContextMenu(e.clientX, e.clientY, clickedEntity);
             interactionState = 'MENU';
         }
@@ -338,7 +307,6 @@ canvas.addEventListener('click', (e) => {
     else {
         resetSelection();
     }
-
     render();
 });
 
@@ -364,7 +332,9 @@ function recalculateOptions(entity) {
         return;
     }
 
-    validMoves = getReachableCells(selectedCell, entity.remainingMovement, localState.grid);
+    // UPDATE: Use weighted pathfinding logic (Client-Side implementation for UI)
+    validMoves = getReachableCells(selectedCell, entity.remainingMovement, localState.grid, localState.terrainMap);
+    
     validAttackTargets = [];
     cellsInAttackRange = [];
     if (!entity.hasAttacked) {
@@ -372,7 +342,14 @@ function recalculateOptions(entity) {
         for (let y = 0; y < GRID_SIZE; y++) {
             for (let x = 0; x < GRID_SIZE; x++) {
                 const dist = Math.abs(selectedCell.x - x) + Math.abs(selectedCell.y - y);
-                if (dist <= range && dist > 0) {
+                
+                // UPDATE: Check LoS for Ranged
+                let hasLoS = true;
+                if (entity.is_ranged) {
+                    hasLoS = clientHasLineOfSight(selectedCell, {x, y});
+                }
+
+                if (dist <= range && dist > 0 && hasLoS) {
                     cellsInAttackRange.push({x, y});
                     const targetEntity = localState.grid[y][x];
                     if (targetEntity && targetEntity.owner !== myId) {
@@ -382,6 +359,26 @@ function recalculateOptions(entity) {
             }
         }
     }
+}
+
+// CLIENT SIDE LoS Logic (Matches Server)
+function clientHasLineOfSight(start, end) {
+    let x0 = start.x, y0 = start.y;
+    let x1 = end.x, y1 = end.y;
+    let dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0);
+    let sx = (x0 < x1) ? 1 : -1, sy = (y0 < y1) ? 1 : -1;
+    let err = dx - dy;
+
+    while (true) {
+        if ((x0 !== start.x || y0 !== start.y) && (x0 !== end.x || y0 !== end.y)) {
+             if (localState.terrainMap[y0][x0].blocksLos) return false;
+        }
+        if (x0 === x1 && y0 === y1) break;
+        let e2 = 2 * err;
+        if (e2 > -dy) { err -= dy; x0 += sx; }
+        if (e2 < dx) { err += dx; y0 += sy; }
+    }
+    return true;
 }
 
 function showContextMenu(clientX, clientY, entity) {
@@ -401,7 +398,6 @@ function showContextMenu(clientX, clientY, entity) {
         contextMenu.style.left = `${clientX - gameAreaRect.left}px`;
         contextMenu.style.top = `${clientY - gameAreaRect.top}px`;
     }
-
     contextMenu.style.display = 'flex';
 }
 
@@ -417,19 +413,12 @@ document.body.appendChild(tooltipEl);
 
 function showMoraleTooltip(e, breakdown) {
     if (!breakdown || breakdown.length === 0) return;
-
     let html = '';
     breakdown.forEach(item => {
         const colorClass = item.value >= 0 ? 'positive' : 'negative';
         const sign = item.value >= 0 ? '+' : '';
-        html += `
-            <div class="tooltip-row">
-                <span>${item.label}</span>
-                <span class="tooltip-val ${colorClass}">${sign}${item.value}</span>
-            </div>
-        `;
+        html += `<div class="tooltip-row"><span>${item.label}</span><span class="tooltip-val ${colorClass}">${sign}${item.value}</span></div>`;
     });
-
     tooltipEl.innerHTML = html;
     tooltipEl.style.display = 'block';
     moveTooltip(e);
@@ -445,30 +434,23 @@ function hideMoraleTooltip() {
 }
 
 function updateUnitInfo(entity, isTemplate) {
-    // Reset tooltip data
     currentMoraleBreakdown = null;
-
     if (!entity) {
         unitInfoContent.innerHTML = '<em>Click a unit to see details</em>';
         return;
     }
-
-    // Capture breakdown if it exists
     if (!isTemplate && entity.morale_breakdown) {
         currentMoraleBreakdown = entity.morale_breakdown;
     }
 
     const formatStat = (label, value) => `<div class="stat-row"><span>${label}:</span> <strong>${value}</strong></div>`;
-
-    // Type + Commander Status
+    
     let typeDisplay = (isTemplate ? selectedTemplate : entity.type).toUpperCase();
-    if (!isTemplate && entity.is_commander) {
-        typeDisplay += ' 👑';
-    }
+    if (!isTemplate && entity.is_commander) typeDisplay += ' 👑';
 
     const healthDisplay = isTemplate ? entity.max_health : `${entity.current_health}/${entity.max_health}`;
     const movesDisplay = isTemplate ? entity.speed : `${entity.remainingMovement}/${entity.speed}`;
-
+    
     let attacksRow = '';
     if (!isTemplate) {
         const attacksLeft = entity.hasAttacked ? 0 : 1;
@@ -476,27 +458,29 @@ function updateUnitInfo(entity, isTemplate) {
     }
 
     const moraleDisplay = isTemplate ? entity.initial_morale : `${entity.current_morale}/${entity.initial_morale}`;
-
-    // Custom label for Morale to enable Tooltip
+    
     let moraleRow = '';
     if (!isTemplate) {
-        moraleRow = `<div class="stat-row">
-            <span id="morale-stat-label" class="interactive-label">Morale:</span> 
-            <strong>${moraleDisplay}</strong>
-        </div>`;
+        moraleRow = `<div class="stat-row"><span id="morale-stat-label" class="interactive-label">Morale:</span> <strong>${moraleDisplay}</strong></div>`;
     } else {
         moraleRow = formatStat('Morale', moraleDisplay);
     }
-
+    
     let bonusDisplay = (entity.bonus_vs && entity.bonus_vs.length > 0) ? entity.bonus_vs.join(', ') : 'None';
     let costRow = isTemplate ? formatStat('Cost', entity.cost || '-') : '';
     let extraRows = formatStat('Bonus against', bonusDisplay);
 
     let statusEffect = '';
-    if (!isTemplate && entity.is_fleeing) {
-        statusEffect = `<div style="color:red; font-weight:bold; margin:5px 0;">⚠ FLEEING</div>`;
-    } else if (!isTemplate && entity.is_commander) {
-        statusEffect = `<div style="color:gold; font-weight:bold; margin:5px 0;">♛ COMMANDER</div>`;
+    if (!isTemplate && entity.is_fleeing) statusEffect = `<div style="color:red; font-weight:bold; margin:5px 0;">⚠ FLEEING</div>`;
+    else if (!isTemplate && entity.is_commander) statusEffect = `<div style="color:gold; font-weight:bold; margin:5px 0;">♛ COMMANDER</div>`;
+
+    // ADD TERRAIN INFO if selected
+    let terrainInfo = '';
+    if (!isTemplate && selectedCell && localState && localState.terrainMap) {
+        const t = localState.terrainMap[selectedCell.y][selectedCell.x];
+        if (t.id !== 'plains') {
+            terrainInfo = `<hr style="margin:5px 0;"><div style="font-size:0.9em;">Terrain: ${t.symbol} <b>${t.id.toUpperCase()}</b><br>Def: +${t.defense}, Cost: ${t.cost}</div>`;
+        }
     }
 
     unitInfoContent.innerHTML = `
@@ -513,9 +497,9 @@ function updateUnitInfo(entity, isTemplate) {
         ${formatStat('Defense', entity.defence)}
         ${formatStat('Range', entity.range)}
         ${extraRows}
+        ${terrainInfo}
     `;
 
-    // Attach listener if not template
     if (!isTemplate) {
         const el = document.getElementById('morale-stat-label');
         if (el) {
@@ -526,31 +510,49 @@ function updateUnitInfo(entity, isTemplate) {
     }
 }
 
-function getReachableCells(start, maxDist, grid) {
+// CLIENT SIDE DIJKSTRA
+function getReachableCells(start, maxDist, grid, terrainMap) {
     if (maxDist <= 0) return [];
-    let cells = [];
-    let queue = [{x: start.x, y: start.y, dist: 0}];
-    let visited = new Set();
-    visited.add(`${start.x},${start.y}`);
+    
+    let costs = {};
+    let queue = [{x: start.x, y: start.y, cost: 0}];
+    costs[`${start.x},${start.y}`] = 0;
+    let reachable = [];
 
-    while (queue.length > 0) {
-        const {x, y, dist} = queue.shift();
-        if (x !== start.x || y !== start.y) cells.push({x, y});
-        if (dist >= maxDist) continue;
+    while(queue.length > 0) {
+        queue.sort((a,b) => a.cost - b.cost);
+        let current = queue.shift();
 
-        [[0, 1], [0, -1], [1, 0], [-1, 0]].forEach(([dx, dy]) => {
-            const nx = x + dx;
-            const ny = y + dy;
+        // Add to result if it's not start
+        if (current.x !== start.x || current.y !== start.y) {
+            // Check if already in list to avoid duplicates
+            if (!reachable.some(r => r.x === current.x && r.y === current.y)) {
+                reachable.push({x: current.x, y: current.y});
+            }
+        }
+
+        const dirs = [[0, 1], [0, -1], [1, 0], [-1, 0]];
+        for (const [dx, dy] of dirs) {
+            const nx = current.x + dx;
+            const ny = current.y + dy;
+
             if (nx >= 0 && nx < GRID_SIZE && ny >= 0 && ny < GRID_SIZE) {
                 const key = `${nx},${ny}`;
-                if (!visited.has(key) && !grid[ny][nx]) {
-                    visited.add(key);
-                    queue.push({x: nx, y: ny, dist: dist + 1});
+                const t = terrainMap[ny][nx];
+                if (t.cost > 10) continue; // Impassable
+                if (grid[ny][nx]) continue; // Occupied
+
+                const newCost = current.cost + t.cost;
+                if (newCost <= maxDist) {
+                    if (costs[key] === undefined || newCost < costs[key]) {
+                        costs[key] = newCost;
+                        queue.push({x: nx, y: ny, cost: newCost});
+                    }
                 }
             }
-        });
+        }
     }
-    return cells;
+    return reachable;
 }
 
 function updateLegend() {
@@ -567,24 +569,17 @@ function updateLegend() {
             li.style.fontWeight = 'bold';
         }
         const goldDisplay = p.gold !== undefined ? ` (${p.gold}g)` : '';
-
-        // Color Box
         const colorBox = document.createElement('div');
         colorBox.className = 'player-color-box';
         colorBox.style.backgroundColor = p.color;
-
-        // Name Span (Editable if 'You')
         const nameSpan = document.createElement('span');
         nameSpan.innerText = `${p.name}${isMe ? " (You)" : ""}${goldDisplay}`;
 
         if (isMe) {
             nameSpan.style.cursor = 'pointer';
             nameSpan.title = 'Double-click to rename';
-
-            // Edit Name Handler
             nameSpan.ondblclick = (e) => {
-                e.stopPropagation(); // prevent other clicks
-
+                e.stopPropagation(); 
                 const input = document.createElement('input');
                 input.type = 'text';
                 input.value = p.name;
@@ -592,73 +587,46 @@ function updateLegend() {
                 input.style.padding = '2px';
                 input.style.border = '1px solid #aaa';
                 input.style.borderRadius = '3px';
-
                 const save = () => {
                     const newName = input.value.trim();
-                    if (newName && newName !== p.name) {
-                        socket.emit('changeName', newName);
-                    } else {
-                        updateLegend(); // Revert if empty or same
-                    }
+                    if (newName && newName !== p.name) socket.emit('changeName', newName);
+                    else updateLegend(); 
                 };
-
-                // Save on blur or enter
                 input.onblur = save;
                 input.onkeydown = (e) => {
-                    if (e.key === 'Enter') {
-                        save();
-                    }
-                    e.stopPropagation(); // Stop game hotkeys like 'Escape'
+                    if (e.key === 'Enter') save();
+                    e.stopPropagation(); 
                 };
-
                 li.replaceChild(input, nameSpan);
                 input.focus();
             };
         }
-
         const turnMarker = document.createElement('span');
         turnMarker.className = 'current-turn-marker';
         turnMarker.innerText = isTurn ? 'TURN' : '';
-
         li.appendChild(colorBox);
         li.appendChild(nameSpan);
         li.appendChild(turnMarker);
-
         playerListElement.appendChild(li);
     });
 }
 
 function updateUIControls() {
     if (!localState || !myId) return;
-
     const isMyTurn = localState.turn === myId;
     const myPlayer = localState.players[myId];
-
-    // 1. Handle End Turn Button
     endTurnBtn.disabled = !isMyTurn;
-
-    // 2. Handle Toolbar Interaction (Global)
     const toolbar = document.getElementById('toolbar');
     toolbar.style.opacity = isMyTurn ? '1' : '0.5';
     toolbar.style.pointerEvents = isMyTurn ? 'auto' : 'none';
 
-    // 3. Handle Individual Unit Costs
     document.querySelectorAll('.template').forEach(el => {
         const type = el.dataset.type;
         const stats = clientUnitStats[type];
-
         if (stats && myPlayer) {
-            // Check if gold is sufficient
-            if (myPlayer.gold < stats.cost) {
-                el.classList.add('disabled');
-            } else {
-                el.classList.remove('disabled');
-            }
-
-            // Update text to include Cost
-            const icon = type === 'knight' ? '⚔️' :
-                type === 'archer' ? '🏹' :
-                    type === 'wizard' ? '🧙' : '🏇';
+            if (myPlayer.gold < stats.cost) el.classList.add('disabled');
+            else el.classList.remove('disabled');
+            const icon = type === 'knight' ? '⚔️' : type === 'archer' ? '🏹' : type === 'wizard' ? '🧙' : '🏇';
             const name = type.charAt(0).toUpperCase() + type.slice(1);
             el.innerHTML = `${icon} ${name} <span style="font-size:0.8em; color:#666;">(${stats.cost}g)</span>`;
         }
@@ -682,15 +650,34 @@ function render() {
 
     for (let y = 0; y < GRID_SIZE; y++) {
         for (let x = 0; x < GRID_SIZE; x++) {
+            // RENDER TERRAIN FIRST
+            if (localState.terrainMap) {
+                const terrain = localState.terrainMap[y][x];
+                ctx.fillStyle = terrain.color;
+                ctx.fillRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+                
+                // Draw symbol slightly transparent in background center
+                if (terrain.symbol) {
+                    ctx.save();
+                    ctx.globalAlpha = 0.3;
+                    ctx.font = "20px Arial";
+                    ctx.textAlign = "center";
+                    ctx.textBaseline = "middle";
+                    ctx.fillStyle = "#000";
+                    ctx.fillText(terrain.symbol, x * CELL_SIZE + CELL_SIZE/2, y * CELL_SIZE + CELL_SIZE/2);
+                    ctx.restore();
+                }
+            }
+
             const entity = localState.grid[y][x];
 
-            // 1. Cell Background
+            // 1. Unit Background (Owner Color)
             if (entity) {
                 const ownerData = localState.players[entity.owner];
                 const color = ownerData ? ownerData.color : '#999';
-                ctx.globalAlpha = 0.3;
+                ctx.globalAlpha = 0.4; // Slightly more opaque than before to pop against terrain
                 ctx.fillStyle = color;
-                ctx.fillRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+                ctx.fillRect(x * CELL_SIZE + 2, y * CELL_SIZE + 2, CELL_SIZE - 4, CELL_SIZE - 4);
                 ctx.globalAlpha = 1.0;
             }
 
@@ -738,23 +725,23 @@ function render() {
             else if (interactionState === 'SELECTED' || interactionState === 'MENU') {
                 const isReachable = validMoves.some(m => m.x === x && m.y === y);
                 if (selectedCell && isReachable && !entity) {
-                    ctx.fillStyle = "rgba(46, 204, 113, 0.2)";
+                    ctx.fillStyle = "rgba(46, 204, 113, 0.4)"; // Darker green for visibility over terrain
                     ctx.fillRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
                     ctx.beginPath();
                     ctx.arc(x * CELL_SIZE + CELL_SIZE/2, y * CELL_SIZE + CELL_SIZE/2, 4, 0, Math.PI * 2);
-                    ctx.fillStyle = "rgba(46, 204, 113, 0.6)";
+                    ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
                     ctx.fill();
                 }
             }
 
             // 4. Grid Lines
-            ctx.strokeStyle = "#ddd";
+            ctx.strokeStyle = "rgba(0,0,0,0.1)"; // Lighter grid lines
             ctx.strokeRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
 
             // 5. Entity Icon
             if (entity) {
                 if (entity.remainingMovement <= 0 && entity.hasAttacked) {
-                    ctx.globalAlpha = 0.4;
+                    ctx.globalAlpha = 0.5;
                 }
 
                 ctx.fillStyle = "#000";
@@ -767,16 +754,14 @@ function render() {
 
                 ctx.fillText(icon, centerX, centerY);
 
-                // Draw Commander Crown
                 if (entity.is_commander) {
                     ctx.font = "14px Arial";
-                    ctx.fillText("👑", centerX, centerY - 14); // Position above unit
+                    ctx.fillText("👑", centerX, centerY - 14); 
                 }
 
-                // Draw Fleeing Flag
                 if (entity.is_fleeing) {
                     ctx.font = "14px Arial";
-                    ctx.fillText("🏳️", centerX + 12, centerY - 12);
+                    ctx.fillText("🏳️", centerX + 12, centerY - 12); 
                 }
 
                 drawFacingIndicator(ctx, x, y, entity.facing_direction, entity.remainingMovement > 0);
@@ -846,12 +831,9 @@ function drawHealthBar(ctx, gridX, gridY, current, max) {
     const barHeight = 4;
     const x = gridX * CELL_SIZE + 4;
     const y = gridY * CELL_SIZE + CELL_SIZE - 8;
-
     const pct = Math.max(0, current / max);
-
     ctx.fillStyle = "red";
     ctx.fillRect(x, y, barWidth, barHeight);
-
     ctx.fillStyle = "#2ecc71";
     ctx.fillRect(x, y, barWidth * pct, barHeight);
 }

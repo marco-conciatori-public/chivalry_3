@@ -9,17 +9,21 @@ module.exports = {
     // Combat Mechanics
     BONUS_DAMAGE: 20,
     BONUS_SHIELD: 20,
-    // missing health cannot reduce attack damage below 20%
     MIN_DAMAGE_REDUCTION_BY_HEALTH: 0.2,
-    // defense cannot reduce incoming damage below 10%
     MAX_DAMAGE_REDUCTION_BY_DEFENSE: 0.1,
-
-    // Random Damage Variance (0.8 to 1.2 = +/- 20%)
     DAMAGE_RANDOM_BASE: 0.8,
     DAMAGE_RANDOM_VARIANCE: 0.4,
 
     // Morale Mechanics
     MORALE_THRESHOLD: 30,
     MAX_MORALE: 100,
-    COMMANDER_INFLUENCE_RANGE: 4
+    COMMANDER_INFLUENCE_RANGE: 4,
+
+    // TERRAIN DEFINITIONS
+    TERRAIN: {
+        PLAINS: { id: 'plains', symbol: '', cost: 1, defense: 0, blocksLos: false, color: '#ecf0f1' },
+        FOREST: { id: 'forest', symbol: '🌲', cost: 2, defense: 20, blocksLos: true, color: '#a3d5a5' },
+        MOUNTAIN: { id: 'mountain', symbol: '🏔️', cost: 99, defense: 0, blocksLos: true, color: '#bdc3c7' },
+        WATER: { id: 'water', symbol: '🌊', cost: 99, defense: 0, blocksLos: false, color: '#85c1e9' }
+    }
 };

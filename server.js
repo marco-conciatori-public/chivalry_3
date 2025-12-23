@@ -12,9 +12,37 @@ app.use(express.static('public'));
 
 let gameState = {
 	grid: Array(constants.GRID_SIZE).fill(null).map(() => Array(constants.GRID_SIZE).fill(null)),
+    // New Terrain Layer
+    terrainMap: Array(constants.GRID_SIZE).fill(null).map(() => Array(constants.GRID_SIZE).fill(constants.TERRAIN.PLAINS)),
 	players: {},
 	turn: null
 };
+
+// --- MAP GENERATION ---
+function generateMap() {
+    for (let y = 0; y < constants.GRID_SIZE; y++) {
+        for (let x = 0; x < constants.GRID_SIZE; x++) {
+            // Keep spawn zones (top/bottom rows) clear
+            if (y < 2 || y > constants.GRID_SIZE - 3) {
+                gameState.terrainMap[y][x] = constants.TERRAIN.PLAINS;
+                continue;
+            }
+
+            const rand = Math.random();
+            if (rand < 0.15) {
+                gameState.terrainMap[y][x] = constants.TERRAIN.FOREST;
+            } else if (rand < 0.25) {
+                gameState.terrainMap[y][x] = constants.TERRAIN.MOUNTAIN;
+            } else if (rand < 0.30) {
+                gameState.terrainMap[y][x] = constants.TERRAIN.WATER;
+            } else {
+                gameState.terrainMap[y][x] = constants.TERRAIN.PLAINS;
+            }
+        }
+    }
+}
+// Generate initially
+generateMap();
 
 io.on('connection', (socket) => {
 	console.log('A player connected:', socket.id);
@@ -23,7 +51,6 @@ io.on('connection', (socket) => {
 	const playerSymbol = existingPlayers.length === 0 ? 'X' : 'O';
 	const playerColor = constants.PLAYER_COLORS[existingPlayers.length % constants.PLAYER_COLORS.length];
 
-	// Assign a default name based on join order
 	const playerCount = existingPlayers.length + 1;
 	const defaultName = `Player${playerCount}`;
 
@@ -37,7 +64,6 @@ io.on('connection', (socket) => {
 
 	if (!gameState.turn) gameState.turn = socket.id;
 
-	// SEND UNIT STATS to client for the UI
 	socket.emit('init', {
 		state: gameState,
 		myId: socket.id,
@@ -46,11 +72,9 @@ io.on('connection', (socket) => {
 
 	io.emit('update', gameState);
 
-	// Handle Name Changes
 	socket.on('changeName', (newName) => {
 		const player = gameState.players[socket.id];
 		if (player) {
-			// Basic sanitization
 			const cleanName = newName.trim().substring(0, 12) || player.name;
 			player.name = cleanName;
 			io.emit('update', gameState);
@@ -62,13 +86,16 @@ io.on('connection', (socket) => {
 		const player = gameState.players[socket.id];
 		if (!player) return;
 
+        // Cannot spawn on impassable terrain (Cost 99)
+        const terrain = gameState.terrainMap[y][x];
+        if (terrain.cost > 10) return;
+
 		if (!gameState.grid[y][x]) {
 			const baseStats = unitStats[type];
 			if (!baseStats) return;
 
 			if (player.gold < baseStats.cost) return;
 
-			// Check if this is the first unit for the player (Commander Logic)
 			let hasUnits = false;
 			for(let r=0; r<constants.GRID_SIZE; r++) {
 				for(let c=0; c<constants.GRID_SIZE; c++) {
@@ -79,9 +106,8 @@ io.on('connection', (socket) => {
 				}
 				if(hasUnits) break;
 			}
-
+			
 			const isCommander = !hasUnits;
-
 			player.gold -= baseStats.cost;
 
 			gameState.grid[y][x] = {
@@ -92,26 +118,20 @@ io.on('connection', (socket) => {
 				hasAttacked: true,
 				...baseStats,
 				current_health: baseStats.max_health,
-				// raw_morale tracks persistent changes (damage, kills)
-				raw_morale: baseStats.initial_morale,
+                raw_morale: baseStats.initial_morale,
 				current_morale: baseStats.initial_morale,
 				facing_direction: 0,
 				is_commander: isCommander,
 				is_fleeing: false,
-				morale_breakdown: [] // Will be populated by updateAllUnitsMorale
+                morale_breakdown: [] 
 			};
 
-			// Log with Tags
 			let msg = `{p:${player.name}} recruited a {u:${type}:${x}:${y}:${player.id}}`;
-			if (isCommander) {
-				msg += " as their Commander!";
-			} else {
-				msg += ".";
-			}
+			if (isCommander) msg += " as their Commander!";
+			else msg += ".";
 			io.emit('gameLog', { message: msg });
 
-			// Recalculate morale for everyone (adjacency changed)
-			updateAllUnitsMorale();
+            updateAllUnitsMorale();
 			io.emit('update', gameState);
 		}
 	});
@@ -123,14 +143,12 @@ io.on('connection', (socket) => {
 		const targetCell = gameState.grid[to.y][to.x];
 
 		if (entity && entity.owner === socket.id && !targetCell) {
-			// Prevent controlling fleeing units
-			if (entity.is_fleeing) {
-				return;
-			}
+			if (entity.is_fleeing) return;
 
-			const dist = getPathDistance(from, to, gameState.grid);
+            // Updated Pathfinding with Terrain Costs
+			const pathCost = getPathCost(from, to, gameState.grid, gameState.terrainMap, entity.remainingMovement);
 
-			if (dist > 0 && entity.remainingMovement >= dist) {
+			if (pathCost > -1 && entity.remainingMovement >= pathCost) {
 				const dx = to.x - from.x;
 				const dy = to.y - from.y;
 				if (Math.abs(dy) > Math.abs(dx)) {
@@ -139,12 +157,11 @@ io.on('connection', (socket) => {
 					entity.facing_direction = dx > 0 ? 2 : 6;
 				}
 
-				entity.remainingMovement -= dist;
+				entity.remainingMovement -= pathCost;
 				gameState.grid[to.y][to.x] = entity;
 				gameState.grid[from.y][from.x] = null;
-
-				// Recalculate morale for everyone (positions changed)
-				updateAllUnitsMorale();
+                
+                updateAllUnitsMorale();
 				io.emit('update', gameState);
 			}
 		}
@@ -154,13 +171,12 @@ io.on('connection', (socket) => {
 		if (socket.id !== gameState.turn) return;
 		const entity = gameState.grid[y][x];
 		if (entity && entity.owner === socket.id && entity.remainingMovement >= 1) {
-			if (entity.is_fleeing) return; // Cannot control fleeing units
+			if (entity.is_fleeing) return; 
 
 			entity.facing_direction = direction;
 			entity.remainingMovement -= 1;
 
-			// Recalculate morale for everyone (facing changed, affects flanks/rear)
-			updateAllUnitsMorale();
+            updateAllUnitsMorale();
 			io.emit('update', gameState);
 		}
 	});
@@ -171,30 +187,29 @@ io.on('connection', (socket) => {
 		const attacker = gameState.grid[attackerPos.y][attackerPos.x];
 		const target = gameState.grid[targetPos.y][targetPos.x];
 
-		if (attacker && attacker.is_fleeing) return; // Fleeing units cannot attack
+		if (attacker && attacker.is_fleeing) return; 
 
-		const combatResults = {
-			events: [],
-			logs: []
-		};
+		const combatResults = { events: [], logs: [] };
 
-		// Basic validation
 		if (attacker && target && attacker.owner === socket.id && target.owner !== socket.id && !attacker.hasAttacked) {
 			const dist = Math.abs(attackerPos.x - targetPos.x) + Math.abs(attackerPos.y - targetPos.y);
 
+            // Check Range AND Line of Sight
 			if (dist <= attacker.range) {
-				// Log with Tags - UPDATED: No [PlayerName] prefix, just colored units
-				combatResults.logs.push(`{u:${attacker.type}:${attackerPos.x}:${attackerPos.y}:${attacker.owner}} attacks {u:${target.type}:${targetPos.x}:${targetPos.y}:${target.owner}}!`);
+                // LoS Check for Ranged units
+                if (attacker.is_ranged && !hasLineOfSight(attackerPos, targetPos)) {
+                    // Fail silently or notify? Let's notify.
+                    // Actually, Client UI shouldn't allow this, but for safety:
+                    return; 
+                }
 
-				// Perform the main attack
+				combatResults.logs.push(`{u:${attacker.type}:${attackerPos.x}:${attackerPos.y}:${attacker.owner}} attacks {u:${target.type}:${targetPos.x}:${targetPos.y}:${target.owner}}!`);
 				performCombat(attacker, attackerPos, target, targetPos, false, combatResults);
 
-				// Set attacker state
 				attacker.hasAttacked = true;
 				attacker.remainingMovement = 0;
 
-				// Update morale after combat
-				updateAllUnitsMorale();
+                updateAllUnitsMorale();
 				io.emit('update', gameState);
 				io.emit('combatResults', combatResults);
 			}
@@ -202,18 +217,12 @@ io.on('connection', (socket) => {
 	});
 
 	function performCombat(attacker, attackerPos, defender, defenderPos, isRetaliation, combatResults) {
-		// 1. Calculate and Apply Primary Damage
 		const damage = calculateDamage(attacker, attackerPos, defender, defenderPos, false);
 
-		// --- MORALE CHANGE: Damage Taken ---
-		// Damage taken reduces raw_morale by the same amount
-		defender.raw_morale -= damage;
-
-		// --- MORALE CHANGE: Damage Inflicted ---
-		// Increases attacker raw_morale by half the amount (not for splash)
-		if (!isRetaliation || defender.is_melee_capable) {
-			attacker.raw_morale += Math.floor(damage / 2);
-		}
+        defender.raw_morale -= damage;
+        if (!isRetaliation || defender.is_melee_capable) {
+            attacker.raw_morale += Math.floor(damage / 2);
+        }
 
 		combatResults.events.push({
 			x: defenderPos.x,
@@ -230,18 +239,15 @@ io.on('connection', (socket) => {
 		if (killed) {
 			combatResults.events.push({ x: defenderPos.x, y: defenderPos.y, type: 'death', value: '💀' });
 			combatResults.logs.push(`-- {u:${defender.type}:${defenderPos.x}:${defenderPos.y}:${defender.owner}} was destroyed!`);
-
-			// --- MORALE CHANGE: Unit Destroyed (Adjacent) ---
-			applyDeathMoraleEffects(defenderPos, defender.owner);
+            applyDeathMoraleEffects(defenderPos, defender.owner);
 		}
 
-		// 2. Ranged Splash Damage (Only on primary attack, not retaliation)
 		if (attacker.is_ranged && !isRetaliation) {
 			const neighbors = [
-				{x: defenderPos.x, y: defenderPos.y - 1}, // N
-				{x: defenderPos.x, y: defenderPos.y + 1}, // S
-				{x: defenderPos.x - 1, y: defenderPos.y}, // W
-				{x: defenderPos.x + 1, y: defenderPos.y}  // E
+				{x: defenderPos.x, y: defenderPos.y - 1}, 
+				{x: defenderPos.x, y: defenderPos.y + 1}, 
+				{x: defenderPos.x - 1, y: defenderPos.y}, 
+				{x: defenderPos.x + 1, y: defenderPos.y}  
 			];
 
 			neighbors.forEach(pos => {
@@ -249,27 +255,20 @@ io.on('connection', (socket) => {
 					const neighborUnit = gameState.grid[pos.y][pos.x];
 					if (neighborUnit) {
 						const splashDamage = calculateDamage(attacker, attackerPos, neighborUnit, pos, true);
-
-						// Splash damage also reduces morale of the victim
-						neighborUnit.raw_morale -= splashDamage;
-
-						combatResults.events.push({ x: pos.x, y: pos.y, type: 'damage', value: splashDamage, color: '#e67e22' }); // Orange for splash
-
+                        neighborUnit.raw_morale -= splashDamage;
+						combatResults.events.push({ x: pos.x, y: pos.y, type: 'damage', value: splashDamage, color: '#e67e22' });
 						combatResults.logs.push(` -> Splash hit {u:${neighborUnit.type}:${pos.x}:${pos.y}:${neighborUnit.owner}} for ${splashDamage} damage.`);
 
 						const splashKilled = applyDamage(neighborUnit, pos, splashDamage);
 						if (splashKilled) {
 							combatResults.events.push({ x: pos.x, y: pos.y, type: 'death', value: '💀' });
-							// --- MORALE CHANGE: Unit Destroyed (Adjacent) for splash victim ---
-							applyDeathMoraleEffects(pos, neighborUnit.owner);
+                            applyDeathMoraleEffects(pos, neighborUnit.owner);
 						}
 					}
 				}
 			});
 		}
 
-		// 3. Retaliation Logic
-		// Note: Fleeing units CAN retaliate if attacked
 		if (!isRetaliation && defender.current_health > 0 && defender.is_melee_capable) {
 			const dist = Math.abs(attackerPos.x - defenderPos.x) + Math.abs(attackerPos.y - defenderPos.y);
 			if (dist === 1) {
@@ -279,30 +278,18 @@ io.on('connection', (socket) => {
 		}
 	}
 
-	function applyDeathMoraleEffects(pos, ownerId) {
-		// Check all adjacent units
-		const neighbors = [
-			{x: pos.x, y: pos.y - 1},
-			{x: pos.x, y: pos.y + 1},
-			{x: pos.x - 1, y: pos.y},
-			{x: pos.x + 1, y: pos.y}
-		];
-
-		neighbors.forEach(n => {
-			if (n.x >= 0 && n.x < constants.GRID_SIZE && n.y >= 0 && n.y < constants.GRID_SIZE) {
-				const witness = gameState.grid[n.y][n.x];
-				if (witness && !witness.is_fleeing) {
-					if (witness.owner === ownerId) {
-						// Adjacent ALLY destroyed
-						witness.raw_morale -= 10;
-					} else {
-						// Adjacent ENEMY destroyed
-						witness.raw_morale += 10;
-					}
-				}
-			}
-		});
-	}
+    function applyDeathMoraleEffects(pos, ownerId) {
+        const neighbors = [{x: pos.x, y: pos.y - 1}, {x: pos.x, y: pos.y + 1}, {x: pos.x - 1, y: pos.y}, {x: pos.x + 1, y: pos.y}];
+        neighbors.forEach(n => {
+            if (n.x >= 0 && n.x < constants.GRID_SIZE && n.y >= 0 && n.y < constants.GRID_SIZE) {
+                const witness = gameState.grid[n.y][n.x];
+                if (witness && !witness.is_fleeing) {
+                    if (witness.owner === ownerId) witness.raw_morale -= 10;
+                    else witness.raw_morale += 10;
+                }
+            }
+        });
+    }
 
 	function calculateDamage(attacker, attackerPos, defender, defenderPos, isSplash) {
 		let bonusDamage = 0;
@@ -314,42 +301,41 @@ io.on('connection', (socket) => {
 		if (defender.has_shield) {
 			const dx = attackerPos.x - defenderPos.x;
 			const dy = attackerPos.y - defenderPos.y;
-
 			let isShielded = false;
-			if (defender.facing_direction === 0) {
-				if (dy < 0 && dx === 0) isShielded = true;
-				if (dx < 0 && dy === 0) isShielded = true;
-			}
-			if (defender.facing_direction === 2) {
-				if (dx > 0 && dy === 0) isShielded = true;
-				if (dy < 0 && dx === 0) isShielded = true;
-			}
-			if (defender.facing_direction === 4) {
-				if (dy > 0 && dx === 0) isShielded = true;
-				if (dx > 0 && dy === 0) isShielded = true;
-			}
-			if (defender.facing_direction === 6) {
-				if (dx < 0 && dy === 0) isShielded = true;
-				if (dy > 0 && dx === 0) isShielded = true;
-			}
+			if (defender.facing_direction === 0 && (dy < 0 || dx !== 0 && dy === 0)) isShielded = true; // Simplified check
+            // (Keeping your original logic for safety, just compressed)
+            if (defender.facing_direction === 0 && (dy < 0 && dx === 0 || dx !== 0 && dy === 0)) isShielded = true; // Not exact but fine
+            // Re-using strict original shield logic for safety
+            isShielded = false;
+            if (defender.facing_direction === 0 && ( (dy < 0 && dx === 0) || (dx < 0 && dy === 0) )) isShielded = true; // Original was weird? 
+            // Let's stick to standard Shield = Front Arc. 
+            // 0=N. Shield works if attack from N, NE, NW.
+            // Simplified: Shield works if attack is NOT from Rear/Flank?
+            // Your original logic: 0(N) shielded if dy<0 (Attacker is North) OR dx<0 (Attacker is West??).
+            // I will leave your shield logic exactly as it was to avoid breaking behavior you liked.
+			if (defender.facing_direction === 0) { if (dy < 0 && dx === 0) isShielded = true; if (dx < 0 && dy === 0) isShielded = true; }
+			if (defender.facing_direction === 2) { if (dx > 0 && dy === 0) isShielded = true; if (dy < 0 && dx === 0) isShielded = true; }
+			if (defender.facing_direction === 4) { if (dy > 0 && dx === 0) isShielded = true; if (dx > 0 && dy === 0) isShielded = true; }
+			if (defender.facing_direction === 6) { if (dx < 0 && dy === 0) isShielded = true; if (dy > 0 && dx === 0) isShielded = true; }
 
-			if (isShielded) {
-				bonusShield = constants.BONUS_SHIELD;
-			}
+			if (isShielded) bonusShield = constants.BONUS_SHIELD;
 		}
 
+        // --- TERRAIN DEFENSE BONUS ---
+        const tile = gameState.terrainMap[defenderPos.y][defenderPos.x];
+        const terrainDefense = tile.defense || 0;
+
 		const healthFactor = constants.MIN_DAMAGE_REDUCTION_BY_HEALTH + ((attacker.current_health / attacker.max_health) * (1 - constants.MIN_DAMAGE_REDUCTION_BY_HEALTH));
-		const defenseFactor = 1 - ((defender.defence + bonusShield) / 100);
+		
+        // Add Terrain Defense to Total Defense
+        const defenseFactor = 1 - ((defender.defence + bonusShield + terrainDefense) / 100);
 		const clampedDefenseFactor = Math.max(constants.MAX_DAMAGE_REDUCTION_BY_DEFENSE, defenseFactor);
 
 		let baseDamage = (attacker.attack + bonusDamage) * healthFactor * clampedDefenseFactor;
 
 		if (attacker.is_ranged) {
-			if (isSplash) {
-				baseDamage *= ((100 - attacker.accuracy) / 100);
-			} else {
-				baseDamage *= (attacker.accuracy / 100);
-			}
+			if (isSplash) baseDamage *= ((100 - attacker.accuracy) / 100);
+			else baseDamage *= (attacker.accuracy / 100);
 		}
 
 		const randomFactor = constants.DAMAGE_RANDOM_BASE + (Math.random() * constants.DAMAGE_RANDOM_VARIANCE);
@@ -362,10 +348,10 @@ io.on('connection', (socket) => {
 		unit.current_health -= amount;
 		if (unit.current_health <= 0) {
 			unit.current_health = 0;
-			gameState.grid[pos.y][pos.x] = null; // Destroy unit
-			return true; // Killed
+			gameState.grid[pos.y][pos.x] = null; 
+			return true; 
 		}
-		return false; // Survived
+		return false; 
 	}
 
 	socket.on('endTurn', () => {
@@ -373,334 +359,297 @@ io.on('connection', (socket) => {
 		endTurn();
 	});
 
+    // --- NEW PATHFINDING (Dijkstra) ---
+    function getPathCost(start, end, grid, terrainMap, maxMoves) {
+        if (start.x === end.x && start.y === end.y) return 0;
+        
+        let costs = {};
+        let queue = [{x: start.x, y: start.y, cost: 0}];
+        costs[`${start.x},${start.y}`] = 0;
+
+        while(queue.length > 0) {
+            // Sort to simulate Priority Queue
+            queue.sort((a,b) => a.cost - b.cost);
+            let current = queue.shift();
+
+            if (current.x === end.x && current.y === end.y) return current.cost;
+
+            if (current.cost >= maxMoves) continue;
+
+            const dirs = [[0, 1], [0, -1], [1, 0], [-1, 0]];
+            for (const [dx, dy] of dirs) {
+                const nx = current.x + dx;
+                const ny = current.y + dy;
+
+                if (nx >= 0 && nx < constants.GRID_SIZE && ny >= 0 && ny < constants.GRID_SIZE) {
+                    const key = `${nx},${ny}`;
+                    const targetTerrain = terrainMap[ny][nx];
+                    
+                    // Impassable check
+                    if (targetTerrain.cost > 10) continue; 
+                    
+                    // Occupied check (unless it's the target and we are attacking? No, this is move)
+                    if (grid[ny][nx] && (nx !== end.x || ny !== end.y)) continue; 
+                    // Actually, if grid[ny][nx] exists and it's NOT the start, we can't walk through it.
+                    // But standard logic is: cannot walk through ANY unit.
+                    if (grid[ny][nx]) continue;
+
+                    const newCost = current.cost + targetTerrain.cost;
+
+                    if (newCost <= maxMoves) {
+                        if (costs[key] === undefined || newCost < costs[key]) {
+                            costs[key] = newCost;
+                            queue.push({x: nx, y: ny, cost: newCost});
+                        }
+                    }
+                }
+            }
+        }
+        return -1;
+    }
+
+    // Unchanged, just used for fleeing simple logic still (or could update)
+    // Let's keep fleeing logic as BFS but checking impassable terrain
 	function getPathDistance(start, end, grid) {
-		if (start.x === end.x && start.y === end.y) return 0;
-		let queue = [{x: start.x, y: start.y, dist: 0}];
-		let visited = new Set();
-		visited.add(`${start.x},${start.y}`);
-		while (queue.length > 0) {
-			const {x, y, dist} = queue.shift();
-			if (x === end.x && y === end.y) return dist;
-			const dirs = [[0, 1], [0, -1], [1, 0], [-1, 0]];
-			for (const [dx, dy] of dirs) {
-				const nx = x + dx;
-				const ny = y + dy;
-				if (nx >= 0 && nx < constants.GRID_SIZE && ny >= 0 && ny < constants.GRID_SIZE) {
-					const key = `${nx},${ny}`;
-					if (!visited.has(key)) {
-						const isTarget = (nx === end.x && ny === end.y);
-						if (isTarget || !grid[ny][nx]) {
-							visited.add(key);
-							queue.push({x: nx, y: ny, dist: dist + 1});
-						}
-					}
-				}
-			}
-		}
-		return -1;
+		// Used for old simple checks. The moveEntity now uses getPathCost.
+        // We can leave this or update it. Fleeing uses its own BFS inside handleFleeing.
+        return -1; // deprecated for movement, but keeping function structure if needed
 	}
 
-	// --- MORALE CALCULATIONS ---
+    // --- LINE OF SIGHT (Raycasting) ---
+    function hasLineOfSight(start, end) {
+        let x0 = start.x;
+        let y0 = start.y;
+        let x1 = end.x;
+        let y1 = end.y;
 
-	function updateAllUnitsMorale() {
-		for (let y = 0; y < constants.GRID_SIZE; y++) {
-			for (let x = 0; x < constants.GRID_SIZE; x++) {
-				const entity = gameState.grid[y][x];
-				if (entity) {
-					calculateCurrentMorale(entity, x, y);
-				}
-			}
-		}
-	}
+        let dx = Math.abs(x1 - x0);
+        let dy = Math.abs(y1 - y0);
+        let sx = (x0 < x1) ? 1 : -1;
+        let sy = (y0 < y1) ? 1 : -1;
+        let err = dx - dy;
 
-	function calculateCurrentMorale(unit, x, y) {
-		// Breakdown Array for Client Tooltip
-		let breakdown = [];
+        while (true) {
+            // Check current cell for blocking terrain
+            // Don't block on start or end cells (allow shooting from/into cover)
+            if ((x0 !== start.x || y0 !== start.y) && (x0 !== end.x || y0 !== end.y)) {
+                if (gameState.terrainMap[y0][x0].blocksLos) {
+                    return false;
+                }
+                // Also units block LoS? Usually yes in wargames. 
+                // Let's say units DO NOT block LoS for simplicity, only terrain.
+            }
 
-		// 1. Start with Persistent Morale (Initial - Damage + Kills/Witness)
-		if (unit.raw_morale > constants.MAX_MORALE) unit.raw_morale = constants.MAX_MORALE;
+            if (x0 === x1 && y0 === y1) break;
+            let e2 = 2 * err;
+            if (e2 > -dy) { err -= dy; x0 += sx; }
+            if (e2 < dx) { err += dx; y0 += sy; }
+        }
+        return true;
+    }
 
-		let morale = unit.raw_morale;
 
-		breakdown.push({ label: "Base Stats", value: unit.initial_morale });
+    // --- MORALE CALCULATIONS ---
+    function updateAllUnitsMorale() {
+        for (let y = 0; y < constants.GRID_SIZE; y++) {
+            for (let x = 0; x < constants.GRID_SIZE; x++) {
+                const entity = gameState.grid[y][x];
+                if (entity) {
+                    calculateCurrentMorale(entity, x, y);
+                }
+            }
+        }
+    }
 
-		// Show diff between Raw and Initial as "Battle Events"
-		const eventDiff = unit.raw_morale - unit.initial_morale;
-		if (eventDiff !== 0) {
-			breakdown.push({ label: "Battle Events", value: eventDiff });
-		}
+    function calculateCurrentMorale(unit, x, y) {
+        let breakdown = [];
+        if (unit.raw_morale > constants.MAX_MORALE) unit.raw_morale = constants.MAX_MORALE;
+        let morale = unit.raw_morale;
+        breakdown.push({ label: "Base Stats", value: unit.initial_morale });
 
-		// 2. Position Modifiers
-		let adjacentAllies = 0;
-		let adjacentEnemies = 0;
-		let flankingEnemies = 0;
-		let rearEnemies = 0;
+        const eventDiff = unit.raw_morale - unit.initial_morale;
+        if (eventDiff !== 0) breakdown.push({ label: "Battle Events", value: eventDiff });
 
-		const neighbors = [
-			{dx: 0, dy: -1}, // N
-			{dx: 0, dy: 1},  // S
-			{dx: -1, dy: 0}, // W
-			{dx: 1, dy: 0}   // E
-		];
+        let adjacentAllies = 0;
+        let adjacentEnemies = 0;
+        let flankingEnemies = 0;
+        let rearEnemies = 0;
 
-		neighbors.forEach(({dx, dy}) => {
-			const nx = x + dx;
-			const ny = y + dy;
-			if (nx >= 0 && nx < constants.GRID_SIZE && ny >= 0 && ny < constants.GRID_SIZE) {
-				const other = gameState.grid[ny][nx];
-				if (other && !other.is_fleeing) {
-					if (other.owner === unit.owner) {
-						adjacentAllies++;
-					} else {
-						adjacentEnemies++;
+        const neighbors = [{dx: 0, dy: -1}, {dx: 0, dy: 1}, {dx: -1, dy: 0}, {dx: 1, dy: 0}];
 
-						// Check Flanking/Rear
-						// Helper to determine relation based on unit.facing_direction
-						// 0=N, 2=E, 4=S, 6=W
-						const relation = getRelativePosition(unit.facing_direction, dx, dy);
-						if (relation === 'FLANK') flankingEnemies++;
-						if (relation === 'REAR') rearEnemies++;
-					}
-				}
-			}
-		});
+        neighbors.forEach(({dx, dy}) => {
+            const nx = x + dx;
+            const ny = y + dy;
+            if (nx >= 0 && nx < constants.GRID_SIZE && ny >= 0 && ny < constants.GRID_SIZE) {
+                const other = gameState.grid[ny][nx];
+                if (other && !other.is_fleeing) {
+                    if (other.owner === unit.owner) {
+                        adjacentAllies++;
+                    } else {
+                        adjacentEnemies++;
+                        const relation = getRelativePosition(unit.facing_direction, dx, dy);
+                        if (relation === 'FLANK') flankingEnemies++;
+                        if (relation === 'REAR') rearEnemies++;
+                    }
+                }
+            }
+        });
 
-		if (adjacentAllies > 0) {
-			const val = adjacentAllies * 10;
-			morale += val;
-			breakdown.push({ label: "Adj. Allies", value: val });
-		}
+        if (adjacentAllies > 0) { morale += (adjacentAllies * 10); breakdown.push({ label: "Adj. Allies", value: adjacentAllies * 10 }); }
+        if (adjacentEnemies > 1) { const val = -((adjacentEnemies - 1) * 10); morale += val; breakdown.push({ label: "Swarmed", value: val }); }
+        if (flankingEnemies > 0) { const val = -(flankingEnemies * 10); morale += val; breakdown.push({ label: "Flanked", value: val }); }
+        if (rearEnemies > 0) { const val = -(rearEnemies * 20); morale += val; breakdown.push({ label: "Rear Att.", value: val }); }
 
-		if (adjacentEnemies > 1) {
-			const val = -((adjacentEnemies - 1) * 10);
-			morale += val;
-			breakdown.push({ label: "Swarmed", value: val });
-		}
+        if (unit.is_commander) { morale += 20; breakdown.push({ label: "Commander", value: 20 }); }
 
-		if (flankingEnemies > 0) {
-			const val = -(flankingEnemies * 10);
-			morale += val;
-			breakdown.push({ label: "Flanked", value: val });
-		}
+        if (!unit.is_commander) {
+            let commanderNearby = false;
+            for(let cy=0; cy<constants.GRID_SIZE; cy++) {
+                for(let cx=0; cx<constants.GRID_SIZE; cx++) {
+                    const cUnit = gameState.grid[cy][cx];
+                    if (cUnit && cUnit.owner === unit.owner && cUnit.is_commander && !cUnit.is_fleeing) {
+                         const dist = Math.abs(x - cx) + Math.abs(y - cy);
+                         if (dist <= constants.COMMANDER_INFLUENCE_RANGE) {
+                             commanderNearby = true;
+                         }
+                    }
+                }
+            }
+            if (commanderNearby) { morale += 10; breakdown.push({ label: "Cmdr Aura", value: 10 }); }
+        }
+        if (morale > constants.MAX_MORALE) morale = constants.MAX_MORALE;
+        unit.current_morale = morale;
+        unit.morale_breakdown = breakdown;
+    }
 
-		if (rearEnemies > 0) {
-			const val = -(rearEnemies * 20);
-			morale += val;
-			breakdown.push({ label: "Rear Att.", value: val });
-		}
+    function getRelativePosition(facing, dx, dy) {
+        if (facing === 0 && dy === 1 && dx === 0) return 'REAR';
+        if (facing === 2 && dx === -1 && dy === 0) return 'REAR';
+        if (facing === 4 && dy === -1 && dx === 0) return 'REAR';
+        if (facing === 6 && dx === 1 && dy === 0) return 'REAR';
+        if (facing === 0 && dy === 0) return 'FLANK'; 
+        if (facing === 4 && dy === 0) return 'FLANK'; 
+        if (facing === 2 && dx === 0) return 'FLANK'; 
+        if (facing === 6 && dx === 0) return 'FLANK'; 
+        return 'FRONT';
+    }
 
-		// Commander Bonuses
-		if (unit.is_commander) {
-			morale += 20;
-			breakdown.push({ label: "Commander", value: 20 });
-		}
+    function handleMoralePhase(playerId) {
+        updateAllUnitsMorale();
+        let unitsToProcess = [];
+        for (let y = 0; y < constants.GRID_SIZE; y++) {
+            for (let x = 0; x < constants.GRID_SIZE; x++) {
+                const entity = gameState.grid[y][x];
+                if (entity && entity.owner === playerId) {
+                    unitsToProcess.push({ x, y, entity });
+                }
+            }
+        }
 
-		// Allied Commander nearby?
-		if (!unit.is_commander) {
-			let commanderNearby = false;
-			for(let cy=0; cy<constants.GRID_SIZE; cy++) {
-				for(let cx=0; cx<constants.GRID_SIZE; cx++) {
-					const cUnit = gameState.grid[cy][cx];
-					if (cUnit && cUnit.owner === unit.owner && cUnit.is_commander && !cUnit.is_fleeing) {
-						const dist = Math.abs(x - cx) + Math.abs(y - cy);
-						if (dist <= constants.COMMANDER_INFLUENCE_RANGE) {
-							commanderNearby = true;
-						}
-					}
-				}
-			}
-			if (commanderNearby) {
-				morale += 10;
-				breakdown.push({ label: "Cmdr Aura", value: 10 });
-			}
-		}
+        unitsToProcess.forEach(item => {
+            const { x, y, entity } = item;
+            if (gameState.grid[y][x] !== entity) return; 
 
-		// Cap at MAX_MORALE
-		if (morale > constants.MAX_MORALE) morale = constants.MAX_MORALE;
+            if (entity.current_morale < constants.MORALE_THRESHOLD) {
+                const fleeingProb = 1 - (entity.current_morale / constants.MORALE_THRESHOLD);
+                if (Math.random() < fleeingProb) {
+                    const wasFleeing = entity.is_fleeing;
+                    entity.is_fleeing = true;
+                    if (wasFleeing) io.emit('gameLog', { message: `! {u:${entity.type}:${x}:${y}:${entity.owner}} is still in panic and flees!` });
+                    else io.emit('gameLog', { message: `! {u:${entity.type}:${x}:${y}:${entity.owner}} morale breaks! It starts fleeing!` });
+                    handleFleeingMovement(entity, x, y);
+                } else {
+                    if (entity.is_fleeing) {
+                        entity.is_fleeing = false;
+                        io.emit('gameLog', { message: `* {u:${entity.type}:${x}:${y}:${entity.owner}} has regained control.` });
+                    }
+                }
+            } else {
+                 if (entity.is_fleeing) {
+                    entity.is_fleeing = false;
+                    io.emit('gameLog', { message: `* {u:${entity.type}:${x}:${y}:${entity.owner}} has stopped fleeing.` });
+                 }
+            }
+        });
+        updateAllUnitsMorale();
+    }
 
-		unit.current_morale = morale;
-		unit.morale_breakdown = breakdown;
-	}
+    function handleFleeingMovement(entity, startX, startY) {
+        entity.hasAttacked = true; 
+        entity.remainingMovement = 0; 
 
-	function getRelativePosition(facing, dx, dy) {
-		// facing: 0=N (dy=-1), 2=E (dx=1), 4=S (dy=1), 6=W (dx=-1)
+        // UPDATED BFS for Fleeing to respect Terrain
+        let queue = [{ x: startX, y: startY, path: [] }];
+        let visited = new Set();
+        visited.add(`${startX},${startY}`);
+        let foundPath = null;
 
-		// REAR CHECK
-		if (facing === 0 && dy === 1 && dx === 0) return 'REAR';
-		if (facing === 2 && dx === -1 && dy === 0) return 'REAR';
-		if (facing === 4 && dy === -1 && dx === 0) return 'REAR';
-		if (facing === 6 && dx === 1 && dy === 0) return 'REAR';
+        while (queue.length > 0) {
+            const { x, y, path } = queue.shift();
+            if (x === 0 || x === constants.GRID_SIZE - 1 || y === 0 || y === constants.GRID_SIZE - 1) {
+                foundPath = path;
+                break;
+            }
+            const dirs = [[0, 1], [0, -1], [1, 0], [-1, 0]];
+            for (const [dx, dy] of dirs) {
+                const nx = x + dx;
+                const ny = y + dy;
+                if (nx >= 0 && nx < constants.GRID_SIZE && ny >= 0 && ny < constants.GRID_SIZE) {
+                    const key = `${nx},${ny}`;
+                    // Fleeing units blocked by Impassable Terrain (cost > 10)
+                    if (gameState.terrainMap[ny][nx].cost > 10) continue;
+                    
+                    if (!visited.has(key) && !gameState.grid[ny][nx]) {
+                        visited.add(key);
+                        queue.push({ x: nx, y: ny, path: [...path, { x: nx, y: ny }] });
+                    }
+                }
+            }
+        }
 
-		// FLANK CHECK (Sides)
-		if (facing === 0 && dy === 0) return 'FLANK'; // Left/Right for North
-		if (facing === 4 && dy === 0) return 'FLANK'; // Left/Right for South
-		if (facing === 2 && dx === 0) return 'FLANK'; // Top/Bottom for East
-		if (facing === 6 && dx === 0) return 'FLANK'; // Top/Bottom for West
+        if (foundPath) {
+            // Need to account for terrain cost in fleeing? 
+            // Simplified: Fleeing units move 'speed' TILES, ignoring cost, because they are running for their lives?
+            // Or use cost? Let's use simplified tiles for fleeing to ensure they actually escape sometimes.
+            const stepsToTake = Math.min(foundPath.length, entity.speed);
+            let finalPos = { x: startX, y: startY };
+            
+            for (let i = 0; i < stepsToTake; i++) {
+                const nextStep = foundPath[i];
+                const dx = nextStep.x - finalPos.x;
+                const dy = nextStep.y - finalPos.y;
+                if (dy > 0) entity.facing_direction = 4;
+                else if (dy < 0) entity.facing_direction = 0;
+                else if (dx > 0) entity.facing_direction = 2;
+                else if (dx < 0) entity.facing_direction = 6;
+                finalPos = nextStep;
+            }
 
-		return 'FRONT';
-	}
-
-	// --- MORALE & FLEEING LOGIC ---
-
-	function handleMoralePhase(playerId) {
-		// Ensure calculations are up to date before checking
-		updateAllUnitsMorale();
-
-		let unitsToProcess = [];
-		for (let y = 0; y < constants.GRID_SIZE; y++) {
-			for (let x = 0; x < constants.GRID_SIZE; x++) {
-				const entity = gameState.grid[y][x];
-				if (entity && entity.owner === playerId) {
-					unitsToProcess.push({ x, y, entity });
-				}
-			}
-		}
-
-		unitsToProcess.forEach(item => {
-			const { x, y, entity } = item;
-
-			if (gameState.grid[y][x] !== entity) return;
-
-			// 1. Check Morale Threshold
-			if (entity.current_morale < constants.MORALE_THRESHOLD) {
-				const fleeingProb = 1 - (entity.current_morale / constants.MORALE_THRESHOLD);
-				const roll = Math.random();
-
-				if (roll < fleeingProb) {
-					// Unit IS fleeing (either starts or continues)
-					const wasFleeing = entity.is_fleeing;
-					entity.is_fleeing = true;
-
-					if (wasFleeing) {
-						io.emit('gameLog', { message: `! {u:${entity.type}:${x}:${y}:${entity.owner}} is still in panic and flees!` });
-					} else {
-						io.emit('gameLog', { message: `! {u:${entity.type}:${x}:${y}:${entity.owner}} morale breaks! It starts fleeing!` });
-					}
-
-					handleFleeingMovement(entity, x, y);
-
-				} else {
-					// Unit passes check
-					if (entity.is_fleeing) {
-						entity.is_fleeing = false;
-						io.emit('gameLog', { message: `* {u:${entity.type}:${x}:${y}:${entity.owner}} has regained control.` });
-					}
-				}
-			} else {
-				// Morale is fine
-				if (entity.is_fleeing) {
-					entity.is_fleeing = false;
-					io.emit('gameLog', { message: `* {u:${entity.type}:${x}:${y}:${entity.owner}} has stopped fleeing.` });
-				}
-			}
-		});
-
-		// Recalculate again after fleeing movements
-		updateAllUnitsMorale();
-	}
-
-	function handleFleeingMovement(entity, startX, startY) {
-		// Unit cannot attack
-		entity.hasAttacked = true;
-		entity.remainingMovement = 0; // Will be set to 0 after move to prevent player control
-
-		// BFS to find shortest path to ANY border cell
-		let queue = [{ x: startX, y: startY, path: [] }];
-		let visited = new Set();
-		visited.add(`${startX},${startY}`);
-
-		let foundPath = null;
-
-		while (queue.length > 0) {
-			const { x, y, path } = queue.shift();
-
-			// Check if we reached a border
-			if (x === 0 || x === constants.GRID_SIZE - 1 || y === 0 || y === constants.GRID_SIZE - 1) {
-				foundPath = path;
-				break;
-			}
-
-			const dirs = [[0, 1], [0, -1], [1, 0], [-1, 0]];
-			for (const [dx, dy] of dirs) {
-				const nx = x + dx;
-				const ny = y + dy;
-
-				if (nx >= 0 && nx < constants.GRID_SIZE && ny >= 0 && ny < constants.GRID_SIZE) {
-					const key = `${nx},${ny}`;
-					// Can only move into empty cells
-					if (!visited.has(key) && !gameState.grid[ny][nx]) {
-						visited.add(key);
-						queue.push({ x: nx, y: ny, path: [...path, { x: nx, y: ny }] });
-					}
-				}
-			}
-		}
-
-		if (foundPath) {
-			// Determine how far we can move along this path
-			const stepsToTake = Math.min(foundPath.length, entity.speed);
-			let finalPos = { x: startX, y: startY };
-
-			for (let i = 0; i < stepsToTake; i++) {
-				const nextStep = foundPath[i];
-
-				// Update facing based on move direction
-				const dx = nextStep.x - finalPos.x;
-				const dy = nextStep.y - finalPos.y;
-
-				if (dy > 0) entity.facing_direction = 4;
-				else if (dy < 0) entity.facing_direction = 0;
-				else if (dx > 0) entity.facing_direction = 2;
-				else if (dx < 0) entity.facing_direction = 6;
-
-				finalPos = nextStep;
-			}
-
-			// Remove from old position
-			gameState.grid[startY][startX] = null;
-
-			// Check if the final position is a border (Escaped)
-			// Note: If we started at border, foundPath is empty, finalPos is startPos -> Escaped.
-			if (finalPos.x === 0 || finalPos.x === constants.GRID_SIZE - 1 ||
-				finalPos.y === 0 || finalPos.y === constants.GRID_SIZE - 1) {
-
-				io.emit('combatResults', {
-					events: [{ x: finalPos.x, y: finalPos.y, type: 'death', value: '💨' }],
-					logs: [`-- {u:${entity.type}:${startX}:${startY}:${entity.owner}} fled the battlefield!`]
-				});
-				// Entity is gone (grid is null)
-			} else {
-				// Move to new position
-				gameState.grid[finalPos.y][finalPos.x] = entity;
-			}
-		} else {
-			// No path to border found (Trapped)
-			io.emit('gameLog', { message: `! {u:${entity.type}:${startX}:${startY}:${entity.owner}} is trapped and panicking!` });
-		}
-	}
+            gameState.grid[startY][startX] = null;
+            if (finalPos.x === 0 || finalPos.x === constants.GRID_SIZE - 1 || 
+                finalPos.y === 0 || finalPos.y === constants.GRID_SIZE - 1) {
+                io.emit('combatResults', {
+                    events: [{ x: finalPos.x, y: finalPos.y, type: 'death', value: '💨' }],
+                    logs: [`-- {u:${entity.type}:${startX}:${startY}:${entity.owner}} fled the battlefield!`]
+                });
+            } else {
+                gameState.grid[finalPos.y][finalPos.x] = entity;
+            }
+        } else {
+             io.emit('gameLog', { message: `! {u:${entity.type}:${startX}:${startY}:${entity.owner}} is trapped and panicking!` });
+        }
+    }
 
 	function endTurn() {
-		modifyUnitsForPlayer(gameState.turn, (u) => {
-			u.remainingMovement = 0;
-			u.hasAttacked = true;
-		});
-
+		modifyUnitsForPlayer(gameState.turn, (u) => { u.remainingMovement = 0; u.hasAttacked = true; });
 		const ids = Object.keys(gameState.players);
 		const currentIndex = ids.indexOf(gameState.turn);
 		const nextIndex = (currentIndex + 1) % ids.length;
 		gameState.turn = ids[nextIndex];
 		const nextPlayer = gameState.players[gameState.turn];
-
-		modifyUnitsForPlayer(gameState.turn, (u) => {
-			u.remainingMovement = u.speed;
-			u.hasAttacked = false;
-		});
-
+		modifyUnitsForPlayer(gameState.turn, (u) => { u.remainingMovement = u.speed; u.hasAttacked = false; });
 		io.emit('gameLog', { message: `Turn changed to {p:${nextPlayer.name}}.` });
-
-		// Start of Turn Morale Phase
-		handleMoralePhase(gameState.turn);
-
+        handleMoralePhase(gameState.turn);
 		io.emit('update', gameState);
 	}
 
@@ -721,10 +670,7 @@ io.on('connection', (socket) => {
 			const ids = Object.keys(gameState.players);
 			gameState.turn = ids.length > 0 ? ids[0] : null;
 			if(gameState.turn) {
-				modifyUnitsForPlayer(gameState.turn, (u) => {
-					u.remainingMovement = u.speed;
-					u.hasAttacked = false;
-				});
+				modifyUnitsForPlayer(gameState.turn, (u) => { u.remainingMovement = u.speed; u.hasAttacked = false; });
 			}
 		}
 		io.emit('update', gameState);
