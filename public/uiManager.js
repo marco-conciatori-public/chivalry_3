@@ -44,6 +44,10 @@ const UiManager = {
 
     updateLegend(gameState, myId, onRename) {
         if (!gameState.players) return;
+
+        // Update any existing log entries with new names
+        this.updateLogNames(gameState);
+
         this.elements.playerList.innerHTML = '';
         Object.keys(gameState.players).forEach(id => {
             const p = gameState.players[id];
@@ -95,6 +99,20 @@ const UiManager = {
             li.appendChild(nameSpan);
             li.appendChild(turnMarker);
             this.elements.playerList.appendChild(li);
+        });
+    },
+
+    // NEW: Updates all player name spans in the log based on current game state
+    updateLogNames(gameState) {
+        const playerSpans = this.elements.logContent.querySelectorAll('.log-player');
+        playerSpans.forEach(span => {
+            const playerId = span.getAttribute('data-id');
+            if (playerId && gameState.players[playerId]) {
+                const currentName = gameState.players[playerId].name;
+                if (span.innerText !== currentName) {
+                    span.innerText = currentName;
+                }
+            }
         });
     },
 
@@ -214,8 +232,14 @@ const UiManager = {
         const div = document.createElement('div');
         div.className = 'log-entry';
 
+        // Parse {p:PLAYER_ID} and store ID in data attribute for dynamic updates
         let formattedMsg = msg
-            .replace(/{p:([^}]+)}/g, '<span class="log-player">$1</span>')
+            .replace(/{p:([^}]+)}/g, (match, playerId) => {
+                const p = gameState.players[playerId];
+                const name = p ? p.name : 'Unknown';
+                // Store ID for future updates
+                return `<span class="log-player" data-id="${playerId}">${name}</span>`;
+            })
             .replace(/{u:([^:]+):(\d+):(\d+):([^}]+)}/g, (match, type, x, y, ownerId) => {
                 const color = gameState.players[ownerId] ? gameState.players[ownerId].color : '#3498db';
                 return `<span class="log-unit" style="color: ${color}" data-x="${x}" data-y="${y}">${type}</span>`;

@@ -106,7 +106,8 @@ io.on('connection', (socket) => {
                 morale_breakdown: []
             };
 
-            let msg = `{p:${player.name}} recruited a {u:${type}:${x}:${y}:${player.id}}`;
+            // UPDATED: Send player.id instead of player.name so client can update dynamic names
+            let msg = `{p:${player.id}} recruited a {u:${type}:${x}:${y}:${player.id}}`;
             if (isCommander) msg += " as their Commander!";
             else msg += ".";
             io.emit('gameLog', { message: msg });
@@ -206,7 +207,9 @@ io.on('connection', (socket) => {
         gameState.turn = ids[nextIndex];
         const nextPlayer = gameState.players[gameState.turn];
         modifyUnitsForPlayer(gameState.turn, (u) => { u.remainingMovement = u.speed; u.hasAttacked = false; });
-        io.emit('gameLog', { message: `Turn changed to {p:${nextPlayer.name}}.` });
+
+        // UPDATED: Send ID instead of name
+        io.emit('gameLog', { message: `Turn changed to {p:${gameState.turn}}.` });
 
         gameLogic.handleMoralePhase(gameState.turn, gameState, io);
         io.emit('update', gameState);
