@@ -20,26 +20,92 @@ let gameState = {
 
 // --- MAP GENERATION ---
 function generateMap() {
+    // 1. Reset to Plains
     for (let y = 0; y < constants.GRID_SIZE; y++) {
         for (let x = 0; x < constants.GRID_SIZE; x++) {
-            // Keep spawn zones (top/bottom rows) clear
-            if (y < 2 || y > constants.GRID_SIZE - 3) {
-                gameState.terrainMap[y][x] = constants.TERRAIN.PLAINS;
-                continue;
-            }
+            gameState.terrainMap[y][x] = constants.TERRAIN.PLAINS;
+        }
+    }
 
-            const rand = Math.random();
-            if (rand < 0.15) {
-                gameState.terrainMap[y][x] = constants.TERRAIN.FOREST;
-            } else if (rand < 0.20) {
-                gameState.terrainMap[y][x] = constants.TERRAIN.MOUNTAIN;
-            } else if (rand < 0.25) {
-                gameState.terrainMap[y][x] = constants.TERRAIN.WALL;
-            } else if (rand < 0.30) {
-                gameState.terrainMap[y][x] = constants.TERRAIN.WATER;
-            } else {
-                gameState.terrainMap[y][x] = constants.TERRAIN.PLAINS;
+    // Helper to ensure we only build in the "Battlefield" (rows 2-7), keeping spawn zones clear
+    const isValidZone = (x, y) => x >= 0 && x < constants.GRID_SIZE && y >= 2 && y < constants.GRID_SIZE - 2;
+
+    // 2. Generate Walls (Lines)
+    const numWalls = 2; // Generate 2 distinct wall segments
+    for (let i = 0; i < numWalls; i++) {
+        let startX = Math.floor(Math.random() * constants.GRID_SIZE);
+        let startY = Math.floor(Math.random() * (constants.GRID_SIZE - 4)) + 2; // y in 2..7
+        let isVertical = Math.random() < 0.5;
+        let length = Math.floor(Math.random() * 3) + 3; // Length 3 to 5
+
+        for (let l = 0; l < length; l++) {
+            let wx = isVertical ? startX : startX + l;
+            let wy = isVertical ? startY + l : startY;
+
+            if (isValidZone(wx, wy)) {
+                gameState.terrainMap[wy][wx] = constants.TERRAIN.WALL;
             }
+        }
+    }
+
+    // 3. Generate Forests (Organic Blobs)
+    const numForests = 4;
+    for (let i = 0; i < numForests; i++) {
+        let cx = Math.floor(Math.random() * constants.GRID_SIZE);
+        let cy = Math.floor(Math.random() * (constants.GRID_SIZE - 4)) + 2;
+
+        if (isValidZone(cx, cy)) {
+            // Grow a blob from center
+            const blobSize = Math.floor(Math.random() * 5) + 3; // 3 to 7 tiles
+
+            // Start queue with center
+            let openSet = [{x: cx, y: cy}];
+            let placedCount = 0;
+
+            while(placedCount < blobSize && openSet.length > 0) {
+                // Pop random element to make it irregular
+                let idx = Math.floor(Math.random() * openSet.length);
+                let current = openSet.splice(idx, 1)[0];
+
+                if (isValidZone(current.x, current.y)) {
+                    // Don't overwrite Walls or Water if we add them later, but here Walls are first
+                    if (gameState.terrainMap[current.y][current.x].id === 'plains') {
+                        gameState.terrainMap[current.y][current.x] = constants.TERRAIN.FOREST;
+                        placedCount++;
+
+                        // Add neighbors
+                        [{dx:0, dy:1}, {dx:0, dy:-1}, {dx:1, dy:0}, {dx:-1, dy:0}].forEach(({dx, dy}) => {
+                            openSet.push({x: current.x + dx, y: current.y + dy});
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    // 4. Generate Water (River/Lake)
+    // Create one meandering river
+    let rx = Math.floor(Math.random() * constants.GRID_SIZE);
+    let ry = Math.floor(Math.random() * (constants.GRID_SIZE - 4)) + 2;
+    let riverLength = 6;
+
+    for(let i=0; i<riverLength; i++) {
+        if (isValidZone(rx, ry)) {
+            gameState.terrainMap[ry][rx] = constants.TERRAIN.WATER;
+        }
+        // Random walk move
+        let move = Math.random();
+        if (move < 0.5) rx += (Math.random() < 0.5 ? 1 : -1);
+        else ry += (Math.random() < 0.5 ? 1 : -1);
+    }
+
+    // 5. Generate Mountains (Strategic single tiles or pairs)
+    const numMountains = 4;
+    for(let i=0; i<numMountains; i++) {
+        let mx = Math.floor(Math.random() * constants.GRID_SIZE);
+        let my = Math.floor(Math.random() * (constants.GRID_SIZE - 4)) + 2;
+        if(isValidZone(mx, my) && gameState.terrainMap[my][mx].id === 'plains') {
+            gameState.terrainMap[my][mx] = constants.TERRAIN.MOUNTAIN;
         }
     }
 }
@@ -439,7 +505,7 @@ io.on('connection', (socket) => {
                 if (gameState.terrainMap[y0][x0].blocksLos) {
                     return false;
                 }
-                // Also units block LoS? Usually yes in wargames. 
+                // Also units block LoS? Usually yes in wargames.
                 // Let's say units DO NOT block LoS for simplicity, only terrain.
             }
 
@@ -611,7 +677,7 @@ io.on('connection', (socket) => {
         }
 
         if (foundPath) {
-            // Need to account for terrain cost in fleeing? 
+            // Need to account for terrain cost in fleeing?
             // Simplified: Fleeing units move 'speed' TILES, ignoring cost, because they are running for their lives?
             // Or use cost? Let's use simplified tiles for fleeing to ensure they actually escape sometimes.
             const stepsToTake = Math.min(foundPath.length, entity.speed);
