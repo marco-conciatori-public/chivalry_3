@@ -22,7 +22,7 @@ const Renderer = {
         'wall': '/images/wall.png',
         'forest': '/images/forest.png',
         'mountain': '/images/mountain.png',
-        'water': '/images/water_2.png',
+        'water': '/images/water.png',
         'street': '/images/street.png',
         'plains': '/images/plains.png',
 
@@ -80,6 +80,30 @@ const Renderer = {
                     this.ctx.fillRect(x * this.CELL_SIZE, y * this.CELL_SIZE, this.CELL_SIZE, this.CELL_SIZE);
                 }
             }
+        }
+
+        // --- LAYER 1.5: Base Areas (Highlights) ---
+        if (gameState.players) {
+            Object.values(gameState.players).forEach(player => {
+                if (player.baseArea) {
+                    const bx = player.baseArea.x * this.CELL_SIZE;
+                    const by = player.baseArea.y * this.CELL_SIZE;
+                    const bw = player.baseArea.width * this.CELL_SIZE;
+                    const bh = player.baseArea.height * this.CELL_SIZE;
+
+                    // Draw filled background for base (very subtle)
+                    this.ctx.fillStyle = player.color;
+                    this.ctx.globalAlpha = 0.05;
+                    this.ctx.fillRect(bx, by, bw, bh);
+                    this.ctx.globalAlpha = 1.0;
+
+                    // Draw border
+                    this.ctx.strokeStyle = player.color;
+                    this.ctx.lineWidth = 4;
+                    this.ctx.strokeRect(bx, by, bw, bh);
+                }
+            });
+            this.ctx.lineWidth = 1; // Reset
         }
 
         // --- LAYER 2: Terrain Features (Images) ---
@@ -340,4 +364,4 @@ const Renderer = {
         this.ctx.fillStyle = "#2ecc71";
         this.ctx.fillRect(x, y, barWidth * pct, barHeight);
     }
-};v
+};

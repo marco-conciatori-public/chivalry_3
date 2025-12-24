@@ -35,12 +35,24 @@ io.on('connection', (socket) => {
     const playerCount = existingPlayers.length + 1;
     const defaultName = `Player${playerCount}`;
 
+    // Assign Base Area
+    let baseArea = null;
+    const spawnHeight = constants.MAP_GEN.SPAWN_ZONE_HEIGHT;
+
+    // Player 1 gets Top, Player 2 gets Bottom. Subsequent players act as spectators/no-spawn for now.
+    if (existingPlayers.length === 0) {
+        baseArea = { x: 0, y: 0, width: constants.GRID_SIZE, height: spawnHeight };
+    } else if (existingPlayers.length === 1) {
+        baseArea = { x: 0, y: constants.GRID_SIZE - spawnHeight, width: constants.GRID_SIZE, height: spawnHeight };
+    }
+
     gameState.players[socket.id] = {
         symbol: playerSymbol,
         color: playerColor,
         id: socket.id,
         name: defaultName,
-        gold: constants.STARTING_GOLD
+        gold: constants.STARTING_GOLD,
+        baseArea: baseArea
     };
 
     if (!gameState.turn) gameState.turn = socket.id;
@@ -66,6 +78,18 @@ io.on('connection', (socket) => {
         if (socket.id !== gameState.turn) return;
         const player = gameState.players[socket.id];
         if (!player) return;
+
+        // Check if spawn is within player's base area
+        if (player.baseArea) {
+            if (x < player.baseArea.x || x >= player.baseArea.x + player.baseArea.width ||
+                y < player.baseArea.y || y >= player.baseArea.y + player.baseArea.height) {
+                // Should return if attempting to spawn outside base
+                return;
+            }
+        } else {
+            // No base assigned (spectator?), cannot spawn
+            return;
+        }
 
         const terrain = gameState.terrainMap[y][x];
         if (terrain.cost > constants.MAP_GEN.IMPASSABLE_THRESHOLD) return;
@@ -208,7 +232,6 @@ io.on('connection', (socket) => {
         const nextPlayer = gameState.players[gameState.turn];
         modifyUnitsForPlayer(gameState.turn, (u) => { u.remainingMovement = u.speed; u.hasAttacked = false; });
 
-        // UPDATED: Send ID instead of name
         io.emit('gameLog', { message: `Turn changed to {p:${gameState.turn}}.` });
 
         gameLogic.handleMoralePhase(gameState.turn, gameState, io);
