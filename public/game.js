@@ -52,7 +52,7 @@ let cellsInAttackRange = []; // Array of {x,y}
 socket.on('init', (data) => {
     myId = data.myId;
     localState = data.state;
-    clientUnitStats = data.unitStats; 
+    clientUnitStats = data.unitStats;
     connectionStatus.innerText = `Connected as ID: ${myId.substr(0,4)}...`;
     resetSelection();
     render();
@@ -127,7 +127,7 @@ function selectUnitFromLog(x, y) {
     const entity = localState.grid[y][x];
     if (!entity) return;
 
-    resetSelection(); 
+    resetSelection();
     selectedCell = { x, y };
     interactionState = 'SELECTED';
 
@@ -196,7 +196,7 @@ btnDeselect.addEventListener('click', () => {
 document.querySelectorAll('.template').forEach(el => {
     el.addEventListener('click', () => {
         if (localState.turn !== myId) return;
-        if (el.classList.contains('disabled')) return; 
+        if (el.classList.contains('disabled')) return;
 
         resetSelection();
 
@@ -334,15 +334,22 @@ function recalculateOptions(entity) {
 
     // UPDATE: Use weighted pathfinding logic (Client-Side implementation for UI)
     validMoves = getReachableCells(selectedCell, entity.remainingMovement, localState.grid, localState.terrainMap);
-    
+
     validAttackTargets = [];
     cellsInAttackRange = [];
     if (!entity.hasAttacked) {
-        const range = entity.range;
+        let range = entity.range;
+
+        // --- CLIENT SIDE HIGH GROUND CHECK ---
+        const myTerrain = localState.terrainMap[selectedCell.y][selectedCell.x];
+        if (myTerrain.highGround && entity.is_ranged) {
+            range += 1;
+        }
+
         for (let y = 0; y < GRID_SIZE; y++) {
             for (let x = 0; x < GRID_SIZE; x++) {
                 const dist = Math.abs(selectedCell.x - x) + Math.abs(selectedCell.y - y);
-                
+
                 // UPDATE: Check LoS for Ranged
                 let hasLoS = true;
                 if (entity.is_ranged) {
@@ -371,7 +378,7 @@ function clientHasLineOfSight(start, end) {
 
     while (true) {
         if ((x0 !== start.x || y0 !== start.y) && (x0 !== end.x || y0 !== end.y)) {
-             if (localState.terrainMap[y0][x0].blocksLos) return false;
+            if (localState.terrainMap[y0][x0].blocksLos) return false;
         }
         if (x0 === x1 && y0 === y1) break;
         let e2 = 2 * err;
@@ -444,13 +451,13 @@ function updateUnitInfo(entity, isTemplate) {
     }
 
     const formatStat = (label, value) => `<div class="stat-row"><span>${label}:</span> <strong>${value}</strong></div>`;
-    
+
     let typeDisplay = (isTemplate ? selectedTemplate : entity.type).toUpperCase();
     if (!isTemplate && entity.is_commander) typeDisplay += ' 👑';
 
     const healthDisplay = isTemplate ? entity.max_health : `${entity.current_health}/${entity.max_health}`;
     const movesDisplay = isTemplate ? entity.speed : `${entity.remainingMovement}/${entity.speed}`;
-    
+
     let attacksRow = '';
     if (!isTemplate) {
         const attacksLeft = entity.hasAttacked ? 0 : 1;
@@ -458,14 +465,14 @@ function updateUnitInfo(entity, isTemplate) {
     }
 
     const moraleDisplay = isTemplate ? entity.initial_morale : `${entity.current_morale}/${entity.initial_morale}`;
-    
+
     let moraleRow = '';
     if (!isTemplate) {
         moraleRow = `<div class="stat-row"><span id="morale-stat-label" class="interactive-label">Morale:</span> <strong>${moraleDisplay}</strong></div>`;
     } else {
         moraleRow = formatStat('Morale', moraleDisplay);
     }
-    
+
     let bonusDisplay = (entity.bonus_vs && entity.bonus_vs.length > 0) ? entity.bonus_vs.join(', ') : 'None';
     let costRow = isTemplate ? formatStat('Cost', entity.cost || '-') : '';
     let extraRows = formatStat('Bonus against', bonusDisplay);
@@ -513,7 +520,7 @@ function updateUnitInfo(entity, isTemplate) {
 // CLIENT SIDE DIJKSTRA
 function getReachableCells(start, maxDist, grid, terrainMap) {
     if (maxDist <= 0) return [];
-    
+
     let costs = {};
     let queue = [{x: start.x, y: start.y, cost: 0}];
     costs[`${start.x},${start.y}`] = 0;
@@ -579,7 +586,7 @@ function updateLegend() {
             nameSpan.style.cursor = 'pointer';
             nameSpan.title = 'Double-click to rename';
             nameSpan.ondblclick = (e) => {
-                e.stopPropagation(); 
+                e.stopPropagation();
                 const input = document.createElement('input');
                 input.type = 'text';
                 input.value = p.name;
@@ -590,12 +597,12 @@ function updateLegend() {
                 const save = () => {
                     const newName = input.value.trim();
                     if (newName && newName !== p.name) socket.emit('changeName', newName);
-                    else updateLegend(); 
+                    else updateLegend();
                 };
                 input.onblur = save;
                 input.onkeydown = (e) => {
                     if (e.key === 'Enter') save();
-                    e.stopPropagation(); 
+                    e.stopPropagation();
                 };
                 li.replaceChild(input, nameSpan);
                 input.focus();
@@ -655,7 +662,7 @@ function render() {
                 const terrain = localState.terrainMap[y][x];
                 ctx.fillStyle = terrain.color;
                 ctx.fillRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
-                
+
                 // Draw symbol slightly transparent in background center
                 if (terrain.symbol) {
                     ctx.save();
@@ -756,12 +763,12 @@ function render() {
 
                 if (entity.is_commander) {
                     ctx.font = "14px Arial";
-                    ctx.fillText("👑", centerX, centerY - 14); 
+                    ctx.fillText("👑", centerX, centerY - 14);
                 }
 
                 if (entity.is_fleeing) {
                     ctx.font = "14px Arial";
-                    ctx.fillText("🏳️", centerX + 12, centerY - 12); 
+                    ctx.fillText("🏳️", centerX + 12, centerY - 12);
                 }
 
                 drawFacingIndicator(ctx, x, y, entity.facing_direction, entity.remainingMovement > 0);
