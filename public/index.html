@@ -32,60 +32,36 @@
             background-color: #f0f0f0;
         }
 
-        #context-menu button.danger {
-            color: #d32f2f;
-            border-top: 1px solid #eee;
-        }
-
-        /* Disabled button state */
         #context-menu button:disabled {
-            color: #aaa;
-            cursor: not-allowed;
-            pointer-events: none;
+            color: #ccc;
+            cursor: default;
         }
 
-        /* Unit Info Styles */
-        #unit-info-panel {
-            margin-top: 20px;
-            padding-top: 20px;
-            border-top: 1px solid #ddd;
-        }
-        #unit-info-content {
-            font-size: 0.9em;
-            color: #444;
-        }
-        .stat-row {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 4px;
+        #context-menu button.danger {
+            color: #e74c3c;
         }
     </style>
 </head>
 <body>
 
 <div id="app-container">
-    <!-- LEFT: Legend & Info -->
+    <!-- LEFT: Legend & Stats -->
     <div id="sidebar">
-        <h3>Players</h3>
-        <ul id="player-list">
-            <!-- Populated by JS -->
-        </ul>
+        <h2>Grid War</h2>
+        <div id="connection-status" style="font-size: 0.8em; color: #888; margin-bottom: 10px;">Connecting...</div>
 
-        <!-- Unit Info Section -->
-        <div id="unit-info-panel">
-            <h3>Unit info</h3>
-            <div id="unit-info-content">
-                <em>Click a unit to see details</em>
-            </div>
+        <h3>Players</h3>
+        <ul id="player-list"></ul>
+
+        <h3>Unit Info</h3>
+        <div id="unit-info-panel" style="padding: 10px; background: #f9f9f9; border: 1px solid #eee; border-radius: 6px; margin-top: 10px; min-height: 150px;">
+            <div id="unit-info-content"><em>Click a unit to see details</em></div>
         </div>
 
-        <!-- NEW: Log Panel -->
         <div id="log-panel">
-            <h3>Battle Log</h3>
+            <h3 style="margin: 0; padding: 8px; font-size: 1em; background: #eee; border-bottom: 1px solid #ddd;">Battle Log</h3>
             <div id="log-content"></div>
         </div>
-
-        <div id="connection-status" style="font-size: 0.8em; color: #888; margin-top: auto;">Connecting...</div>
     </div>
 
     <!-- RIGHT: Game Board -->
@@ -96,7 +72,7 @@
         <div id="overlay-layer" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 50;"></div>
 
         <div style="position: relative;">
-            <canvas id="gameCanvas" width="400" height="400"></canvas>
+            <canvas id="gameCanvas" width="1000" height="1000"></canvas>
             <!-- Context Menu -->
             <div id="context-menu">
                 <button id="btn-attack">Attack</button>
@@ -114,7 +90,10 @@
             <button id="end-turn-btn">END TURN</button>
         </div>
 
-        <p style="font-size: 0.8em; color: #666; margin-top: 10px;">Click unit twice for actions. ESC to deselect.</p>
+        <p style="font-size: 0.8em; color: #777; margin-top: 10px;">
+            Click to Move/Select. Right-click or Menu to Attack/Rotate.<br>
+            Spawn units during your turn.
+        </p>
     </div>
 </div>
 

@@ -1,6 +1,6 @@
 module.exports = {
     // Game Grid
-    GRID_SIZE: 10,
+    GRID_SIZE: 50,
 
     // Player Configuration
     PLAYER_COLORS: ['#3498db', '#e74c3c', '#2ecc71', '#f1c40f', '#9b59b6'],

@@ -8,7 +8,6 @@ const endTurnBtn = document.getElementById('end-turn-btn');
 const contextMenu = document.getElementById('context-menu');
 const unitInfoContent = document.getElementById('unit-info-content');
 const logContent = document.getElementById('log-content');
-const overlayLayer = document.getElementById('overlay-layer');
 
 // --- INJECT CUSTOM LOG STYLES ---
 const style = document.createElement('style');
@@ -24,7 +23,7 @@ const btnAttack = document.getElementById('btn-attack');
 const btnRotate = document.getElementById('btn-rotate');
 const btnDeselect = document.getElementById('btn-deselect');
 
-const GRID_SIZE = 10;
+const GRID_SIZE = 50;
 const CELL_SIZE = canvas.width / GRID_SIZE;
 const icons = {
     knight: '⚔️',
@@ -100,14 +99,12 @@ function addLogEntry(msg) {
     const div = document.createElement('div');
     div.className = 'log-entry';
 
-    let formattedMsg = msg
+    div.innerHTML = msg
         .replace(/{p:([^}]+)}/g, '<span class="log-player">$1</span>')
         .replace(/{u:([^:]+):(\d+):(\d+):([^}]+)}/g, (match, type, x, y, ownerId) => {
             const color = localState.players[ownerId] ? localState.players[ownerId].color : '#3498db';
             return `<span class="log-unit" style="color: ${color}" data-x="${x}" data-y="${y}">${type}</span>`;
         });
-
-    div.innerHTML = formattedMsg;
 
     div.querySelectorAll('.log-unit').forEach(span => {
         span.onclick = () => {
@@ -655,6 +652,9 @@ function render() {
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    // Dynamic Font Calculation for smaller cells
+    const fontSize = Math.floor(CELL_SIZE * 0.7);
+
     for (let y = 0; y < GRID_SIZE; y++) {
         for (let x = 0; x < GRID_SIZE; x++) {
             // RENDER TERRAIN FIRST
@@ -667,7 +667,7 @@ function render() {
                 if (terrain.symbol) {
                     ctx.save();
                     ctx.globalAlpha = 0.3;
-                    ctx.font = "20px Arial";
+                    ctx.font = `${fontSize}px Arial`; // Use dynamic font size
                     ctx.textAlign = "center";
                     ctx.textBaseline = "middle";
                     ctx.fillStyle = "#000";
@@ -752,7 +752,7 @@ function render() {
                 }
 
                 ctx.fillStyle = "#000";
-                ctx.font = "24px Arial";
+                ctx.font = `${fontSize + 2}px Arial`; // Use dynamic font size
                 ctx.textAlign = "center";
                 ctx.textBaseline = "middle";
                 const icon = icons[entity.type] || '❓';
@@ -762,13 +762,13 @@ function render() {
                 ctx.fillText(icon, centerX, centerY);
 
                 if (entity.is_commander) {
-                    ctx.font = "14px Arial";
-                    ctx.fillText("👑", centerX, centerY - 14);
+                    ctx.font = `${fontSize * 0.6}px Arial`;
+                    ctx.fillText("👑", centerX, centerY - (fontSize * 0.6));
                 }
 
                 if (entity.is_fleeing) {
-                    ctx.font = "14px Arial";
-                    ctx.fillText("🏳️", centerX + 12, centerY - 12);
+                    ctx.font = `${fontSize * 0.6}px Arial`;
+                    ctx.fillText("🏳️", centerX + (fontSize * 0.5), centerY - (fontSize * 0.5));
                 }
 
                 drawFacingIndicator(ctx, x, y, entity.facing_direction, entity.remainingMovement > 0);
@@ -834,10 +834,10 @@ function drawRotationArrow(ctx, gridX, gridY, dx, dy) {
 }
 
 function drawHealthBar(ctx, gridX, gridY, current, max) {
-    const barWidth = CELL_SIZE - 8;
-    const barHeight = 4;
-    const x = gridX * CELL_SIZE + 4;
-    const y = gridY * CELL_SIZE + CELL_SIZE - 8;
+    const barWidth = CELL_SIZE - 4;
+    const barHeight = 2; // Thinner health bar for small cells
+    const x = gridX * CELL_SIZE + 2;
+    const y = gridY * CELL_SIZE + CELL_SIZE - 4;
     const pct = Math.max(0, current / max);
     ctx.fillStyle = "red";
     ctx.fillRect(x, y, barWidth, barHeight);

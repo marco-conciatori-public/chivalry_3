@@ -12,7 +12,6 @@ app.use(express.static('public'));
 
 let gameState = {
     grid: Array(constants.GRID_SIZE).fill(null).map(() => Array(constants.GRID_SIZE).fill(null)),
-    // New Terrain Layer
     terrainMap: Array(constants.GRID_SIZE).fill(null).map(() => Array(constants.GRID_SIZE).fill(constants.TERRAIN.PLAINS)),
     players: {},
     turn: null
@@ -27,53 +26,84 @@ function generateMap() {
         }
     }
 
-    // Helper to ensure we only build in the "Battlefield" (rows 2-7), keeping spawn zones clear
     const isValidZone = (x, y) => x >= 0 && x < constants.GRID_SIZE && y >= 2 && y < constants.GRID_SIZE - 2;
 
-    // 2. Generate Walls (Lines)
-    const numWalls = 2; // Generate 2 distinct wall segments
+    // 2. MOUNTAINS (Strict Rules: 2x2 or 3x3, no adjacency)
+    const targetMountainGroups = 40; // Attempt to place significantly more groups for 50x50
+    let mountainAttempts = 0;
+    let groupsPlaced = 0;
+
+    while(groupsPlaced < targetMountainGroups && mountainAttempts < 2000) {
+        mountainAttempts++;
+        const size = Math.random() < 0.5 ? 2 : 3;
+
+        // Pick random position (avoiding edges to simplify boundary checks)
+        const mx = Math.floor(Math.random() * (constants.GRID_SIZE - size - 2)) + 1;
+        // Keep strictly out of spawn rows (0-1, N-2, N-1)
+        const my = Math.floor(Math.random() * (constants.GRID_SIZE - size - 6)) + 3;
+
+        // Check Collision & Adjacency
+        // We scan a bounding box 1 tile larger than the group on all sides
+        // If ANY cell in this buffer is already a mountain, we skip.
+        let canPlace = true;
+        for (let y = my - 1; y < my + size + 1; y++) {
+            for (let x = mx - 1; x < mx + size + 1; x++) {
+                if (gameState.terrainMap[y][x].id === 'mountain') {
+                    canPlace = false;
+                    break;
+                }
+            }
+            if (!canPlace) break;
+        }
+
+        if (canPlace) {
+            for (let y = my; y < my + size; y++) {
+                for (let x = mx; x < mx + size; x++) {
+                    gameState.terrainMap[y][x] = constants.TERRAIN.MOUNTAIN;
+                }
+            }
+            groupsPlaced++;
+        }
+    }
+
+    // 3. Walls (Lines)
+    const numWalls = 15;
     for (let i = 0; i < numWalls; i++) {
         let startX = Math.floor(Math.random() * constants.GRID_SIZE);
-        let startY = Math.floor(Math.random() * (constants.GRID_SIZE - 4)) + 2; // y in 2..7
+        let startY = Math.floor(Math.random() * (constants.GRID_SIZE - 4)) + 2;
         let isVertical = Math.random() < 0.5;
-        let length = Math.floor(Math.random() * 3) + 3; // Length 3 to 5
+        let length = Math.floor(Math.random() * 8) + 4; // Longer walls for bigger map
 
         for (let l = 0; l < length; l++) {
             let wx = isVertical ? startX : startX + l;
             let wy = isVertical ? startY + l : startY;
 
-            if (isValidZone(wx, wy)) {
+            // Only overwrite plains
+            if (isValidZone(wx, wy) && gameState.terrainMap[wy][wx].id === 'plains') {
                 gameState.terrainMap[wy][wx] = constants.TERRAIN.WALL;
             }
         }
     }
 
-    // 3. Generate Forests (Organic Blobs)
-    const numForests = 4;
+    // 4. Forests (Organic Blobs)
+    const numForests = 30;
     for (let i = 0; i < numForests; i++) {
         let cx = Math.floor(Math.random() * constants.GRID_SIZE);
         let cy = Math.floor(Math.random() * (constants.GRID_SIZE - 4)) + 2;
 
-        if (isValidZone(cx, cy)) {
-            // Grow a blob from center
-            const blobSize = Math.floor(Math.random() * 5) + 3; // 3 to 7 tiles
-
-            // Start queue with center
+        if (isValidZone(cx, cy) && gameState.terrainMap[cy][cx].id === 'plains') {
+            const blobSize = Math.floor(Math.random() * 15) + 5;
             let openSet = [{x: cx, y: cy}];
             let placedCount = 0;
 
             while(placedCount < blobSize && openSet.length > 0) {
-                // Pop random element to make it irregular
                 let idx = Math.floor(Math.random() * openSet.length);
                 let current = openSet.splice(idx, 1)[0];
 
                 if (isValidZone(current.x, current.y)) {
-                    // Don't overwrite Walls or Water if we add them later, but here Walls are first
                     if (gameState.terrainMap[current.y][current.x].id === 'plains') {
                         gameState.terrainMap[current.y][current.x] = constants.TERRAIN.FOREST;
                         placedCount++;
-
-                        // Add neighbors
                         [{dx:0, dy:1}, {dx:0, dy:-1}, {dx:1, dy:0}, {dx:-1, dy:0}].forEach(({dx, dy}) => {
                             openSet.push({x: current.x + dx, y: current.y + dy});
                         });
@@ -83,33 +113,23 @@ function generateMap() {
         }
     }
 
-    // 4. Generate Water (River/Lake)
-    // Create one meandering river
-    let rx = Math.floor(Math.random() * constants.GRID_SIZE);
-    let ry = Math.floor(Math.random() * (constants.GRID_SIZE - 4)) + 2;
-    let riverLength = 6;
+    // 5. Water (Rivers)
+    const numRivers = 3;
+    for(let r=0; r<numRivers; r++) {
+        let rx = Math.floor(Math.random() * constants.GRID_SIZE);
+        let ry = Math.floor(Math.random() * (constants.GRID_SIZE - 4)) + 2;
+        let riverLength = 40;
 
-    for(let i=0; i<riverLength; i++) {
-        if (isValidZone(rx, ry)) {
-            gameState.terrainMap[ry][rx] = constants.TERRAIN.WATER;
-        }
-        // Random walk move
-        let move = Math.random();
-        if (move < 0.5) rx += (Math.random() < 0.5 ? 1 : -1);
-        else ry += (Math.random() < 0.5 ? 1 : -1);
-    }
-
-    // 5. Generate Mountains (Strategic single tiles or pairs)
-    const numMountains = 4;
-    for(let i=0; i<numMountains; i++) {
-        let mx = Math.floor(Math.random() * constants.GRID_SIZE);
-        let my = Math.floor(Math.random() * (constants.GRID_SIZE - 4)) + 2;
-        if(isValidZone(mx, my) && gameState.terrainMap[my][mx].id === 'plains') {
-            gameState.terrainMap[my][mx] = constants.TERRAIN.MOUNTAIN;
+        for(let i=0; i<riverLength; i++) {
+            if (isValidZone(rx, ry) && gameState.terrainMap[ry][rx].id === 'plains') {
+                gameState.terrainMap[ry][rx] = constants.TERRAIN.WATER;
+            }
+            let move = Math.random();
+            if (move < 0.5) rx += (Math.random() < 0.5 ? 1 : -1);
+            else ry += (Math.random() < 0.5 ? 1 : -1);
         }
     }
 }
-// Generate initially
 generateMap();
 
 io.on('connection', (socket) => {
@@ -143,8 +163,7 @@ io.on('connection', (socket) => {
     socket.on('changeName', (newName) => {
         const player = gameState.players[socket.id];
         if (player) {
-            const cleanName = newName.trim().substring(0, 12) || player.name;
-            player.name = cleanName;
+            player.name = newName.trim().substring(0, 12) || player.name;
             io.emit('update', gameState);
         }
     });
@@ -154,7 +173,6 @@ io.on('connection', (socket) => {
         const player = gameState.players[socket.id];
         if (!player) return;
 
-        // Cannot spawn on impassable terrain (Cost 99)
         const terrain = gameState.terrainMap[y][x];
         if (terrain.cost > 10) return;
 
@@ -213,7 +231,6 @@ io.on('connection', (socket) => {
         if (entity && entity.owner === socket.id && !targetCell) {
             if (entity.is_fleeing) return;
 
-            // Updated Pathfinding with Terrain Costs
             const pathCost = getPathCost(from, to, gameState.grid, gameState.terrainMap, entity.remainingMovement);
 
             if (pathCost > -1 && entity.remainingMovement >= pathCost) {
@@ -262,16 +279,13 @@ io.on('connection', (socket) => {
         if (attacker && target && attacker.owner === socket.id && target.owner !== socket.id && !attacker.hasAttacked) {
             const dist = Math.abs(attackerPos.x - targetPos.x) + Math.abs(attackerPos.y - targetPos.y);
 
-            // --- HIGH GROUND RANGE CHECK ---
             const attackerTerrain = gameState.terrainMap[attackerPos.y][attackerPos.x];
             let effectiveRange = attacker.range;
             if (attackerTerrain.highGround && attacker.is_ranged) {
                 effectiveRange += 1;
             }
 
-            // Check Range AND Line of Sight
             if (dist <= effectiveRange) {
-                // LoS Check for Ranged units
                 if (attacker.is_ranged && !hasLineOfSight(attackerPos, targetPos)) {
                     return;
                 }
@@ -383,11 +397,9 @@ io.on('connection', (socket) => {
             if (isShielded) bonusShield = constants.BONUS_SHIELD;
         }
 
-        // --- TERRAIN DEFENSE BONUS ---
         const tile = gameState.terrainMap[defenderPos.y][defenderPos.x];
         const terrainDefense = tile.defense || 0;
 
-        // --- HIGH GROUND ATTACK BONUS ---
         let highGroundBonus = 0;
         const attackerTile = gameState.terrainMap[attackerPos.y][attackerPos.x];
         if (attackerTile.highGround) {
@@ -396,7 +408,6 @@ io.on('connection', (socket) => {
 
         const healthFactor = constants.MIN_DAMAGE_REDUCTION_BY_HEALTH + ((attacker.current_health / attacker.max_health) * (1 - constants.MIN_DAMAGE_REDUCTION_BY_HEALTH));
 
-        // Add Terrain Defense to Total Defense
         const defenseFactor = 1 - ((defender.defence + bonusShield + terrainDefense) / 100);
         const clampedDefenseFactor = Math.max(constants.MAX_DAMAGE_REDUCTION_BY_DEFENSE, defenseFactor);
 
@@ -428,7 +439,6 @@ io.on('connection', (socket) => {
         endTurn();
     });
 
-    // --- NEW PATHFINDING (Dijkstra) ---
     function getPathCost(start, end, grid, terrainMap, maxMoves) {
         if (start.x === end.x && start.y === end.y) return 0;
 
@@ -437,12 +447,10 @@ io.on('connection', (socket) => {
         costs[`${start.x},${start.y}`] = 0;
 
         while(queue.length > 0) {
-            // Sort to simulate Priority Queue
             queue.sort((a,b) => a.cost - b.cost);
             let current = queue.shift();
 
             if (current.x === end.x && current.y === end.y) return current.cost;
-
             if (current.cost >= maxMoves) continue;
 
             const dirs = [[0, 1], [0, -1], [1, 0], [-1, 0]];
@@ -454,13 +462,8 @@ io.on('connection', (socket) => {
                     const key = `${nx},${ny}`;
                     const targetTerrain = terrainMap[ny][nx];
 
-                    // Impassable check
                     if (targetTerrain.cost > 10) continue;
-
-                    // Occupied check (unless it's the target and we are attacking? No, this is move)
                     if (grid[ny][nx] && (nx !== end.x || ny !== end.y)) continue;
-                    // Actually, if grid[ny][nx] exists and it's NOT the start, we can't walk through it.
-                    // But standard logic is: cannot walk through ANY unit.
                     if (grid[ny][nx]) continue;
 
                     const newCost = current.cost + targetTerrain.cost;
@@ -477,15 +480,6 @@ io.on('connection', (socket) => {
         return -1;
     }
 
-    // Unchanged, just used for fleeing simple logic still (or could update)
-    // Let's keep fleeing logic as BFS but checking impassable terrain
-    function getPathDistance(start, end, grid) {
-        // Used for old simple checks. The moveEntity now uses getPathCost.
-        // We can leave this or update it. Fleeing uses its own BFS inside handleFleeing.
-        return -1; // deprecated for movement, but keeping function structure if needed
-    }
-
-    // --- LINE OF SIGHT (Raycasting) ---
     function hasLineOfSight(start, end) {
         let x0 = start.x;
         let y0 = start.y;
@@ -499,14 +493,10 @@ io.on('connection', (socket) => {
         let err = dx - dy;
 
         while (true) {
-            // Check current cell for blocking terrain
-            // Don't block on start or end cells (allow shooting from/into cover)
             if ((x0 !== start.x || y0 !== start.y) && (x0 !== end.x || y0 !== end.y)) {
                 if (gameState.terrainMap[y0][x0].blocksLos) {
                     return false;
                 }
-                // Also units block LoS? Usually yes in wargames.
-                // Let's say units DO NOT block LoS for simplicity, only terrain.
             }
 
             if (x0 === x1 && y0 === y1) break;
@@ -517,8 +507,6 @@ io.on('connection', (socket) => {
         return true;
     }
 
-
-    // --- MORALE CALCULATIONS ---
     function updateAllUnitsMorale() {
         for (let y = 0; y < constants.GRID_SIZE; y++) {
             for (let x = 0; x < constants.GRID_SIZE; x++) {
@@ -647,7 +635,6 @@ io.on('connection', (socket) => {
         entity.hasAttacked = true;
         entity.remainingMovement = 0;
 
-        // UPDATED BFS for Fleeing to respect Terrain
         let queue = [{ x: startX, y: startY, path: [] }];
         let visited = new Set();
         visited.add(`${startX},${startY}`);
@@ -677,9 +664,6 @@ io.on('connection', (socket) => {
         }
 
         if (foundPath) {
-            // Need to account for terrain cost in fleeing?
-            // Simplified: Fleeing units move 'speed' TILES, ignoring cost, because they are running for their lives?
-            // Or use cost? Let's use simplified tiles for fleeing to ensure they actually escape sometimes.
             const stepsToTake = Math.min(foundPath.length, entity.speed);
             let finalPos = { x: startX, y: startY };
 
