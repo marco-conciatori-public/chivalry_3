@@ -10,10 +10,32 @@ function generateMap(gameState) {
         }
     }
 
-    const isValidZone = (x, y) =>
-        x >= 0 && x < constants.GRID_SIZE &&
-        y >= CFG.SPAWN_ZONE_HEIGHT &&
-        y < constants.GRID_SIZE - CFG.SPAWN_ZONE_HEIGHT;
+    // --- NEW VALID ZONE LOGIC FOR 4 PLAYERS ---
+    const G = constants.GRID_SIZE;
+    const dimLong = Math.floor(G / 2);
+    const dimShort = Math.floor(G / 20);
+    const centerOffset = Math.floor((G - dimLong) / 2);
+
+    // Define the 4 forbidden base rectangles
+    const bases = [
+        { x: centerOffset, y: 0, w: dimLong, h: dimShort },           // P1 (Top)
+        { x: centerOffset, y: G - dimShort, w: dimLong, h: dimShort }, // P2 (Bottom)
+        { x: 0, y: centerOffset, w: dimShort, h: dimLong },           // P3 (Left)
+        { x: G - dimShort, y: centerOffset, w: dimShort, h: dimLong }  // P4 (Right)
+    ];
+
+    const isValidZone = (x, y) => {
+        // Check map bounds
+        if (x < 0 || x >= G || y < 0 || y >= G) return false;
+
+        // Check against any base area
+        for (let b of bases) {
+            if (x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.h) {
+                return false;
+            }
+        }
+        return true;
+    };
 
     const areaScale = (constants.GRID_SIZE * constants.GRID_SIZE) / CFG.BASE_AREA;
 
@@ -31,13 +53,20 @@ function generateMap(gameState) {
         const size = Math.random() < 0.5 ? CFG.MOUNTAINS.GROUP_SIZE_SMALL : CFG.MOUNTAINS.GROUP_SIZE_LARGE;
 
         const mx = Math.floor(Math.random() * (constants.GRID_SIZE - size - 2)) + 1;
-        const my = Math.floor(Math.random() * (constants.GRID_SIZE - size - (CFG.SPAWN_ZONE_HEIGHT * 2 + 2))) + (CFG.SPAWN_ZONE_HEIGHT + 1);
+        const my = Math.floor(Math.random() * (constants.GRID_SIZE - size - 2)) + 1;
 
         let canPlace = true;
-        // Check buffer zone
+        // Check buffer zone & Valid Zone
         for (let y = my - 1; y < my + size + 1; y++) {
             for (let x = mx - 1; x < mx + size + 1; x++) {
+                // Must be in map bounds
                 if (y >= 0 && y < constants.GRID_SIZE && x >= 0 && x < constants.GRID_SIZE) {
+                    // Must NOT be in a base
+                    if (!isValidZone(x, y)) {
+                        canPlace = false;
+                        break;
+                    }
+                    // Must not overlap existing mountain
                     if (gameState.terrainMap[y][x].id === 'mountain') {
                         canPlace = false;
                         break;
@@ -50,9 +79,7 @@ function generateMap(gameState) {
         if (canPlace) {
             for (let y = my; y < my + size; y++) {
                 for (let x = mx; x < mx + size; x++) {
-                    if (isValidZone(x, y)) {
-                        gameState.terrainMap[y][x] = constants.TERRAIN.MOUNTAIN;
-                    }
+                    gameState.terrainMap[y][x] = constants.TERRAIN.MOUNTAIN;
                 }
             }
             groupsPlaced++;
@@ -65,7 +92,7 @@ function generateMap(gameState) {
 
     for (let i = 0; i < numWalls; i++) {
         let startX = Math.floor(Math.random() * constants.GRID_SIZE);
-        let startY = Math.floor(Math.random() * (constants.GRID_SIZE - (CFG.SPAWN_ZONE_HEIGHT * 2))) + CFG.SPAWN_ZONE_HEIGHT;
+        let startY = Math.floor(Math.random() * constants.GRID_SIZE);
         let isVertical = Math.random() < 0.5;
         let length = Math.floor(Math.random() * CFG.WALLS.LENGTH_VAR) + CFG.WALLS.LENGTH_MIN;
 
@@ -85,7 +112,7 @@ function generateMap(gameState) {
 
     for (let i = 0; i < numForests; i++) {
         let cx = Math.floor(Math.random() * constants.GRID_SIZE);
-        let cy = Math.floor(Math.random() * (constants.GRID_SIZE - (CFG.SPAWN_ZONE_HEIGHT * 2))) + CFG.SPAWN_ZONE_HEIGHT;
+        let cy = Math.floor(Math.random() * constants.GRID_SIZE);
 
         if (isValidZone(cx, cy)) {
             const blobSize = Math.floor(Math.random() * CFG.FORESTS.BLOB_SIZE_VAR) + CFG.FORESTS.BLOB_SIZE_MIN;
@@ -113,7 +140,7 @@ function generateMap(gameState) {
     const numRivers = Math.max(1, Math.floor(areaScale * CFG.RIVERS.DENSITY));
     for(let r=0; r<numRivers; r++) {
         let rx = Math.floor(Math.random() * constants.GRID_SIZE);
-        let ry = Math.floor(Math.random() * (constants.GRID_SIZE - (CFG.SPAWN_ZONE_HEIGHT * 2))) + CFG.SPAWN_ZONE_HEIGHT;
+        let ry = Math.floor(Math.random() * constants.GRID_SIZE);
         let riverLength = Math.floor(constants.GRID_SIZE * CFG.RIVERS.LENGTH_FACTOR);
 
         for(let i=0; i<riverLength; i++) {
@@ -180,7 +207,7 @@ function generateMap(gameState) {
             let nextX = x + currentDir[0];
             let nextY = y + currentDir[1];
 
-            // Check if blocked (Blocked = Anything not Plains or Street)
+            // Check if blocked (Blocked = Anything not Plains or Street, OR Forbidden Zone)
             let isBlocked = true;
             if (isValidZone(nextX, nextY)) {
                 const target = gameState.terrainMap[nextY][nextX];

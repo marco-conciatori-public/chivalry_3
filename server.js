@@ -35,15 +35,25 @@ io.on('connection', (socket) => {
     const playerCount = existingPlayers.length + 1;
     const defaultName = `Player${playerCount}`;
 
-    // Assign Base Area
+    // --- BASE ASSIGNMENT LOGIC ---
     let baseArea = null;
-    const spawnHeight = constants.MAP_GEN.SPAWN_ZONE_HEIGHT;
+    const G = constants.GRID_SIZE;
+    const dimLong = Math.floor(G / 2);       // grid_size / 2
+    const dimShort = Math.floor(G / 20);     // grid_size / 20
+    const centerOffset = Math.floor((G - dimLong) / 2);
 
-    // Player 1 gets Top, Player 2 gets Bottom. Subsequent players act as spectators/no-spawn for now.
     if (existingPlayers.length === 0) {
-        baseArea = { x: 0, y: 0, width: constants.GRID_SIZE, height: spawnHeight };
+        // Player 1: Top Center
+        baseArea = { x: centerOffset, y: 0, width: dimLong, height: dimShort };
     } else if (existingPlayers.length === 1) {
-        baseArea = { x: 0, y: constants.GRID_SIZE - spawnHeight, width: constants.GRID_SIZE, height: spawnHeight };
+        // Player 2: Bottom Center
+        baseArea = { x: centerOffset, y: G - dimShort, width: dimLong, height: dimShort };
+    } else if (existingPlayers.length === 2) {
+        // Player 3: Left Center (Vertical)
+        baseArea = { x: 0, y: centerOffset, width: dimShort, height: dimLong };
+    } else if (existingPlayers.length === 3) {
+        // Player 4: Right Center (Vertical)
+        baseArea = { x: G - dimShort, y: centerOffset, width: dimShort, height: dimLong };
     }
 
     gameState.players[socket.id] = {
@@ -83,11 +93,11 @@ io.on('connection', (socket) => {
         if (player.baseArea) {
             if (x < player.baseArea.x || x >= player.baseArea.x + player.baseArea.width ||
                 y < player.baseArea.y || y >= player.baseArea.y + player.baseArea.height) {
-                // Should return if attempting to spawn outside base
+                // Return if attempting to spawn outside base
                 return;
             }
         } else {
-            // No base assigned (spectator?), cannot spawn
+            // No base assigned (spectator or >4 players), cannot spawn
             return;
         }
 
