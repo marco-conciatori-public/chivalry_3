@@ -1,9 +1,8 @@
-muovi log a destra e sotto a unit info metti cell info
 screen for setting up game options
     e.g. map size, initial resources...
 initial phase before first turn to place troops?
-add terrain types?
-decide unit types
+add new terrain types?
+add/change unit types
 when a unit attacks, it should be facing the target OR it should automatically turn to face the target
 add fog of war?
 other combat bonuses?
