@@ -4,43 +4,6 @@
     <title>Grid Game</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚔️</text></svg>">
     <link rel="stylesheet" href="styles.css">
-    <style>
-        /* Context Menu Styles */
-        #context-menu {
-            display: none;
-            position: absolute;
-            background: white;
-            border: 1px solid #ccc;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-            border-radius: 4px;
-            z-index: 100;
-            flex-direction: column;
-            min-width: 120px;
-        }
-
-        #context-menu button {
-            background: none;
-            border: none;
-            padding: 8px 12px;
-            text-align: left;
-            cursor: pointer;
-            font-size: 14px;
-            width: 100%;
-        }
-
-        #context-menu button:hover:not(:disabled) {
-            background-color: #f0f0f0;
-        }
-
-        #context-menu button:disabled {
-            color: #ccc;
-            cursor: default;
-        }
-
-        #context-menu button.danger {
-            color: #e74c3c;
-        }
-    </style>
 </head>
 <body>
 
@@ -48,30 +11,30 @@
     <!-- LEFT: Legend & Stats -->
     <div id="sidebar">
         <h2>Grid War</h2>
-        <div id="connection-status" style="font-size: 0.8em; color: #888; margin-bottom: 10px;">Connecting...</div>
+        <div id="connection-status" class="connection-status">Connecting...</div>
 
         <h3>Players</h3>
         <ul id="player-list"></ul>
 
         <h3>Unit Info</h3>
-        <div id="unit-info-panel" style="padding: 10px; background: #f9f9f9; border: 1px solid #eee; border-radius: 6px; margin-top: 10px; min-height: 150px;">
+        <div id="unit-info-panel" class="unit-info-panel">
             <div id="unit-info-content"><em>Click a unit to see details</em></div>
         </div>
 
         <div id="log-panel">
-            <h3 style="margin: 0; padding: 8px; font-size: 1em; background: #eee; border-bottom: 1px solid #ddd;">Battle Log</h3>
+            <h3 class="log-header">Battle Log</h3>
             <div id="log-content"></div>
         </div>
     </div>
 
     <!-- RIGHT: Game Board -->
-    <div id="game-area" style="position: relative;">
+    <div id="game-area">
         <h2 id="status">Waiting for players...</h2>
 
-        <!-- Added container for Floating Text overlays -->
-        <div id="overlay-layer" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 50;"></div>
+        <!-- Floating Text Overlay -->
+        <div id="overlay-layer" class="overlay-layer"></div>
 
-        <div style="position: relative;">
+        <div class="canvas-wrapper">
             <canvas id="gameCanvas" width="1000" height="1000"></canvas>
             <!-- Context Menu -->
             <div id="context-menu">
@@ -90,7 +53,7 @@
             <button id="end-turn-btn">END TURN</button>
         </div>
 
-        <p style="font-size: 0.8em; color: #777; margin-top: 10px;">
+        <p class="instructions">
             Click to Move/Select. Right-click or Menu to Attack/Rotate.<br>
             Spawn units during your turn.
         </p>

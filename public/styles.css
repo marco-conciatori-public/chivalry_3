@@ -8,7 +8,7 @@ body {
     background-color: #f0f2f5;
 }
 
-/* Main container for Layout (Legend Left, Game Right) */
+/* Main container */
 #app-container {
     display: flex;
     gap: 30px;
@@ -54,15 +54,40 @@ body {
     color: #555;
 }
 
+/* Connection Status */
+.connection-status {
+    font-size: 0.8em;
+    color: #888;
+    margin-bottom: 10px;
+}
+
+/* Unit Info Panel */
+.unit-info-panel {
+    padding: 10px;
+    background: #f9f9f9;
+    border: 1px solid #eee;
+    border-radius: 6px;
+    margin-top: 10px;
+    min-height: 150px;
+}
+
 /* Log Panel */
 #log-panel {
     margin-top: 20px;
     border-top: 1px solid #ddd;
-    flex-grow: 1; /* Take remaining space */
+    flex-grow: 1;
     display: flex;
     flex-direction: column;
     min-height: 200px;
     max-height: 300px;
+}
+
+.log-header {
+    margin: 0;
+    padding: 8px;
+    font-size: 1em;
+    background: #eee;
+    border-bottom: 1px solid #ddd;
 }
 
 #log-content {
@@ -82,17 +107,86 @@ body {
     padding-bottom: 2px;
 }
 
+/* Log Entry Types (Refactored from JS) */
+.log-player {
+    font-weight: bold;
+    color: #333;
+}
+
+.log-unit {
+    font-weight: bold;
+    color: #3498db; /* Default fallback */
+    cursor: pointer;
+}
+
+.log-unit:hover {
+    text-decoration: underline;
+    filter: brightness(0.8);
+}
+
 /* Game Area */
 #game-area {
     display: flex;
     flex-direction: column;
     align-items: center;
+    position: relative;
+}
+
+.canvas-wrapper {
+    position: relative;
 }
 
 canvas {
     border: 2px solid #333;
     cursor: pointer;
     background-color: #fff;
+}
+
+/* Overlay Layer */
+.overlay-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 50;
+}
+
+/* Context Menu (Refactored from HTML) */
+#context-menu {
+    display: none;
+    position: absolute;
+    background: white;
+    border: 1px solid #ccc;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    border-radius: 4px;
+    z-index: 100;
+    flex-direction: column;
+    min-width: 120px;
+}
+
+#context-menu button {
+    background: none;
+    border: none;
+    padding: 8px 12px;
+    text-align: left;
+    cursor: pointer;
+    font-size: 14px;
+    width: 100%;
+}
+
+#context-menu button:hover:not(:disabled) {
+    background-color: #f0f0f0;
+}
+
+#context-menu button:disabled {
+    color: #ccc;
+    cursor: default;
+}
+
+#context-menu button.danger {
+    color: #e74c3c;
 }
 
 /* Toolbar */
@@ -121,17 +215,16 @@ canvas {
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
-/* Disabled Template State */
 .template.disabled {
     opacity: 0.5;
     cursor: not-allowed;
     filter: grayscale(100%);
-    pointer-events: none; /* Prevents clicking and hover effects */
+    pointer-events: none;
     background-color: #f0f0f0;
     border-color: #ddd;
 }
 
-/* End Turn Button Style */
+/* End Turn Button */
 #end-turn-btn {
     background-color: #e74c3c;
     color: white;
@@ -140,13 +233,19 @@ canvas {
     border-radius: 6px;
     cursor: pointer;
     font-weight: bold;
-    margin-left: 20px; /* Space from templates */
+    margin-left: 20px;
     transition: background 0.2s;
 }
 #end-turn-btn:hover { background-color: #c0392b; }
 #end-turn-btn:disabled { background-color: #ccc; cursor: not-allowed; }
 
 h2 { margin-top: 0; }
+
+.instructions {
+    font-size: 0.8em;
+    color: #777;
+    margin-top: 10px;
+}
 
 /* Floating Text Animation */
 .floating-text {
@@ -166,7 +265,7 @@ h2 { margin-top: 0; }
     100% { transform: translateY(-40px); opacity: 0; }
 }
 
-/* TOOLTIP STYLES */
+/* Tooltips */
 #morale-tooltip {
     position: absolute;
     background: rgba(0, 0, 0, 0.9);
@@ -175,7 +274,7 @@ h2 { margin-top: 0; }
     border-radius: 4px;
     font-size: 12px;
     z-index: 2000;
-    pointer-events: none; /* Allows mouse to pass through so element doesn't flicker on move */
+    pointer-events: none;
     white-space: nowrap;
     box-shadow: 0 4px 6px rgba(0,0,0,0.3);
     border: 1px solid #444;
