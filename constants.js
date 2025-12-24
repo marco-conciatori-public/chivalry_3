@@ -19,6 +19,47 @@ module.exports = {
     MAX_MORALE: 100,
     COMMANDER_INFLUENCE_RANGE: 4,
 
+    // Map Generation Configuration
+    MAP_GEN: {
+        SPAWN_ZONE_HEIGHT: 2,      // Top/Bottom rows reserved for spawning
+        BASE_AREA: 100,            // Reference area (10x10) for scaling calculations
+        IMPASSABLE_THRESHOLD: 10,  // Terrain cost above this is considered a wall/obstacle
+
+        MOUNTAINS: {
+            BASE_MIN: 1,           // Minimum groups for base area
+            BASE_VAR: 2,           // Variance (Math.random() * VAR)
+            DENSITY: 0.3,          // Multiplier for area scaling
+            MAX_ATTEMPTS_SCALE: 2000, // Safety break for while loop
+            GROUP_SIZE_SMALL: 2,
+            GROUP_SIZE_LARGE: 3
+        },
+        STREETS: {
+            BASE_MIN: 2,
+            BASE_VAR: 2,
+            LENGTH_FACTOR: 0.8,    // Relative to GRID_SIZE
+            TURN_BIAS: 0.2,        // Probability to turn
+            DIRECTION_BIAS: 0.8    // Probability to continue in main direction
+        },
+        WALLS: {
+            BASE_MIN: 1,
+            BASE_VAR: 2,
+            DENSITY: 0.25,
+            LENGTH_MIN: 3,
+            LENGTH_VAR: 6
+        },
+        FORESTS: {
+            BASE_MIN: 2,
+            BASE_VAR: 2,
+            DENSITY: 0.7,
+            BLOB_SIZE_MIN: 4,
+            BLOB_SIZE_VAR: 8
+        },
+        RIVERS: {
+            DENSITY: 0.15,
+            LENGTH_FACTOR: 1.5
+        }
+    },
+
     // TERRAIN DEFINITIONS
     TERRAIN: {
         PLAINS: { id: 'plains', symbol: '', cost: 1, defense: 0, blocksLos: false, color: '#a3d5a5' },

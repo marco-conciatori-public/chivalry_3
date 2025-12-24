@@ -19,6 +19,8 @@ let gameState = {
 
 // --- MAP GENERATION ---
 function generateMap() {
+    const CFG = constants.MAP_GEN; // Shortcut
+
     // 1. Reset to Plains
     for (let y = 0; y < constants.GRID_SIZE; y++) {
         for (let x = 0; x < constants.GRID_SIZE; x++) {
@@ -26,67 +28,65 @@ function generateMap() {
         }
     }
 
-    const isValidZone = (x, y) => x >= 0 && x < constants.GRID_SIZE && y >= 2 && y < constants.GRID_SIZE - 2;
+    const isValidZone = (x, y) =>
+        x >= 0 && x < constants.GRID_SIZE &&
+        y >= CFG.SPAWN_ZONE_HEIGHT &&
+        y < constants.GRID_SIZE - CFG.SPAWN_ZONE_HEIGHT;
 
-    const areaScale = (constants.GRID_SIZE * constants.GRID_SIZE) / 100;
+    const areaScale = (constants.GRID_SIZE * constants.GRID_SIZE) / CFG.BASE_AREA;
 
-    // 2. STREETS (Generate these early so they form a network)
-    // Create a few main roads
-    const numStreets = Math.floor(Math.random() * 2) + 2; // 2-3 main roads base
-    const totalStreets = Math.floor(numStreets * Math.sqrt(areaScale)); // Scale by linear dimension approx
+    // 2. STREETS
+    const numStreets = Math.floor(Math.random() * CFG.STREETS.BASE_VAR) + CFG.STREETS.BASE_MIN;
+    const totalStreets = Math.floor(numStreets * Math.sqrt(areaScale));
 
     for(let i=0; i<totalStreets; i++) {
         let x = Math.floor(Math.random() * constants.GRID_SIZE);
         let y = Math.floor(Math.random() * constants.GRID_SIZE);
 
-        // Random Walk for street
-        let length = Math.floor(constants.GRID_SIZE * 0.8);
-        let dir = Math.random() < 0.5 ? 0 : 1; // 0: Horizontal, 1: Vertical preference
+        let length = Math.floor(constants.GRID_SIZE * CFG.STREETS.LENGTH_FACTOR);
+        let dir = Math.random() < 0.5 ? 0 : 1; // 0: Horizontal, 1: Vertical
 
         for(let j=0; j<length; j++) {
             if(isValidZone(x, y)) {
                 gameState.terrainMap[y][x] = constants.TERRAIN.STREET;
             }
 
-            // Move
             if (dir === 0) {
-                x += (Math.random() < 0.8 ? 1 : 0); // Bias East
-                y += (Math.random() < 0.2 ? (Math.random() < 0.5 ? 1 : -1) : 0);
+                x += (Math.random() < CFG.STREETS.DIRECTION_BIAS ? 1 : 0);
+                y += (Math.random() < CFG.STREETS.TURN_BIAS ? (Math.random() < 0.5 ? 1 : -1) : 0);
             } else {
-                y += (Math.random() < 0.8 ? 1 : 0); // Bias South
-                x += (Math.random() < 0.2 ? (Math.random() < 0.5 ? 1 : -1) : 0);
+                y += (Math.random() < CFG.STREETS.DIRECTION_BIAS ? 1 : 0);
+                x += (Math.random() < CFG.STREETS.TURN_BIAS ? (Math.random() < 0.5 ? 1 : -1) : 0);
             }
 
-            // Wrap/Bound check
             x = Math.max(0, Math.min(constants.GRID_SIZE-1, x));
             y = Math.max(0, Math.min(constants.GRID_SIZE-1, y));
         }
     }
 
-
-    // 3. MOUNTAINS (Reduced)
-    // Reduced modifier from 0.6 to 0.3
-    const baseMountains = Math.floor(Math.random() * 2) + 1;
-    const targetMountainGroups = Math.floor(baseMountains * areaScale * 0.3);
+    // 3. MOUNTAINS
+    const baseMountains = Math.floor(Math.random() * CFG.MOUNTAINS.BASE_VAR) + CFG.MOUNTAINS.BASE_MIN;
+    const targetMountainGroups = Math.floor(baseMountains * areaScale * CFG.MOUNTAINS.DENSITY);
 
     let mountainAttempts = 0;
     let groupsPlaced = 0;
 
-    while(groupsPlaced < targetMountainGroups && mountainAttempts < (2000 * areaScale)) {
+    while(groupsPlaced < targetMountainGroups && mountainAttempts < (CFG.MOUNTAINS.MAX_ATTEMPTS_SCALE * areaScale)) {
         mountainAttempts++;
-        const size = Math.random() < 0.5 ? 2 : 3;
+        const size = Math.random() < 0.5 ? CFG.MOUNTAINS.GROUP_SIZE_SMALL : CFG.MOUNTAINS.GROUP_SIZE_LARGE;
 
         const mx = Math.floor(Math.random() * (constants.GRID_SIZE - size - 2)) + 1;
-        const my = Math.floor(Math.random() * (constants.GRID_SIZE - size - 6)) + 3;
+        const my = Math.floor(Math.random() * (constants.GRID_SIZE - size - (CFG.SPAWN_ZONE_HEIGHT * 2 + 2))) + (CFG.SPAWN_ZONE_HEIGHT + 1);
 
         let canPlace = true;
+        // Check buffer zone 1 tile larger
         for (let y = my - 1; y < my + size + 1; y++) {
             for (let x = mx - 1; x < mx + size + 1; x++) {
-                // Don't overwrite existing mountains or streets (keep streets clear if possible, or overwrite? Overwrite is ok for mountains)
-                // Actually, let's strictly avoid overlap with other mountains, but overwrite plains/streets
-                if (gameState.terrainMap[y][x].id === 'mountain') {
-                    canPlace = false;
-                    break;
+                if (y >= 0 && y < constants.GRID_SIZE && x >= 0 && x < constants.GRID_SIZE) {
+                    if (gameState.terrainMap[y][x].id === 'mountain') {
+                        canPlace = false;
+                        break;
+                    }
                 }
             }
             if (!canPlace) break;
@@ -95,45 +95,46 @@ function generateMap() {
         if (canPlace) {
             for (let y = my; y < my + size; y++) {
                 for (let x = mx; x < mx + size; x++) {
-                    gameState.terrainMap[y][x] = constants.TERRAIN.MOUNTAIN;
+                    if (isValidZone(x, y)) {
+                        gameState.terrainMap[y][x] = constants.TERRAIN.MOUNTAIN;
+                    }
                 }
             }
             groupsPlaced++;
         }
     }
 
-    // 4. Walls (Lines) - Reduced
-    // Reduced multiplier from 0.5 to 0.25
-    const baseWalls = Math.floor(Math.random() * 2) + 1;
-    const numWalls = Math.floor(baseWalls * areaScale * 0.25);
+    // 4. WALLS
+    const baseWalls = Math.floor(Math.random() * CFG.WALLS.BASE_VAR) + CFG.WALLS.BASE_MIN;
+    const numWalls = Math.floor(baseWalls * areaScale * CFG.WALLS.DENSITY);
 
     for (let i = 0; i < numWalls; i++) {
         let startX = Math.floor(Math.random() * constants.GRID_SIZE);
-        let startY = Math.floor(Math.random() * (constants.GRID_SIZE - 4)) + 2;
+        let startY = Math.floor(Math.random() * (constants.GRID_SIZE - (CFG.SPAWN_ZONE_HEIGHT * 2))) + CFG.SPAWN_ZONE_HEIGHT;
         let isVertical = Math.random() < 0.5;
-        let length = Math.floor(Math.random() * 6) + 3;
+        let length = Math.floor(Math.random() * CFG.WALLS.LENGTH_VAR) + CFG.WALLS.LENGTH_MIN;
 
         for (let l = 0; l < length; l++) {
             let wx = isVertical ? startX : startX + l;
             let wy = isVertical ? startY + l : startY;
 
-            // Only overwrite plains or streets (walls block streets)
+            // Only overwrite plains or streets
             if (isValidZone(wx, wy) && (gameState.terrainMap[wy][wx].id === 'plains' || gameState.terrainMap[wy][wx].id === 'street')) {
                 gameState.terrainMap[wy][wx] = constants.TERRAIN.WALL;
             }
         }
     }
 
-    // 5. Forests (Organic Blobs)
-    const baseForests = Math.floor(Math.random() * 2) + 2;
-    const numForests = Math.floor(baseForests * areaScale * 0.7);
+    // 5. FORESTS
+    const baseForests = Math.floor(Math.random() * CFG.FORESTS.BASE_VAR) + CFG.FORESTS.BASE_MIN;
+    const numForests = Math.floor(baseForests * areaScale * CFG.FORESTS.DENSITY);
 
     for (let i = 0; i < numForests; i++) {
         let cx = Math.floor(Math.random() * constants.GRID_SIZE);
-        let cy = Math.floor(Math.random() * (constants.GRID_SIZE - 4)) + 2;
+        let cy = Math.floor(Math.random() * (constants.GRID_SIZE - (CFG.SPAWN_ZONE_HEIGHT * 2))) + CFG.SPAWN_ZONE_HEIGHT;
 
         if (isValidZone(cx, cy)) {
-            const blobSize = Math.floor(Math.random() * 8) + 4;
+            const blobSize = Math.floor(Math.random() * CFG.FORESTS.BLOB_SIZE_VAR) + CFG.FORESTS.BLOB_SIZE_MIN;
             let openSet = [{x: cx, y: cy}];
             let placedCount = 0;
 
@@ -155,16 +156,15 @@ function generateMap() {
         }
     }
 
-    // 6. Water (Rivers)
-    const numRivers = Math.max(1, Math.floor(areaScale * 0.15));
+    // 6. RIVERS
+    const numRivers = Math.max(1, Math.floor(areaScale * CFG.RIVERS.DENSITY));
     for(let r=0; r<numRivers; r++) {
         let rx = Math.floor(Math.random() * constants.GRID_SIZE);
-        let ry = Math.floor(Math.random() * (constants.GRID_SIZE - 4)) + 2;
-        let riverLength = Math.floor(constants.GRID_SIZE * 1.5);
+        let ry = Math.floor(Math.random() * (constants.GRID_SIZE - (CFG.SPAWN_ZONE_HEIGHT * 2))) + CFG.SPAWN_ZONE_HEIGHT;
+        let riverLength = Math.floor(constants.GRID_SIZE * CFG.RIVERS.LENGTH_FACTOR);
 
         for(let i=0; i<riverLength; i++) {
             if (isValidZone(rx, ry)) {
-                // Rivers overwrite everything except mountains (water flows around)
                 if (gameState.terrainMap[ry][rx].id !== 'mountain') {
                     gameState.terrainMap[ry][rx] = constants.TERRAIN.WATER;
                 }
@@ -220,7 +220,8 @@ io.on('connection', (socket) => {
         if (!player) return;
 
         const terrain = gameState.terrainMap[y][x];
-        if (terrain.cost > 10) return;
+        // Use constant for threshold
+        if (terrain.cost > constants.MAP_GEN.IMPASSABLE_THRESHOLD) return;
 
         if (!gameState.grid[y][x]) {
             const baseStats = unitStats[type];
@@ -508,7 +509,7 @@ io.on('connection', (socket) => {
                     const key = `${nx},${ny}`;
                     const targetTerrain = terrainMap[ny][nx];
 
-                    if (targetTerrain.cost > 10) continue;
+                    if (targetTerrain.cost > constants.MAP_GEN.IMPASSABLE_THRESHOLD) continue;
                     if (grid[ny][nx] && (nx !== end.x || ny !== end.y)) continue;
                     if (grid[ny][nx]) continue;
 
@@ -702,8 +703,8 @@ io.on('connection', (socket) => {
                 const ny = y + dy;
                 if (nx >= 0 && nx < constants.GRID_SIZE && ny >= 0 && ny < constants.GRID_SIZE) {
                     const key = `${nx},${ny}`;
-                    // Fleeing units blocked by Impassable Terrain (cost > 10)
-                    if (gameState.terrainMap[ny][nx].cost > 10) continue;
+                    // Fleeing units blocked by Impassable Terrain
+                    if (gameState.terrainMap[ny][nx].cost > constants.MAP_GEN.IMPASSABLE_THRESHOLD) continue;
 
                     if (!visited.has(key) && !gameState.grid[ny][nx]) {
                         visited.add(key);
