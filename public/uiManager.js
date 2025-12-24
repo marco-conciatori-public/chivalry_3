@@ -127,8 +127,7 @@ const UiManager = {
         const formatStat = (label, value) => `<div class="stat-row"><span>${label}:</span> <strong>${value}</strong></div>`;
 
         let effects = [];
-        if (terrain.defense > 0) effects.push(`+${terrain.defense}% Def`);
-        if (terrain.cost > 1 && terrain.cost < 10) effects.push(`-${terrain.cost} Move`);
+        // Removed redundant display of defense and cost values
         if (terrain.cost >= 10) effects.push(`Impassable`);
         if (terrain.blocksLos) effects.push(`Blocks Sight`);
         if (terrain.highGround) effects.push(`High Ground (+Range)`);
