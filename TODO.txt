@@ -2,8 +2,10 @@ screen for setting up game options
     e.g. map size, initial resources...
 initial phase before first turn to place troops?
 add new terrain types?
-add/change unit types
-when a unit attacks, it should be facing the target OR it should automatically turn to face the target
+add/change unit types?
+when a unit attacks
+    does it need be already facing the target?
+    OR should it automatically turn to face the target?
 add fog of war?
 other combat bonuses?
     flanking bonus
@@ -13,6 +15,8 @@ other combat bonuses?
 special abilities for units?
 morale influences damage?
 AI enemy?
+add resources on the map?
+add experience and leveling for units?
 comprare truppe anche durante la partita?
     truppe distrutte fruttano monete
     ci sono miniere che danno monete all'inizio di ogni turno
