@@ -4,6 +4,7 @@ const UiManager = {
         playerList: document.getElementById('player-list'),
         connectionStatus: document.getElementById('connection-status'),
         unitInfoContent: document.getElementById('unit-info-content'),
+        cellInfoContent: document.getElementById('cell-info-content'),
         logContent: document.getElementById('log-content'),
         endTurnBtn: document.getElementById('end-turn-btn'),
         contextMenu: document.getElementById('context-menu'),
@@ -117,6 +118,32 @@ const UiManager = {
         });
     },
 
+    updateCellInfo(terrain, x, y) {
+        if (!terrain) {
+            this.elements.cellInfoContent.innerHTML = '<em>Hover over a cell</em>';
+            return;
+        }
+
+        const formatStat = (label, value) => `<div class="stat-row"><span>${label}:</span> <strong>${value}</strong></div>`;
+
+        let effects = [];
+        if (terrain.defense > 0) effects.push(`+${terrain.defense}% Def`);
+        if (terrain.cost > 1 && terrain.cost < 10) effects.push(`-${terrain.cost} Move`);
+        if (terrain.cost >= 10) effects.push(`Impassable`);
+        if (terrain.blocksLos) effects.push(`Blocks Sight`);
+        if (terrain.highGround) effects.push(`High Ground (+Range)`);
+
+        let effectsHtml = effects.length > 0 ? effects.join(', ') : 'None';
+
+        this.elements.cellInfoContent.innerHTML = `
+            <div style="font-size: 1.1em; font-weight: bold; margin-bottom: 5px;">${terrain.id.toUpperCase()} <span style="font-size:0.8em">(${x},${y})</span></div>
+            ${formatStat('Movement Cost', terrain.cost)}
+            ${formatStat('Defense Bonus', terrain.defense + '%')}
+            <hr style="border: 0; border-top: 1px solid #eee; margin: 8px 0;">
+            <div style="font-size: 0.9em; color: #555;">${effectsHtml}</div>
+        `;
+    },
+
     updateUnitInfo(entity, isTemplate, selectedTemplate, gameState, selectedCell) {
         this.currentMoraleBreakdown = null;
         if (!entity) {
@@ -158,14 +185,6 @@ const UiManager = {
         if (!isTemplate && entity.is_fleeing) statusEffect = `<div style="color:red; font-weight:bold; margin:5px 0;">⚠ FLEEING</div>`;
         else if (!isTemplate && entity.is_commander) statusEffect = `<div style="color:gold; font-weight:bold; margin:5px 0;">♛ COMMANDER</div>`;
 
-        let terrainInfo = '';
-        if (!isTemplate && selectedCell && gameState && gameState.terrainMap) {
-            const t = gameState.terrainMap[selectedCell.y][selectedCell.x];
-            if (t.id !== 'plains') {
-                terrainInfo = `<hr style="margin:5px 0;"><div style="font-size:0.9em;">Terrain: ${t.symbol} <b>${t.id.toUpperCase()}</b><br>Def: +${t.defense}, Cost: ${t.cost}</div>`;
-            }
-        }
-
         this.elements.unitInfoContent.innerHTML = `
             <div style="font-size: 1.1em; font-weight: bold; margin-bottom: 5px;">${typeDisplay}</div>
             ${statusEffect}
@@ -180,7 +199,6 @@ const UiManager = {
             ${formatStat('Defense', entity.defence)}
             ${formatStat('Range', entity.range)}
             ${extraRows}
-            ${terrainInfo}
         `;
 
         if (!isTemplate) {
@@ -227,16 +245,9 @@ const UiManager = {
         const jitterX = (Math.random() * 20) - 10;
         const jitterY = (Math.random() * 20) - 10;
 
-        // Calculate position relative to Game Area
-        // Need to account for Canvas size being different from Grid coords
         const left = (gridX * cellSize) + (cellSize / 2) + jitterX;
         const top = (gridY * cellSize) + (cellSize / 2) + jitterY;
 
-        // Position it
-        // The game-area is position:relative, so we can position absolutely inside it
-        // BUT current structure appends to game-area directly.
-        // We need to account for sidebar offset if not inside game area.
-        // Assuming game-area is the parent:
         el.style.left = `${left}px`;
         el.style.top = `${top}px`;
 
