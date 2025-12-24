@@ -31,6 +31,7 @@ socket.on('init', (data) => {
     // Update Grid Config
     if (localState.grid) {
         GRID_SIZE = localState.grid.length;
+        // Re-initialize Renderer with new grid size
         Renderer.init(ctx, GRID_SIZE, canvas.width);
     }
 
@@ -60,13 +61,24 @@ socket.on('init', (data) => {
 
 socket.on('update', (state) => {
     localState = state;
+    // Ensure GRID_SIZE is synced on update as well, just in case
+    if (localState.grid && localState.grid.length !== GRID_SIZE) {
+        GRID_SIZE = localState.grid.length;
+        Renderer.setGridSize(GRID_SIZE, canvas.width);
+    }
+
     if (selectedCell) {
-        const entity = localState.grid[selectedCell.y][selectedCell.x];
-        if (!entity) {
+        // Validation: Ensure selected cell is still within bounds
+        if (selectedCell.x >= GRID_SIZE || selectedCell.y >= GRID_SIZE) {
             resetSelection();
         } else {
-            recalculateOptions(entity);
-            UiManager.updateUnitInfo(entity, false, null, localState, selectedCell);
+            const entity = localState.grid[selectedCell.y][selectedCell.x];
+            if (!entity) {
+                resetSelection();
+            } else {
+                recalculateOptions(entity);
+                UiManager.updateUnitInfo(entity, false, null, localState, selectedCell);
+            }
         }
     }
     renderGame();
