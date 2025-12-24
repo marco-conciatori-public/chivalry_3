@@ -19,15 +19,18 @@ let gameState = {
     grid: null,
     terrainMap: null,
     players: {},
-    turn: null
+    turn: null,
+    isGameActive: false // Track if the game is in Lobby or Playing state
 };
 
-// Start initial game with defaults
+// Start initial game with defaults but keep it inactive (Lobby mode)
 startNewGame({
     gridSize: constants.GRID_SIZE,
     startingGold: constants.STARTING_GOLD,
     aiCount: 0
 });
+// Force inactive state after initial setup so players see the setup screen first
+gameState.isGameActive = false;
 
 function startNewGame(settings) {
     // 1. Update Constants (Runtime Override)
@@ -79,7 +82,10 @@ function startNewGame(settings) {
     const allIds = Object.keys(gameState.players);
     gameState.turn = allIds.length > 0 ? allIds[0] : null;
 
-    // 6. Broadcast new state
+    // 6. Set Game Active
+    gameState.isGameActive = true;
+
+    // 7. Broadcast new state
     io.emit('init', {
         state: gameState,
         myId: null, // Client ignores this in general update, but init handler needs structure
@@ -127,8 +133,6 @@ io.on('connection', (socket) => {
     console.log('A player connected:', socket.id);
 
     // Add new player to current game
-    // Note: If game is full (4 players), this might need logic to make them spectator
-    // For now, we just add them.
     addPlayerToGame(socket.id);
 
     // If this is the first player, ensure turn is set

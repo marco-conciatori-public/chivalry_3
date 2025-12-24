@@ -7,7 +7,7 @@ const ctx = canvas.getContext('2d');
 let myId = null;
 let localState = null;
 let clientUnitStats = {};
-let GRID_SIZE = 40; // Updated by init
+let GRID_SIZE = 50; // Updated by init
 
 // Game Interaction State
 let selectedCell = null;
@@ -34,12 +34,12 @@ socket.on('init', (data) => {
         Renderer.init(ctx, GRID_SIZE, canvas.width);
     }
 
-    // Hide setup screen if game is running and we are joining
-    // For now, if init is called, we assume the game is valid.
-    // However, if we just connected and the server is brand new, we might show the setup.
-    // But since the setup is client-side driven by the "New Game" button or initial load,
-    // we can hide it here to confirm game start.
-    UiManager.hideSetupScreen();
+    // Handle Setup Screen Visibility based on Game State
+    if (localState.isGameActive) {
+        UiManager.hideSetupScreen();
+    } else {
+        UiManager.showSetupScreen();
+    }
 
     // Load Images then Render
     Renderer.loadAssets().then(() => {

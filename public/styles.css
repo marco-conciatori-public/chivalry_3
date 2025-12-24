@@ -25,7 +25,8 @@ body {
     position: fixed;
     top: 0; left: 0;
     width: 100%; height: 100%;
-    background: rgba(0,0,0,0.8);
+    /* UPDATED: Solid background to block view of the game grid */
+    background: #f0f2f5;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -37,7 +38,7 @@ body {
     padding: 30px;
     border-radius: 12px;
     width: 400px;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
     text-align: center;
 }
 
