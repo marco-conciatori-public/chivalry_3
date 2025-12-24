@@ -21,7 +21,7 @@ module.exports = {
 
     // TERRAIN DEFINITIONS
     TERRAIN: {
-        PLAINS: { id: 'plains', symbol: '', cost: 1, defense: 0, blocksLos: false, color: '#ecf0f1' },
+        PLAINS: { id: 'plains', symbol: '', cost: 1, defense: 0, blocksLos: false, color: '#a3d5a5' },
         FOREST: { id: 'forest', symbol: '🌲', cost: 2, defense: 20, blocksLos: true, color: '#a3d5a5' },
         MOUNTAIN: { id: 'mountain', symbol: '🏔️', cost: 3, defense: 30, blocksLos: true, color: '#bdc3c7', highGround: true },
         WALL: { id: 'wall', symbol: '🧱', cost: 99, defense: 0, blocksLos: true, color: '#7f8c8d', highGround: true },
