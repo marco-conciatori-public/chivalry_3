@@ -16,55 +16,122 @@ app.use(express.static('public'));
 app.use('/images', express.static('images'));
 
 let gameState = {
-    grid: Array(constants.GRID_SIZE).fill(null).map(() => Array(constants.GRID_SIZE).fill(null)),
-    terrainMap: Array(constants.GRID_SIZE).fill(null).map(() => Array(constants.GRID_SIZE).fill(constants.TERRAIN.PLAINS)),
+    grid: null,
+    terrainMap: null,
     players: {},
     turn: null
 };
 
-// Generate initial map
-mapGenerator.generateMap(gameState);
+// Start initial game with defaults
+startNewGame({
+    gridSize: constants.GRID_SIZE,
+    startingGold: constants.STARTING_GOLD,
+    aiCount: 0
+});
+
+function startNewGame(settings) {
+    // 1. Update Constants (Runtime Override)
+    constants.GRID_SIZE = parseInt(settings.gridSize);
+    constants.STARTING_GOLD = parseInt(settings.startingGold);
+
+    // 2. Reset Grid & Terrain
+    gameState.grid = Array(constants.GRID_SIZE).fill(null).map(() => Array(constants.GRID_SIZE).fill(null));
+    gameState.terrainMap = Array(constants.GRID_SIZE).fill(null).map(() => Array(constants.GRID_SIZE).fill(constants.TERRAIN.PLAINS));
+
+    // 3. Regenerate Map
+    mapGenerator.generateMap(gameState);
+
+    // 4. Handle Players (Reset Existing, Add AI)
+    // We keep existing human connections but reset their state
+    const currentSocketIds = Object.keys(gameState.players).filter(id => !gameState.players[id].isAI);
+    gameState.players = {}; // Clear all
+
+    // Re-add humans
+    currentSocketIds.forEach((socketId, index) => {
+        addPlayerToGame(socketId, index);
+    });
+
+    // Add AI Players
+    const aiCount = parseInt(settings.aiCount || 0);
+    const humanCount = currentSocketIds.length;
+
+    for(let i=0; i<aiCount; i++) {
+        const aiId = `ai_${i+1}`;
+        const totalIndex = humanCount + i;
+        if(totalIndex < 4) { // Max 4 players supported by base logic
+            const playerColor = constants.PLAYER_COLORS[totalIndex % constants.PLAYER_COLORS.length];
+            const baseArea = getBaseArea(totalIndex);
+
+            gameState.players[aiId] = {
+                symbol: 'A',
+                color: playerColor,
+                id: aiId,
+                name: `Bot ${i+1}`,
+                gold: constants.STARTING_GOLD,
+                baseArea: baseArea,
+                isAI: true,
+                difficulty: settings.aiDifficulty || 'normal'
+            };
+        }
+    }
+
+    // 5. Set Turn
+    const allIds = Object.keys(gameState.players);
+    gameState.turn = allIds.length > 0 ? allIds[0] : null;
+
+    // 6. Broadcast new state
+    io.emit('init', {
+        state: gameState,
+        myId: null, // Client ignores this in general update, but init handler needs structure
+        unitStats: unitStats
+    });
+
+    io.emit('gameLog', { message: "--- NEW GAME STARTED ---" });
+}
+
+function getBaseArea(playerIndex) {
+    const G = constants.GRID_SIZE;
+    const dimLong = Math.floor(G / 2);
+    const dimShort = Math.floor(G / 20);
+    const centerOffset = Math.floor((G - dimLong) / 2);
+
+    if (playerIndex === 0) return { x: centerOffset, y: 0, width: dimLong, height: dimShort }; // Top
+    if (playerIndex === 1) return { x: centerOffset, y: G - dimShort, width: dimLong, height: dimShort }; // Bottom
+    if (playerIndex === 2) return { x: 0, y: centerOffset, width: dimShort, height: dimLong }; // Left
+    if (playerIndex === 3) return { x: G - dimShort, y: centerOffset, width: dimShort, height: dimLong }; // Right
+    return null;
+}
+
+function addPlayerToGame(socketId, indexOverride = null) {
+    const existingPlayers = Object.keys(gameState.players);
+    // If indexOverride is provided (during reset), use it. Otherwise append.
+    const playerIndex = indexOverride !== null ? indexOverride : existingPlayers.length;
+
+    const playerSymbol = playerIndex === 0 ? 'X' : 'O';
+    const playerColor = constants.PLAYER_COLORS[playerIndex % constants.PLAYER_COLORS.length];
+    const defaultName = `Player${playerIndex + 1}`;
+    const baseArea = getBaseArea(playerIndex);
+
+    gameState.players[socketId] = {
+        symbol: playerSymbol,
+        color: playerColor,
+        id: socketId,
+        name: defaultName,
+        gold: constants.STARTING_GOLD,
+        baseArea: baseArea,
+        isAI: false
+    };
+}
 
 io.on('connection', (socket) => {
     console.log('A player connected:', socket.id);
 
-    const existingPlayers = Object.keys(gameState.players);
-    const playerSymbol = existingPlayers.length === 0 ? 'X' : 'O';
-    const playerColor = constants.PLAYER_COLORS[existingPlayers.length % constants.PLAYER_COLORS.length];
+    // Add new player to current game
+    // Note: If game is full (4 players), this might need logic to make them spectator
+    // For now, we just add them.
+    addPlayerToGame(socket.id);
 
-    const playerCount = existingPlayers.length + 1;
-    const defaultName = `Player${playerCount}`;
-
-    // --- BASE ASSIGNMENT LOGIC ---
-    let baseArea = null;
-    const G = constants.GRID_SIZE;
-    const dimLong = Math.floor(G / 2);       // grid_size / 2
-    const dimShort = Math.floor(G / 20);     // grid_size / 20
-    const centerOffset = Math.floor((G - dimLong) / 2);
-
-    if (existingPlayers.length === 0) {
-        // Player 1: Top Center
-        baseArea = { x: centerOffset, y: 0, width: dimLong, height: dimShort };
-    } else if (existingPlayers.length === 1) {
-        // Player 2: Bottom Center
-        baseArea = { x: centerOffset, y: G - dimShort, width: dimLong, height: dimShort };
-    } else if (existingPlayers.length === 2) {
-        // Player 3: Left Center (Vertical)
-        baseArea = { x: 0, y: centerOffset, width: dimShort, height: dimLong };
-    } else if (existingPlayers.length === 3) {
-        // Player 4: Right Center (Vertical)
-        baseArea = { x: G - dimShort, y: centerOffset, width: dimShort, height: dimLong };
-    }
-
-    gameState.players[socket.id] = {
-        symbol: playerSymbol,
-        color: playerColor,
-        id: socket.id,
-        name: defaultName,
-        gold: constants.STARTING_GOLD,
-        baseArea: baseArea
-    };
-
+    // If this is the first player, ensure turn is set
     if (!gameState.turn) gameState.turn = socket.id;
 
     socket.emit('init', {
@@ -74,6 +141,11 @@ io.on('connection', (socket) => {
     });
 
     io.emit('update', gameState);
+
+    socket.on('startGame', (settings) => {
+        console.log("Starting new game with settings:", settings);
+        startNewGame(settings);
+    });
 
     socket.on('changeName', (newName) => {
         const player = gameState.players[socket.id];

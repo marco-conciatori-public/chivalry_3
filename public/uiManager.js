@@ -12,7 +12,10 @@ const UiManager = {
         status: document.getElementById('status'),
         toolbar: document.getElementById('toolbar'),
         btnRotate: document.getElementById('btn-rotate'),
-        btnAttack: document.getElementById('btn-attack')
+        btnAttack: document.getElementById('btn-attack'),
+        setupScreen: document.getElementById('setup-screen'),
+        btnStartGame: document.getElementById('btn-start-game'),
+        btnNewGameTrigger: document.getElementById('btn-new-game-trigger')
     },
 
     currentMoraleBreakdown: null,
@@ -24,6 +27,28 @@ const UiManager = {
         this.tooltipEl.id = 'morale-tooltip';
         this.tooltipEl.style.display = 'none';
         document.body.appendChild(this.tooltipEl);
+
+        // Setup Screen listeners are wired in game.js, but we provide methods here
+        this.elements.btnNewGameTrigger.addEventListener('click', () => {
+            this.showSetupScreen();
+        });
+    },
+
+    showSetupScreen() {
+        this.elements.setupScreen.classList.remove('hidden');
+    },
+
+    hideSetupScreen() {
+        this.elements.setupScreen.classList.add('hidden');
+    },
+
+    getSetupSettings() {
+        return {
+            gridSize: document.getElementById('cfg-grid-size').value,
+            startingGold: document.getElementById('cfg-gold').value,
+            aiCount: document.getElementById('cfg-ai-count').value,
+            aiDifficulty: document.getElementById('cfg-ai-difficulty').value
+        };
     },
 
     updateConnectionStatus(id) {
@@ -45,7 +70,6 @@ const UiManager = {
     updateLegend(gameState, myId, onRename) {
         if (!gameState.players) return;
 
-        // Update any existing log entries with new names
         this.updateLogNames(gameState);
 
         this.elements.playerList.innerHTML = '';
@@ -64,7 +88,12 @@ const UiManager = {
             colorBox.className = 'player-color-box';
             colorBox.style.backgroundColor = p.color;
             const nameSpan = document.createElement('span');
-            nameSpan.innerText = `${p.name}${isMe ? " (You)" : ""}${goldDisplay}`;
+
+            let displayName = p.name;
+            if (isMe) displayName += " (You)";
+            if (p.isAI) displayName += " [AI]"; // Mark AI in legend
+
+            nameSpan.innerText = `${displayName}${goldDisplay}`;
 
             if (isMe) {
                 nameSpan.style.cursor = 'pointer';

@@ -1,17 +1,19 @@
 const constants = require('./constants');
 
 function generateMap(gameState) {
-    const CFG = constants.MAP_GEN; // Shortcut
+    // Read constants inside function to ensure dynamic updates from Server are caught
+    const GRID_SIZE = constants.GRID_SIZE;
+    const CFG = constants.MAP_GEN;
 
     // 1. Reset to Plains
-    for (let y = 0; y < constants.GRID_SIZE; y++) {
-        for (let x = 0; x < constants.GRID_SIZE; x++) {
+    for (let y = 0; y < GRID_SIZE; y++) {
+        for (let x = 0; x < GRID_SIZE; x++) {
             gameState.terrainMap[y][x] = constants.TERRAIN.PLAINS;
         }
     }
 
     // --- NEW VALID ZONE LOGIC FOR 4 PLAYERS ---
-    const G = constants.GRID_SIZE;
+    const G = GRID_SIZE;
     const dimLong = Math.floor(G / 2);
     const dimShort = Math.floor(G / 20);
     const centerOffset = Math.floor((G - dimLong) / 2);
@@ -27,6 +29,8 @@ function generateMap(gameState) {
     const isValidZone = (x, y) => {
         // Check map bounds
         if (x < 0 || x >= G || y < 0 || y >= G) return false;
+        // Check spawn buffer (generic top/bottom buffer from constants if needed, but we rely on bases now)
+        if (y < CFG.SPAWN_ZONE_HEIGHT || y >= G - CFG.SPAWN_ZONE_HEIGHT) return false;
 
         // Check against any base area
         for (let b of bases) {
@@ -37,7 +41,7 @@ function generateMap(gameState) {
         return true;
     };
 
-    const areaScale = (constants.GRID_SIZE * constants.GRID_SIZE) / CFG.BASE_AREA;
+    const areaScale = (GRID_SIZE * GRID_SIZE) / CFG.BASE_AREA;
 
     // --- GENERATE OBSTACLES FIRST ---
 
@@ -52,21 +56,17 @@ function generateMap(gameState) {
         mountainAttempts++;
         const size = Math.random() < 0.5 ? CFG.MOUNTAINS.GROUP_SIZE_SMALL : CFG.MOUNTAINS.GROUP_SIZE_LARGE;
 
-        const mx = Math.floor(Math.random() * (constants.GRID_SIZE - size - 2)) + 1;
-        const my = Math.floor(Math.random() * (constants.GRID_SIZE - size - 2)) + 1;
+        const mx = Math.floor(Math.random() * (GRID_SIZE - size - 2)) + 1;
+        const my = Math.floor(Math.random() * (GRID_SIZE - size - 2)) + 1;
 
         let canPlace = true;
-        // Check buffer zone & Valid Zone
         for (let y = my - 1; y < my + size + 1; y++) {
             for (let x = mx - 1; x < mx + size + 1; x++) {
-                // Must be in map bounds
-                if (y >= 0 && y < constants.GRID_SIZE && x >= 0 && x < constants.GRID_SIZE) {
-                    // Must NOT be in a base
+                if (y >= 0 && y < GRID_SIZE && x >= 0 && x < GRID_SIZE) {
                     if (!isValidZone(x, y)) {
                         canPlace = false;
                         break;
                     }
-                    // Must not overlap existing mountain
                     if (gameState.terrainMap[y][x].id === 'mountain') {
                         canPlace = false;
                         break;
@@ -91,8 +91,8 @@ function generateMap(gameState) {
     const numWalls = Math.floor(baseWalls * areaScale * CFG.WALLS.DENSITY);
 
     for (let i = 0; i < numWalls; i++) {
-        let startX = Math.floor(Math.random() * constants.GRID_SIZE);
-        let startY = Math.floor(Math.random() * constants.GRID_SIZE);
+        let startX = Math.floor(Math.random() * GRID_SIZE);
+        let startY = Math.floor(Math.random() * GRID_SIZE);
         let isVertical = Math.random() < 0.5;
         let length = Math.floor(Math.random() * CFG.WALLS.LENGTH_VAR) + CFG.WALLS.LENGTH_MIN;
 
@@ -111,8 +111,8 @@ function generateMap(gameState) {
     const numForests = Math.floor(baseForests * areaScale * CFG.FORESTS.DENSITY);
 
     for (let i = 0; i < numForests; i++) {
-        let cx = Math.floor(Math.random() * constants.GRID_SIZE);
-        let cy = Math.floor(Math.random() * constants.GRID_SIZE);
+        let cx = Math.floor(Math.random() * GRID_SIZE);
+        let cy = Math.floor(Math.random() * GRID_SIZE);
 
         if (isValidZone(cx, cy)) {
             const blobSize = Math.floor(Math.random() * CFG.FORESTS.BLOB_SIZE_VAR) + CFG.FORESTS.BLOB_SIZE_MIN;
@@ -139,9 +139,9 @@ function generateMap(gameState) {
     // 5. RIVERS
     const numRivers = Math.max(1, Math.floor(areaScale * CFG.RIVERS.DENSITY));
     for(let r=0; r<numRivers; r++) {
-        let rx = Math.floor(Math.random() * constants.GRID_SIZE);
-        let ry = Math.floor(Math.random() * constants.GRID_SIZE);
-        let riverLength = Math.floor(constants.GRID_SIZE * CFG.RIVERS.LENGTH_FACTOR);
+        let rx = Math.floor(Math.random() * GRID_SIZE);
+        let ry = Math.floor(Math.random() * GRID_SIZE);
+        let riverLength = Math.floor(GRID_SIZE * CFG.RIVERS.LENGTH_FACTOR);
 
         for(let i=0; i<riverLength; i++) {
             if (isValidZone(rx, ry)) {
@@ -155,11 +155,9 @@ function generateMap(gameState) {
         }
     }
 
-    // --- GENERATE STREETS LAST (Walker that avoids obstacles) ---
-
-    // Helpers for Street Generation
+    // --- GENERATE STREETS LAST ---
     const isStreet = (gx, gy) => {
-        if (gx < 0 || gx >= constants.GRID_SIZE || gy < 0 || gy >= constants.GRID_SIZE) return false;
+        if (gx < 0 || gx >= GRID_SIZE || gy < 0 || gy >= GRID_SIZE) return false;
         return gameState.terrainMap[gy][gx].id === 'street';
     };
 
@@ -172,56 +170,41 @@ function generateMap(gameState) {
     };
 
     const numStreets = Math.floor(Math.random() * CFG.STREETS.BASE_VAR) + CFG.STREETS.BASE_MIN;
-    // Toned down: Multiply by 0.6 to reduce count
     const totalStreets = Math.floor(numStreets * Math.sqrt(areaScale) * 0.6);
 
     const dirs = [[0, 1], [0, -1], [1, 0], [-1, 0], [1, 1], [1, -1], [-1, 1], [-1, -1]];
 
     for(let i=0; i<totalStreets; i++) {
-        // Find a valid start point (Must be Plains)
         let x, y;
         let attempts = 0;
         let foundStart = false;
-
         while(attempts < 50 && !foundStart) {
-            x = Math.floor(Math.random() * constants.GRID_SIZE);
-            y = Math.floor(Math.random() * constants.GRID_SIZE);
+            x = Math.floor(Math.random() * GRID_SIZE);
+            y = Math.floor(Math.random() * GRID_SIZE);
             if (isValidZone(x, y) && gameState.terrainMap[y][x].id === 'plains') {
                 foundStart = true;
             }
             attempts++;
         }
-
         if (!foundStart) continue;
 
-        let length = Math.floor(constants.GRID_SIZE * CFG.STREETS.LENGTH_FACTOR);
+        let length = Math.floor(GRID_SIZE * CFG.STREETS.LENGTH_FACTOR);
         let currentDir = dirs[Math.floor(Math.random() * dirs.length)];
 
         for(let j=0; j<length; j++) {
-            // Place street if valid plain and no blob
             if(isValidZone(x, y) && gameState.terrainMap[y][x].id === 'plains' && !causesBlob(x, y)) {
                 gameState.terrainMap[y][x] = constants.TERRAIN.STREET;
             }
-
-            // Decide next step: Look ahead
             let nextX = x + currentDir[0];
             let nextY = y + currentDir[1];
-
-            // Check if blocked (Blocked = Anything not Plains or Street, OR Forbidden Zone)
             let isBlocked = true;
             if (isValidZone(nextX, nextY)) {
                 const target = gameState.terrainMap[nextY][nextX];
-                if (target.id === 'plains' || target.id === 'street') {
-                    isBlocked = false;
-                }
+                if (target.id === 'plains' || target.id === 'street') isBlocked = false;
             }
-
-            // If blocked or random turn, try to find a new open direction
             if (isBlocked || Math.random() < CFG.STREETS.TURN_BIAS) {
-                // Shuffle directions
                 let possibleDirs = [...dirs].sort(() => Math.random() - 0.5);
                 let foundDir = false;
-
                 for (let d of possibleDirs) {
                     let tx = x + d[0];
                     let ty = y + d[1];
@@ -236,25 +219,20 @@ function generateMap(gameState) {
                         }
                     }
                 }
-
-                if (!foundDir) break; // Dead end, stop street
+                if (!foundDir) break;
             }
-
             x = nextX;
             y = nextY;
         }
     }
 
-    // 7. STREET ANTIALIASING (Safe Mode with Blob Prevention)
-    // Fills diagonal gaps only if the cell is currently Plains AND doesn't create a blob
-    for (let y = 0; y < constants.GRID_SIZE - 1; y++) {
-        for (let x = 0; x < constants.GRID_SIZE - 1; x++) {
+    // 7. STREET ANTIALIASING
+    for (let y = 0; y < GRID_SIZE - 1; y++) {
+        for (let x = 0; x < GRID_SIZE - 1; x++) {
             const tl = gameState.terrainMap[y][x].id === 'street';
             const tr = gameState.terrainMap[y][x+1].id === 'street';
             const bl = gameState.terrainMap[y+1][x].id === 'street';
             const br = gameState.terrainMap[y+1][x+1].id === 'street';
-
-            // Case 1: Diagonal \
             if (tl && br && !tr && !bl) {
                 if (isValidZone(x + 1, y) && gameState.terrainMap[y][x+1].id === 'plains' && !causesBlob(x+1, y)) {
                     gameState.terrainMap[y][x+1] = constants.TERRAIN.STREET;
@@ -262,8 +240,6 @@ function generateMap(gameState) {
                     gameState.terrainMap[y+1][x] = constants.TERRAIN.STREET;
                 }
             }
-
-            // Case 2: Diagonal /
             if (tr && bl && !tl && !br) {
                 if (isValidZone(x, y) && gameState.terrainMap[y][x].id === 'plains' && !causesBlob(x, y)) {
                     gameState.terrainMap[y][x] = constants.TERRAIN.STREET;

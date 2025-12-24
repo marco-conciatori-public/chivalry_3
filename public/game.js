@@ -7,7 +7,7 @@ const ctx = canvas.getContext('2d');
 let myId = null;
 let localState = null;
 let clientUnitStats = {};
-let GRID_SIZE = 10; // Updated by init
+let GRID_SIZE = 40; // Updated by init
 
 // Game Interaction State
 let selectedCell = null;
@@ -33,6 +33,13 @@ socket.on('init', (data) => {
         GRID_SIZE = localState.grid.length;
         Renderer.init(ctx, GRID_SIZE, canvas.width);
     }
+
+    // Hide setup screen if game is running and we are joining
+    // For now, if init is called, we assume the game is valid.
+    // However, if we just connected and the server is brand new, we might show the setup.
+    // But since the setup is client-side driven by the "New Game" button or initial load,
+    // we can hide it here to confirm game start.
+    UiManager.hideSetupScreen();
 
     // Load Images then Render
     Renderer.loadAssets().then(() => {
@@ -223,6 +230,12 @@ function getReachableCells(start, maxDist, grid, terrainMap) {
 document.getElementById('end-turn-btn').addEventListener('click', () => {
     socket.emit('endTurn');
     resetSelection();
+});
+
+// Setup Screen Button
+document.getElementById('btn-start-game').addEventListener('click', () => {
+    const settings = UiManager.getSetupSettings();
+    socket.emit('startGame', settings);
 });
 
 // Template Listeners

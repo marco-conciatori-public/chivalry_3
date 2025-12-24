@@ -7,10 +7,40 @@
 </head>
 <body>
 
+<!-- SETUP SCREEN OVERLAY -->
+<div id="setup-screen" class="modal-overlay">
+    <div class="modal-content">
+        <h1>Create New Game</h1>
+        <div class="form-group">
+            <label for="cfg-grid-size">Grid Size (20-100):</label>
+            <input type="number" id="cfg-grid-size" value="50" min="20" max="100">
+        </div>
+        <div class="form-group">
+            <label for="cfg-gold">Starting Gold:</label>
+            <input type="number" id="cfg-gold" value="2000" min="500" step="100">
+        </div>
+        <div class="form-group">
+            <label for="cfg-ai-count">AI Players (0-3):</label>
+            <input type="number" id="cfg-ai-count" value="0" min="0" max="3">
+        </div>
+        <div class="form-group">
+            <label for="cfg-ai-difficulty">AI Difficulty:</label>
+            <select id="cfg-ai-difficulty">
+                <option value="easy">Easy (Rookie)</option>
+                <option value="normal" selected>Normal (Tactician)</option>
+                <option value="hard">Hard (Strategist)</option>
+            </select>
+        </div>
+        <button id="btn-start-game" class="primary-btn">Start Game</button>
+        <p class="modal-note">Starting a new game will reset the board for everyone.</p>
+    </div>
+</div>
+
 <div id="app-container">
     <!-- LEFT: Players & Stats -->
     <div id="left-panel">
         <h2>Grid War</h2>
+        <button id="btn-new-game-trigger" class="small-btn">New Game</button>
         <div id="connection-status" class="connection-status">Connecting...</div>
 
         <h3>Players</h3>
@@ -55,7 +85,7 @@
 
         <p class="instructions">
             Click to Move/Select. Right-click or Menu to Attack/Rotate.<br>
-            Spawn units during your turn.
+            Spawn units during your turn in your base.
         </p>
     </div>
 
