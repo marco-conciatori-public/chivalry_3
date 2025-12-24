@@ -34,11 +34,18 @@ socket.on('init', (data) => {
         Renderer.init(ctx, GRID_SIZE, canvas.width);
     }
 
+    // Load Images then Render
+    Renderer.loadAssets().then(() => {
+        // Initial Render after images are loaded
+        renderGame();
+    });
+
     UiManager.updateConnectionStatus(myId);
     resetSelection();
 
-    // Initial Render
+    // Render immediately (with fallbacks) in case images take time
     renderGame();
+
     UiManager.updateLegend(localState, myId, (name) => socket.emit('changeName', name));
     UiManager.updateControls(localState, myId, clientUnitStats);
     UiManager.addLogEntry("Welcome to Grid War!", localState, () => {});

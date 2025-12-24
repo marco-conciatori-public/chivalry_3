@@ -4,11 +4,33 @@ const Renderer = {
     GRID_SIZE: 10,
     CELL_SIZE: 0,
     ctx: null,
+
+    // Fallback Icons
     icons: {
         knight: '⚔️',
         archer: '🏹',
         wizard: '🧙',
         scout: '🏇'
+    },
+
+    // Image Management
+    images: {},
+    // Mapping of game keys to file paths.
+    // Add files to the 'images' folder to enable them automatically.
+    assetPaths: {
+        // Terrains
+        'wall': '/images/wall.png',  // Provided
+        'forest': '/images/forest.png',
+        'mountain': '/images/mountain.png',
+        'water': '/images/water.png',
+        'street': '/images/street.png',
+        'plains': '/images/plains.png',
+
+        // Units
+        'knight': '/images/knight.png',
+        'archer': '/images/archer.png',
+        'wizard': '/images/wizard.png',
+        'scout': '/images/scout.png'
     },
 
     init(ctx, gridSize, canvasWidth) {
@@ -22,6 +44,28 @@ const Renderer = {
         this.CELL_SIZE = canvasWidth / size;
     },
 
+    // Asynchronously load all images defined in assetPaths
+    loadAssets() {
+        return Promise.all(
+            Object.entries(this.assetPaths).map(([key, src]) => {
+                return new Promise((resolve) => {
+                    const img = new Image();
+                    img.src = src;
+                    img.onload = () => {
+                        this.images[key] = img;
+                        resolve();
+                    };
+                    img.onerror = () => {
+                        // If image fails to load (e.g. file doesn't exist), we resolve anyway.
+                        // The draw loop will check 'this.images[key]' and fallback if missing.
+                        // console.log(`Could not load image for ${key}, using fallback.`);
+                        resolve();
+                    };
+                });
+            })
+        );
+    },
+
     draw(gameState, myId, selectedCell, interactionState, validMoves, validAttackTargets, cellsInAttackRange) {
         if (!gameState) return;
 
@@ -32,13 +76,18 @@ const Renderer = {
 
         for (let y = 0; y < this.GRID_SIZE; y++) {
             for (let x = 0; x < this.GRID_SIZE; x++) {
-                // RENDER TERRAIN
+                // --- RENDER TERRAIN ---
                 if (gameState.terrainMap) {
                     const terrain = gameState.terrainMap[y][x];
+
+                    // Draw base color first (in case image has transparency or is missing)
                     this.ctx.fillStyle = terrain.color;
                     this.ctx.fillRect(x * this.CELL_SIZE, y * this.CELL_SIZE, this.CELL_SIZE, this.CELL_SIZE);
 
-                    if (terrain.symbol) {
+                    // Try to draw Image, otherwise fallback to Symbol
+                    if (this.images[terrain.id]) {
+                        this.ctx.drawImage(this.images[terrain.id], x * this.CELL_SIZE, y * this.CELL_SIZE, this.CELL_SIZE, this.CELL_SIZE);
+                    } else if (terrain.symbol) {
                         this.ctx.save();
                         this.ctx.globalAlpha = 0.3;
                         this.ctx.font = `${fontSize}px Arial`;
@@ -111,21 +160,29 @@ const Renderer = {
                 this.ctx.strokeStyle = "rgba(0,0,0,0.1)";
                 this.ctx.strokeRect(x * this.CELL_SIZE, y * this.CELL_SIZE, this.CELL_SIZE, this.CELL_SIZE);
 
-                // 5. Entity Icon
+                // 5. Entity Icon/Image
                 if (entity) {
                     if (entity.remainingMovement <= 0 && entity.hasAttacked) {
                         this.ctx.globalAlpha = 0.5;
                     }
 
-                    this.ctx.fillStyle = "#000";
-                    this.ctx.font = `${fontSize + 2}px Arial`;
-                    this.ctx.textAlign = "center";
-                    this.ctx.textBaseline = "middle";
-                    const icon = this.icons[entity.type] || '❓';
+                    // Try to draw Image
+                    if (this.images[entity.type]) {
+                        this.ctx.drawImage(this.images[entity.type], x * this.CELL_SIZE + 2, y * this.CELL_SIZE + 2, this.CELL_SIZE - 4, this.CELL_SIZE - 4);
+                    } else {
+                        // Fallback to text icon
+                        this.ctx.fillStyle = "#000";
+                        this.ctx.font = `${fontSize + 2}px Arial`;
+                        this.ctx.textAlign = "center";
+                        this.ctx.textBaseline = "middle";
+                        const icon = this.icons[entity.type] || '❓';
+                        const centerX = x * this.CELL_SIZE + (this.CELL_SIZE / 2);
+                        const centerY = y * this.CELL_SIZE + (this.CELL_SIZE / 2);
+                        this.ctx.fillText(icon, centerX, centerY);
+                    }
+
                     const centerX = x * this.CELL_SIZE + (this.CELL_SIZE / 2);
                     const centerY = y * this.CELL_SIZE + (this.CELL_SIZE / 2);
-
-                    this.ctx.fillText(icon, centerX, centerY);
 
                     if (entity.is_commander) {
                         this.ctx.font = `${fontSize * 0.6}px Arial`;

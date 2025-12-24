@@ -10,7 +10,10 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
+// Serve files from 'public' folder
 app.use(express.static('public'));
+// Serve files from 'images' folder at the '/images' route
+app.use('/images', express.static('images'));
 
 let gameState = {
     grid: Array(constants.GRID_SIZE).fill(null).map(() => Array(constants.GRID_SIZE).fill(null)),
