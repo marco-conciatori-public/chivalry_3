@@ -1,25 +1,32 @@
-screen for setting up game options
-    e.g. map size, initial resources...
-initial phase before first turn to place troops?
+more initial game settings?
 add new terrain types?
-add/change unit types?
+add/change unit types? es.:
+    catapult/ballista
+    heavy cavalry
+    pikemen
+    monsters
+balance units' stats
 when a unit attacks
     does it need be already facing the target?
     OR should it automatically turn to face the target?
 add fog of war?
-other combat bonuses?
+other combat bonuses? es.:
     flanking bonus
     rear attack bonus
     charge bonus
-    defensive bonus (e.g., in cover, behind shield wall)
+    trincee
 special abilities for units?
 morale influences damage?
 AI enemy?
 add resources on the map?
 add experience and leveling for units?
-comprare truppe anche durante la partita?
+    units can become veteran and gain stat boosts
+add upgrades with coins for already placed units? es.:
+    light cavalry -> heavy cavalry
+    archer -> crossbowman
+comprare truppe anche durante la partita? es.:
     truppe distrutte fruttano monete
-    ci sono miniere che danno monete all'inizio di ogni turno
+    miniere che danno monete all'inizio di ogni turno
     bonus distruggi un comandante nemico
     bonus distruggi un nemico
     bonus tue truppe dentro una base nemica
