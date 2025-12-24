@@ -67,6 +67,6 @@ module.exports = {
         MOUNTAIN: { id: 'mountain', symbol: '🏔️', cost: 3, defense: 30, blocksLos: true, color: '#bdc3c7', highGround: true },
         WALL: { id: 'wall', symbol: '🧱', cost: 99, defense: 0, blocksLos: true, color: '#7f8c8d', highGround: true },
         WATER: { id: 'water', symbol: '🌊', cost: 99, defense: 0, blocksLos: false, color: '#85c1e9' },
-        STREET: { id: 'street', symbol: '', cost: 0.5, defense: 0, blocksLos: false, color: '#bdc3c7' }
+        STREET: { id: 'street', symbol: '', cost: 0.5, defense: 0, blocksLos: false, color: '#8b5a2b' }
     }
 };
