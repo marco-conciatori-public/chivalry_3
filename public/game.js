@@ -8,6 +8,7 @@ const endTurnBtn = document.getElementById('end-turn-btn');
 const contextMenu = document.getElementById('context-menu');
 const unitInfoContent = document.getElementById('unit-info-content');
 const logContent = document.getElementById('log-content');
+const overlayLayer = document.getElementById('overlay-layer');
 
 // --- INJECT CUSTOM LOG STYLES ---
 const style = document.createElement('style');
@@ -23,8 +24,9 @@ const btnAttack = document.getElementById('btn-attack');
 const btnRotate = document.getElementById('btn-rotate');
 const btnDeselect = document.getElementById('btn-deselect');
 
-const GRID_SIZE = 50;
-const CELL_SIZE = canvas.width / GRID_SIZE;
+let GRID_SIZE = 10; // Default, will be updated by server
+let CELL_SIZE = canvas.width / GRID_SIZE;
+
 const icons = {
     knight: '⚔️',
     archer: '🏹',
@@ -51,6 +53,13 @@ let cellsInAttackRange = []; // Array of {x,y}
 socket.on('init', (data) => {
     myId = data.myId;
     localState = data.state;
+
+    // Dynamic Grid Size Calculation
+    if (localState.grid && localState.grid.length > 0) {
+        GRID_SIZE = localState.grid.length;
+        CELL_SIZE = canvas.width / GRID_SIZE;
+    }
+
     clientUnitStats = data.unitStats;
     connectionStatus.innerText = `Connected as ID: ${myId.substr(0,4)}...`;
     resetSelection();
@@ -99,12 +108,14 @@ function addLogEntry(msg) {
     const div = document.createElement('div');
     div.className = 'log-entry';
 
-    div.innerHTML = msg
+    let formattedMsg = msg
         .replace(/{p:([^}]+)}/g, '<span class="log-player">$1</span>')
         .replace(/{u:([^:]+):(\d+):(\d+):([^}]+)}/g, (match, type, x, y, ownerId) => {
             const color = localState.players[ownerId] ? localState.players[ownerId].color : '#3498db';
             return `<span class="log-unit" style="color: ${color}" data-x="${x}" data-y="${y}">${type}</span>`;
         });
+
+    div.innerHTML = formattedMsg;
 
     div.querySelectorAll('.log-unit').forEach(span => {
         span.onclick = () => {
