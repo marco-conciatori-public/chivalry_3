@@ -15,6 +15,27 @@ function generateMap(gameState) {
         y >= CFG.SPAWN_ZONE_HEIGHT &&
         y < constants.GRID_SIZE - CFG.SPAWN_ZONE_HEIGHT;
 
+    // Helper to detect if a cell is a street safely
+    const isStreet = (gx, gy) => {
+        if (gx < 0 || gx >= constants.GRID_SIZE || gy < 0 || gy >= constants.GRID_SIZE) return false;
+        return gameState.terrainMap[gy][gx].id === 'street';
+    };
+
+    // Helper to check if placing a street at (tx, ty) creates a 2x2 blob
+    const causesBlob = (tx, ty) => {
+        // Check 4 potential 2x2 squares involving this cell
+        // 1. Top-Left neighbor block (checking cell is Bottom-Right of 2x2)
+        if (isStreet(tx-1, ty) && isStreet(tx-1, ty-1) && isStreet(tx, ty-1)) return true;
+        // 2. Top-Right neighbor block (checking cell is Bottom-Left of 2x2)
+        if (isStreet(tx+1, ty) && isStreet(tx+1, ty-1) && isStreet(tx, ty-1)) return true;
+        // 3. Bottom-Left neighbor block (checking cell is Top-Right of 2x2)
+        if (isStreet(tx-1, ty) && isStreet(tx-1, ty+1) && isStreet(tx, ty+1)) return true;
+        // 4. Bottom-Right neighbor block (checking cell is Top-Left of 2x2)
+        if (isStreet(tx+1, ty) && isStreet(tx+1, ty+1) && isStreet(tx, ty+1)) return true;
+
+        return false;
+    };
+
     const areaScale = (constants.GRID_SIZE * constants.GRID_SIZE) / CFG.BASE_AREA;
 
     // 2. STREETS
@@ -26,23 +47,57 @@ function generateMap(gameState) {
         let y = Math.floor(Math.random() * constants.GRID_SIZE);
 
         let length = Math.floor(constants.GRID_SIZE * CFG.STREETS.LENGTH_FACTOR);
-        let dir = Math.random() < 0.5 ? 0 : 1;
+
+        // Pick a random direction (8-way)
+        let dx = 0;
+        let dy = 0;
+        while(dx === 0 && dy === 0) {
+            dx = Math.floor(Math.random() * 3) - 1; // -1, 0, 1
+            dy = Math.floor(Math.random() * 3) - 1; // -1, 0, 1
+        }
 
         for(let j=0; j<length; j++) {
-            if(isValidZone(x, y)) {
+            // Only place street if it's in valid zone AND doesn't create a 2x2 blob
+            if(isValidZone(x, y) && !causesBlob(x, y)) {
                 gameState.terrainMap[y][x] = constants.TERRAIN.STREET;
             }
 
-            if (dir === 0) {
-                x += (Math.random() < CFG.STREETS.DIRECTION_BIAS ? 1 : 0);
-                y += (Math.random() < CFG.STREETS.TURN_BIAS ? (Math.random() < 0.5 ? 1 : -1) : 0);
-            } else {
-                y += (Math.random() < CFG.STREETS.DIRECTION_BIAS ? 1 : 0);
-                x += (Math.random() < CFG.STREETS.TURN_BIAS ? (Math.random() < 0.5 ? 1 : -1) : 0);
+            x += dx;
+            y += dy;
+
+            // Stop if we go out of bounds (prevents clustering at edges)
+            if (x < 0 || x >= constants.GRID_SIZE || y < 0 || y >= constants.GRID_SIZE) break;
+        }
+    }
+
+    // 2.5 STREET ANTIALIASING (Ensuring Connectivity)
+    // Iterate to find diagonal street gaps and fill them
+    for (let y = 0; y < constants.GRID_SIZE - 1; y++) {
+        for (let x = 0; x < constants.GRID_SIZE - 1; x++) {
+            // Check 2x2 block
+            const tl = gameState.terrainMap[y][x].id === 'street';     // Top-Left
+            const tr = gameState.terrainMap[y][x+1].id === 'street';   // Top-Right
+            const bl = gameState.terrainMap[y+1][x].id === 'street';   // Bottom-Left
+            const br = gameState.terrainMap[y+1][x+1].id === 'street'; // Bottom-Right
+
+            // Case 1: Diagonal \ (TL and BR are streets, but TR and BL are not)
+            if (tl && br && !tr && !bl) {
+                // Fill one corner to connect them. We check validity (spawn zone) before placing.
+                if (isValidZone(x + 1, y)) {
+                    gameState.terrainMap[y][x+1] = constants.TERRAIN.STREET;
+                } else if (isValidZone(x, y + 1)) {
+                    gameState.terrainMap[y+1][x] = constants.TERRAIN.STREET;
+                }
             }
 
-            x = Math.max(0, Math.min(constants.GRID_SIZE-1, x));
-            y = Math.max(0, Math.min(constants.GRID_SIZE-1, y));
+            // Case 2: Diagonal / (TR and BL are streets, but TL and BR are not)
+            if (tr && bl && !tl && !br) {
+                if (isValidZone(x, y)) {
+                    gameState.terrainMap[y][x] = constants.TERRAIN.STREET;
+                } else if (isValidZone(x + 1, y + 1)) {
+                    gameState.terrainMap[y+1][x+1] = constants.TERRAIN.STREET;
+                }
+            }
         }
     }
 
