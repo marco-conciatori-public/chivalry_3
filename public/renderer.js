@@ -19,7 +19,7 @@ const Renderer = {
     // Add files to the 'images' folder to enable them automatically.
     assetPaths: {
         // Terrains
-        'wall': '/images/wall.png',  // Provided
+        'wall': '/images/wall.png',
         'forest': '/images/forest.png',
         'mountain': '/images/mountain.png',
         'water': '/images/water_2.png',
@@ -56,9 +56,6 @@ const Renderer = {
                         resolve();
                     };
                     img.onerror = () => {
-                        // If image fails to load (e.g. file doesn't exist), we resolve anyway.
-                        // The draw loop will check 'this.images[key]' and fallback if missing.
-                        // console.log(`Could not load image for ${key}, using fallback.`);
                         resolve();
                     };
                 });
@@ -74,44 +71,74 @@ const Renderer = {
         // Dynamic Font
         const fontSize = Math.floor(this.CELL_SIZE * 0.7);
 
+        // --- LAYER 1: Background Colors ---
         for (let y = 0; y < this.GRID_SIZE; y++) {
             for (let x = 0; x < this.GRID_SIZE; x++) {
-                // --- RENDER TERRAIN ---
                 if (gameState.terrainMap) {
                     const terrain = gameState.terrainMap[y][x];
-
-                    // Draw base color first (in case image has transparency or is missing)
                     this.ctx.fillStyle = terrain.color;
                     this.ctx.fillRect(x * this.CELL_SIZE, y * this.CELL_SIZE, this.CELL_SIZE, this.CELL_SIZE);
+                }
+            }
+        }
 
-                    // Try to draw Image, otherwise fallback to Symbol
+        // --- LAYER 2: Terrain Features (Images) ---
+        // We use a set to keep track of mountain cells we've already drawn as part of a bigger block
+        const coveredMountains = new Set();
+
+        for (let y = 0; y < this.GRID_SIZE; y++) {
+            for (let x = 0; x < this.GRID_SIZE; x++) {
+                if (!gameState.terrainMap) continue;
+
+                const terrain = gameState.terrainMap[y][x];
+
+                // Special handling for Mountains to draw big images
+                if (terrain.id === 'mountain') {
+                    const key = `${x},${y}`;
+                    if (coveredMountains.has(key)) continue;
+
+                    let size = 1;
+
+                    // Check for 3x3
+                    if (this.checkSquare(gameState.terrainMap, x, y, 3, 'mountain', coveredMountains)) {
+                        size = 3;
+                    }
+                    // Check for 2x2
+                    else if (this.checkSquare(gameState.terrainMap, x, y, 2, 'mountain', coveredMountains)) {
+                        size = 2;
+                    }
+
+                    // Mark covered cells
+                    for (let dy = 0; dy < size; dy++) {
+                        for (let dx = 0; dx < size; dx++) {
+                            coveredMountains.add(`${x + dx},${y + dy}`);
+                        }
+                    }
+
+                    // Draw the mountain
+                    if (this.images['mountain']) {
+                        this.ctx.drawImage(this.images['mountain'], x * this.CELL_SIZE, y * this.CELL_SIZE, this.CELL_SIZE * size, this.CELL_SIZE * size);
+                    } else if (terrain.symbol) {
+                        // Scale symbol if it's a block
+                        this.drawTerrainSymbol(terrain.symbol, x, y, fontSize * size, size);
+                    }
+
+                } else {
+                    // Standard Terrain Drawing
                     if (this.images[terrain.id]) {
                         this.ctx.drawImage(this.images[terrain.id], x * this.CELL_SIZE, y * this.CELL_SIZE, this.CELL_SIZE, this.CELL_SIZE);
                     } else if (terrain.symbol) {
-                        this.ctx.save();
-                        this.ctx.globalAlpha = 0.3;
-                        this.ctx.font = `${fontSize}px Arial`;
-                        this.ctx.textAlign = "center";
-                        this.ctx.textBaseline = "middle";
-                        this.ctx.fillStyle = "#000";
-                        this.ctx.fillText(terrain.symbol, x * this.CELL_SIZE + this.CELL_SIZE/2, y * this.CELL_SIZE + this.CELL_SIZE/2);
-                        this.ctx.restore();
+                        this.drawTerrainSymbol(terrain.symbol, x, y, fontSize);
                     }
                 }
+            }
+        }
 
-                const entity = gameState.grid[y][x];
+        // --- LAYER 3: Overlays & Highlights ---
+        for (let y = 0; y < this.GRID_SIZE; y++) {
+            for (let x = 0; x < this.GRID_SIZE; x++) {
 
-                // 1. Unit Background (Owner Color)
-                if (entity) {
-                    const ownerData = gameState.players[entity.owner];
-                    const color = ownerData ? ownerData.color : '#999';
-                    this.ctx.globalAlpha = 0.4;
-                    this.ctx.fillStyle = color;
-                    this.ctx.fillRect(x * this.CELL_SIZE + 2, y * this.CELL_SIZE + 2, this.CELL_SIZE - 4, this.CELL_SIZE - 4);
-                    this.ctx.globalAlpha = 1.0;
-                }
-
-                // 2. Selection Highlight
+                // 1. Selection Highlight
                 if (selectedCell && selectedCell.x === x && selectedCell.y === y) {
                     this.ctx.fillStyle = "rgba(255, 215, 0, 0.4)";
                     this.ctx.fillRect(x * this.CELL_SIZE, y * this.CELL_SIZE, this.CELL_SIZE, this.CELL_SIZE);
@@ -121,7 +148,7 @@ const Renderer = {
                     this.ctx.lineWidth = 1;
                 }
 
-                // 3. Overlays
+                // 2. Interaction Overlays
                 if (interactionState === 'ROTATING' && selectedCell) {
                     const dx = x - selectedCell.x;
                     const dy = y - selectedCell.y;
@@ -147,6 +174,7 @@ const Renderer = {
                 }
                 else if (interactionState === 'SELECTED' || interactionState === 'MENU') {
                     const isReachable = validMoves.some(m => m.x === x && m.y === y);
+                    const entity = gameState.grid[y][x];
                     if (selectedCell && isReachable && !entity) {
                         this.ctx.fillStyle = "rgba(46, 204, 113, 0.4)";
                         this.ctx.fillRect(x * this.CELL_SIZE, y * this.CELL_SIZE, this.CELL_SIZE, this.CELL_SIZE);
@@ -157,11 +185,27 @@ const Renderer = {
                     }
                 }
 
+                // Grid Lines
                 this.ctx.strokeStyle = "rgba(0,0,0,0.1)";
                 this.ctx.strokeRect(x * this.CELL_SIZE, y * this.CELL_SIZE, this.CELL_SIZE, this.CELL_SIZE);
+            }
+        }
 
-                // 5. Entity Icon/Image
+        // --- LAYER 4: Units ---
+        for (let y = 0; y < this.GRID_SIZE; y++) {
+            for (let x = 0; x < this.GRID_SIZE; x++) {
+                const entity = gameState.grid[y][x];
+
                 if (entity) {
+                    const ownerData = gameState.players[entity.owner];
+                    const color = ownerData ? ownerData.color : '#999';
+
+                    // Unit Background
+                    this.ctx.globalAlpha = 0.4;
+                    this.ctx.fillStyle = color;
+                    this.ctx.fillRect(x * this.CELL_SIZE + 2, y * this.CELL_SIZE + 2, this.CELL_SIZE - 4, this.CELL_SIZE - 4);
+                    this.ctx.globalAlpha = 1.0;
+
                     if (entity.remainingMovement <= 0 && entity.hasAttacked) {
                         this.ctx.globalAlpha = 0.5;
                     }
@@ -201,6 +245,37 @@ const Renderer = {
                 }
             }
         }
+    },
+
+    // Helper to check if a square of 'type' exists at x,y with given size
+    checkSquare(terrainMap, startX, startY, size, typeId, visitedSet) {
+        if (startX + size > this.GRID_SIZE || startY + size > this.GRID_SIZE) return false;
+
+        for (let y = 0; y < size; y++) {
+            for (let x = 0; x < size; x++) {
+                const tx = startX + x;
+                const ty = startY + y;
+                // Must be the correct type AND not already covered by another block
+                if (terrainMap[ty][tx].id !== typeId || visitedSet.has(`${tx},${ty}`)) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    },
+
+    drawTerrainSymbol(symbol, x, y, fontSize, size = 1) {
+        this.ctx.save();
+        this.ctx.globalAlpha = 0.3;
+        this.ctx.font = `${fontSize}px Arial`;
+        this.ctx.textAlign = "center";
+        this.ctx.textBaseline = "middle";
+        this.ctx.fillStyle = "#000";
+        // Calculate center based on size (1 cell or multiple cells)
+        const centerX = x * this.CELL_SIZE + (this.CELL_SIZE * size) / 2;
+        const centerY = y * this.CELL_SIZE + (this.CELL_SIZE * size) / 2;
+        this.ctx.fillText(symbol, centerX, centerY);
+        this.ctx.restore();
     },
 
     drawFacingIndicator(gridX, gridY, direction, isActive) {
@@ -265,4 +340,4 @@ const Renderer = {
         this.ctx.fillStyle = "#2ecc71";
         this.ctx.fillRect(x, y, barWidth * pct, barHeight);
     }
-};
+};v
