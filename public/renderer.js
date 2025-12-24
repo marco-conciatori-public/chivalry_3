@@ -22,7 +22,7 @@ const Renderer = {
         'wall': '/images/wall.png',  // Provided
         'forest': '/images/forest.png',
         'mountain': '/images/mountain.png',
-        'water': '/images/water.png',
+        'water': '/images/water_2.png',
         'street': '/images/street.png',
         'plains': '/images/plains.png',
 
