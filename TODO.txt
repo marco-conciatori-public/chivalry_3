@@ -13,3 +13,10 @@ other combat bonuses?
 special abilities for units?
 morale influences damage?
 AI enemy?
+comprare truppe anche durante la partita?
+    truppe distrutte fruttano monete
+    ci sono miniere che danno monete all'inizio di ogni turno
+    bonus distruggi un comandante nemico
+    bonus distruggi un nemico
+    bonus tue truppe dentro una base nemica
+    altri obbiettivi?
