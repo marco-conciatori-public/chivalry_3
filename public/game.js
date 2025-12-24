@@ -243,8 +243,11 @@ document.querySelectorAll('.template').forEach(el => {
 // Canvas Click
 canvas.addEventListener('click', (e) => {
     const rect = canvas.getBoundingClientRect();
-    const x = Math.floor((e.clientX - rect.left) / Renderer.CELL_SIZE);
-    const y = Math.floor((e.clientY - rect.top) / Renderer.CELL_SIZE);
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+
+    const x = Math.floor(((e.clientX - rect.left) * scaleX) / Renderer.CELL_SIZE);
+    const y = Math.floor(((e.clientY - rect.top) * scaleY) / Renderer.CELL_SIZE);
 
     if (x < 0 || x >= GRID_SIZE || y < 0 || y >= GRID_SIZE) {
         resetSelection();
@@ -334,6 +337,29 @@ canvas.addEventListener('click', (e) => {
         resetSelection();
     }
     renderGame();
+});
+
+// Canvas Hover for Cell Info
+canvas.addEventListener('mousemove', (e) => {
+    if (!localState || !Renderer.CELL_SIZE) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+
+    const x = Math.floor(((e.clientX - rect.left) * scaleX) / Renderer.CELL_SIZE);
+    const y = Math.floor(((e.clientY - rect.top) * scaleY) / Renderer.CELL_SIZE);
+
+    if (x >= 0 && x < GRID_SIZE && y >= 0 && y < GRID_SIZE && localState.terrainMap) {
+        const terrain = localState.terrainMap[y][x];
+        UiManager.updateCellInfo(terrain, x, y);
+    } else {
+        UiManager.updateCellInfo(null);
+    }
+});
+
+canvas.addEventListener('mouseleave', () => {
+    UiManager.updateCellInfo(null);
 });
 
 // Menu Buttons

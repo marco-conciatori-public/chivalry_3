@@ -236,17 +236,29 @@ const UiManager = {
         this.elements.logContent.scrollTop = this.elements.logContent.scrollHeight;
     },
 
-    showFloatingText(gridX, gridY, text, color, cellSize) {
+    getVisualCellSize(internalCellSize) {
+        const canvas = document.getElementById('gameCanvas');
+        if (!canvas) return internalCellSize;
+        const rect = canvas.getBoundingClientRect();
+        // Calculate scale factor (Display Width / Internal Width)
+        const scale = rect.width / canvas.width;
+        return internalCellSize * scale;
+    },
+
+    showFloatingText(gridX, gridY, text, color, internalCellSize) {
         const el = document.createElement('div');
         el.className = 'floating-text';
         el.innerText = text;
         el.style.color = color;
 
+        // Calculate Visual Scale
+        const visualCellSize = this.getVisualCellSize(internalCellSize);
+
         const jitterX = (Math.random() * 20) - 10;
         const jitterY = (Math.random() * 20) - 10;
 
-        const left = (gridX * cellSize) + (cellSize / 2) + jitterX;
-        const top = (gridY * cellSize) + (cellSize / 2) + jitterY;
+        const left = (gridX * visualCellSize) + (visualCellSize / 2) + jitterX;
+        const top = (gridY * visualCellSize) + (visualCellSize / 2) + jitterY;
 
         el.style.left = `${left}px`;
         el.style.top = `${top}px`;
@@ -255,7 +267,7 @@ const UiManager = {
         setTimeout(() => { el.remove(); }, 1500);
     },
 
-    showContextMenu(clientX, clientY, entity, selectedCell, cellSize) {
+    showContextMenu(clientX, clientY, entity, selectedCell, internalCellSize) {
         if (entity) {
             this.elements.btnRotate.disabled = entity.remainingMovement < 1;
             this.elements.btnAttack.disabled = entity.hasAttacked;
@@ -264,11 +276,16 @@ const UiManager = {
         const gameAreaRect = this.elements.gameArea.getBoundingClientRect();
 
         if (selectedCell) {
-            const menuLeft = (selectedCell.x * cellSize) + cellSize + 5;
-            const menuTop = (selectedCell.y * cellSize);
+            // Calculate Visual Scale
+            const visualCellSize = this.getVisualCellSize(internalCellSize);
+
+            // Position relative to the cell
+            const menuLeft = (selectedCell.x * visualCellSize) + visualCellSize + 5;
+            const menuTop = (selectedCell.y * visualCellSize);
             this.elements.contextMenu.style.left = `${menuLeft}px`;
             this.elements.contextMenu.style.top = `${menuTop}px`;
         } else {
+            // Position at mouse click (already screen coords)
             this.elements.contextMenu.style.left = `${clientX - gameAreaRect.left}px`;
             this.elements.contextMenu.style.top = `${clientY - gameAreaRect.top}px`;
         }
