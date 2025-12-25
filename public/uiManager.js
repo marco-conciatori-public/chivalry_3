@@ -223,9 +223,9 @@ const UiManager = {
             moraleRow = formatStat('Morale', moraleDisplay);
         }
 
-        let bonusDisplay = (entity.bonus_vs && entity.bonus_vs.length > 0) ? entity.bonus_vs.join(', ') : 'None';
+        let abilitiesDisplay = (entity.special_abilities && entity.special_abilities.length > 0) ? entity.special_abilities.join(', ') : 'None';
         let costRow = isTemplate ? formatStat('Cost', entity.cost || '-') : '';
-        let extraRows = formatStat('Bonus against', bonusDisplay);
+        let extraRows = formatStat('Abilities', abilitiesDisplay);
 
         let statusEffect = '';
         if (!isTemplate && entity.is_fleeing) statusEffect = `<div style="color:red; font-weight:bold; margin:5px 0;">⚠ FLEEING</div>`;
