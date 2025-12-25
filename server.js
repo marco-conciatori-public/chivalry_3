@@ -91,7 +91,8 @@ function startNewGame(settings) {
     io.emit('init', {
         state: gameState,
         myId: null, // Client ignores this in general update, but init handler needs structure
-        unitStats: unitStats
+        unitStats: unitStats,
+        gameConstants: constants // Send constants to client
     });
 
     io.emit('gameLog', { message: "--- NEW GAME STARTED ---" });
@@ -143,7 +144,8 @@ io.on('connection', (socket) => {
     socket.emit('init', {
         state: gameState,
         myId: socket.id,
-        unitStats: unitStats
+        unitStats: unitStats,
+        gameConstants: constants // Send constants to client
     });
 
     io.emit('update', gameState);
@@ -288,8 +290,10 @@ io.on('connection', (socket) => {
 
             const attackerTerrain = gameState.terrainMap[attackerPos.y][attackerPos.x];
             let effectiveRange = attacker.range;
+
+            // Use constant for High Ground range bonus
             if (attackerTerrain.highGround && attacker.is_ranged) {
-                effectiveRange += 1;
+                effectiveRange += constants.BONUS_HIGH_GROUND_RANGE;
             }
 
             if (dist <= effectiveRange) {

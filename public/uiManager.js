@@ -22,6 +22,7 @@ const UiManager = {
     currentAttackBreakdown: null,
     currentDefenseBreakdown: null,
     tooltipEl: null,
+    gameConstants: null,
 
     init() {
         // Create Tooltip
@@ -34,6 +35,10 @@ const UiManager = {
         this.elements.btnNewGameTrigger.addEventListener('click', () => {
             this.showSetupScreen();
         });
+    },
+
+    setConstants(constants) {
+        this.gameConstants = constants;
     },
 
     showSetupScreen() {
@@ -295,7 +300,7 @@ const UiManager = {
             if (terrain) {
                 // Attack Bonus (High Ground)
                 if (terrain.highGround) {
-                    const highGroundBonus = 10; // Value matches gameLogic
+                    const highGroundBonus = (this.gameConstants) ? this.gameConstants.BONUS_HIGH_GROUND_ATTACK : 10;
                     const totalAttack = attackValue + highGroundBonus;
                     dynamicAttackDisplay = `${attackValue} <span style="color:#27ae60; font-size: 0.9em;">(${totalAttack})</span>`;
                     this.currentAttackBreakdown.push({ label: "High Ground", value: highGroundBonus });
@@ -526,10 +531,5 @@ const UiManager = {
 
     hideTooltip() {
         this.tooltipEl.style.display = 'none';
-    },
-
-    // Kept for backward compatibility if called elsewhere, but refactored to use generic
-    hideMoraleTooltip() {
-        this.hideTooltip();
     }
 };

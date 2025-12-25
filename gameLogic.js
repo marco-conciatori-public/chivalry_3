@@ -92,7 +92,7 @@ function calculateDamage(attacker, attackerPos, defender, defenderPos, isSplash,
     let highGroundBonus = 0;
     const attackerTile = terrainMap[attackerPos.y][attackerPos.x];
     if (attackerTile.highGround) {
-        highGroundBonus = 10;
+        highGroundBonus = constants.BONUS_HIGH_GROUND_ATTACK;
     }
 
     let positionalBonus = 0;
@@ -223,8 +223,8 @@ function applyDeathMoraleEffects(pos, ownerId, grid) {
         if (n.x >= 0 && n.x < constants.GRID_SIZE && n.y >= 0 && n.y < constants.GRID_SIZE) {
             const witness = grid[n.y][n.x];
             if (witness && !witness.is_fleeing) {
-                if (witness.owner === ownerId) witness.raw_morale -= 10;
-                else witness.raw_morale += 10;
+                if (witness.owner === ownerId) witness.raw_morale -= constants.MORALE_PENALTY_WITNESS_DEATH;
+                else witness.raw_morale += constants.MORALE_BONUS_WITNESS_ENEMY_DEATH;
             }
         }
     });
@@ -264,12 +264,30 @@ function calculateCurrentMorale(unit, x, y, grid) {
         }
     });
 
-    if (adjacentAllies > 0) { morale += (adjacentAllies * 10); breakdown.push({ label: "Adj. Allies", value: adjacentAllies * 10 }); }
-    if (adjacentEnemies > 1) { const val = -((adjacentEnemies - 1) * 10); morale += val; breakdown.push({ label: "Swarmed", value: val }); }
-    if (flankingEnemies > 0) { const val = -(flankingEnemies * 10); morale += val; breakdown.push({ label: "Flanked", value: val }); }
-    if (rearEnemies > 0) { const val = -(rearEnemies * 20); morale += val; breakdown.push({ label: "Rear Att.", value: val }); }
+    if (adjacentAllies > 0) {
+        morale += (adjacentAllies * constants.MORALE_BONUS_ADJACENT_ALLY);
+        breakdown.push({ label: "Adj. Allies", value: adjacentAllies * constants.MORALE_BONUS_ADJACENT_ALLY });
+    }
+    if (adjacentEnemies > 1) {
+        const val = -((adjacentEnemies - 1) * constants.MORALE_PENALTY_SWARM_PER_UNIT);
+        morale += val;
+        breakdown.push({ label: "Swarmed", value: val });
+    }
+    if (flankingEnemies > 0) {
+        const val = -(flankingEnemies * constants.MORALE_PENALTY_FLANK);
+        morale += val;
+        breakdown.push({ label: "Flanked", value: val });
+    }
+    if (rearEnemies > 0) {
+        const val = -(rearEnemies * constants.MORALE_PENALTY_REAR);
+        morale += val;
+        breakdown.push({ label: "Rear Att.", value: val });
+    }
 
-    if (unit.is_commander) { morale += 20; breakdown.push({ label: "Commander", value: 20 }); }
+    if (unit.is_commander) {
+        morale += constants.MORALE_BONUS_COMMANDER_SELF;
+        breakdown.push({ label: "Commander", value: constants.MORALE_BONUS_COMMANDER_SELF });
+    }
 
     if (!unit.is_commander) {
         let commanderNearby = false;
@@ -284,7 +302,10 @@ function calculateCurrentMorale(unit, x, y, grid) {
                 }
             }
         }
-        if (commanderNearby) { morale += 10; breakdown.push({ label: "Cmdr Aura", value: 10 }); }
+        if (commanderNearby) {
+            morale += constants.MORALE_BONUS_COMMANDER_AURA;
+            breakdown.push({ label: "Commander presence", value: constants.MORALE_BONUS_COMMANDER_AURA });
+        }
     }
     if (morale > constants.MAX_MORALE) morale = constants.MAX_MORALE;
     unit.current_morale = morale;

@@ -7,6 +7,7 @@ const ctx = canvas.getContext('2d');
 let myId = null;
 let localState = null;
 let clientUnitStats = {};
+let gameConstants = null; // Store received constants
 let GRID_SIZE = 50; // Updated by init
 
 // Game Interaction State
@@ -34,6 +35,12 @@ socket.on('init', (data) => {
 
     localState = data.state;
     clientUnitStats = data.unitStats;
+    gameConstants = data.gameConstants;
+
+    // Pass constants to UiManager
+    if(UiManager.setConstants) {
+        UiManager.setConstants(gameConstants);
+    }
 
     // Update Grid Config
     if (localState.grid) {
@@ -167,8 +174,12 @@ function recalculateOptions(entity) {
     if (!entity.hasAttacked) {
         let range = entity.range;
         const myTerrain = localState.terrainMap[selectedCell.y][selectedCell.x];
+
+        // Use received constant for range bonus
+        const rangeBonus = gameConstants ? gameConstants.BONUS_HIGH_GROUND_RANGE : 1;
+
         if (myTerrain.highGround && entity.is_ranged) {
-            range += 1;
+            range += rangeBonus;
         }
 
         for (let y = 0; y < GRID_SIZE; y++) {
@@ -217,6 +228,8 @@ function getReachableCells(start, maxDist, grid, terrainMap) {
     costs[`${start.x},${start.y}`] = 0;
     let reachable = [];
 
+    const impassableThreshold = (gameConstants && gameConstants.MAP_GEN) ? gameConstants.MAP_GEN.IMPASSABLE_THRESHOLD : 10;
+
     while(queue.length > 0) {
         queue.sort((a,b) => a.cost - b.cost);
         let current = queue.shift();
@@ -234,7 +247,7 @@ function getReachableCells(start, maxDist, grid, terrainMap) {
             if (nx >= 0 && nx < GRID_SIZE && ny >= 0 && ny < GRID_SIZE) {
                 const key = `${nx},${ny}`;
                 const t = terrainMap[ny][nx];
-                if (t.cost > 10) continue;
+                if (t.cost > impassableThreshold) continue;
                 if (grid[ny][nx]) continue;
 
                 const newCost = current.cost + t.cost;
