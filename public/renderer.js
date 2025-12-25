@@ -7,10 +7,12 @@ const Renderer = {
 
     // Fallback Icons
     icons: {
-        knight: '⚔️',
+        light_infantry: '⚔️',
+        heavy_infantry: '🛡️',
         archer: '🏹',
-        wizard: '🧙',
-        scout: '🏇'
+        light_cavalry: '🐎',
+        heavy_cavalry: '🏇',
+        lancer: '🔱'
     },
 
     // Image Management
@@ -26,11 +28,12 @@ const Renderer = {
         'street': '/images/street.png',
         'plains': '/images/plains.png',
 
-        // Units
-        'knight': '/images/knight.png',
+        'light_infantry': '/images/light_infantry.png', // Placeholder
+        'heavy_infantry': '/images/heavy_infantry.png', // Placeholder
         'archer': '/images/archer.png',
-        'wizard': '/images/wizard.png',
-        'scout': '/images/scout.png'
+        'light_cavalry': '/images/light_cavalry.png',
+        'heavy_cavalry': '/images/heavy_cavalry.png',   // Placeholder
+        'lancer': '/images/lancer.png'          // Placeholder
     },
 
     init(ctx, gridSize, canvasWidth) {

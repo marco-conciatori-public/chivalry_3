@@ -158,8 +158,19 @@ const UiManager = {
             if (stats && myPlayer) {
                 if (myPlayer.gold < stats.cost) el.classList.add('disabled');
                 else el.classList.remove('disabled');
-                const icon = type === 'knight' ? '⚔️' : type === 'archer' ? '🏹' : type === 'wizard' ? '🧙' : '🏇';
-                const name = type.charAt(0).toUpperCase() + type.slice(1);
+
+                // UPDATED: Icons for new units
+                let icon = '❓';
+                if (type === 'light_infantry') icon = '⚔️';
+                else if (type === 'heavy_infantry') icon = '🛡️';
+                else if (type === 'archer') icon = '🏹';
+                else if (type === 'light_cavalry') icon = '🐎';
+                else if (type === 'heavy_cavalry') icon = '🏇';
+                else if (type === 'lancer') icon = '🔱';
+
+                // Format Name
+                const name = type.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+
                 el.innerHTML = `${icon} ${name} <span style="font-size:0.8em; color:#666;">(${stats.cost}g)</span>`;
             }
         });
@@ -202,7 +213,10 @@ const UiManager = {
 
         const formatStat = (label, value) => `<div class="stat-row"><span>${label}:</span> <strong>${value}</strong></div>`;
 
-        let typeDisplay = (isTemplate ? selectedTemplate : entity.type).toUpperCase();
+        let typeName = isTemplate ? selectedTemplate : entity.type;
+        // Format Name (replace _ with space and capitalize)
+        let typeDisplay = typeName.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+
         if (!isTemplate && entity.is_commander) typeDisplay += ' 👑';
 
         const healthDisplay = isTemplate ? entity.max_health : `${entity.current_health}/${entity.max_health}`;
@@ -223,6 +237,7 @@ const UiManager = {
             moraleRow = formatStat('Morale', moraleDisplay);
         }
 
+        // Show Special Abilities
         let abilitiesDisplay = (entity.special_abilities && entity.special_abilities.length > 0) ? entity.special_abilities.join(', ') : 'None';
         let costRow = isTemplate ? formatStat('Cost', entity.cost || '-') : '';
         let extraRows = formatStat('Abilities', abilitiesDisplay);
@@ -271,7 +286,9 @@ const UiManager = {
             })
             .replace(/{u:([^:]+):(\d+):(\d+):([^}]+)}/g, (match, type, x, y, ownerId) => {
                 const color = gameState.players[ownerId] ? gameState.players[ownerId].color : '#3498db';
-                return `<span class="log-unit" style="color: ${color}" data-x="${x}" data-y="${y}">${type}</span>`;
+                // Clean up type name for log
+                const cleanType = type.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+                return `<span class="log-unit" style="color: ${color}" data-x="${x}" data-y="${y}">${cleanType}</span>`;
             });
 
         div.innerHTML = formattedMsg;

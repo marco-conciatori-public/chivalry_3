@@ -9,6 +9,7 @@ module.exports = {
     // Combat Mechanics
     BONUS_FLANK: 10,
     BONUS_REAR: 20,
+    BONUS_ANTI_CAVALRY: 20, // Bonus damage for Lancers vs Cavalry
     MIN_DAMAGE_REDUCTION_BY_HEALTH: 0.2,
     MAX_DAMAGE_REDUCTION_BY_DEFENSE: 0.1,
     DAMAGE_RANDOM_BASE: 0.8,

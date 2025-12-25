@@ -95,10 +95,12 @@ function calculateDamage(attacker, attackerPos, defender, defenderPos, isSplash,
         highGroundBonus = 10;
     }
 
-    // Positional Bonus for Melee (Flank/Rear)
     let positionalBonus = 0;
+    let chargeBonus = 0;
+    let abilityBonus = 0;
+
     if (!attacker.is_ranged && !isSplash) {
-        // Calculate attacker's position relative to defender
+        // 1. Positional Bonus
         const dx = attackerPos.x - defenderPos.x;
         const dy = attackerPos.y - defenderPos.y;
         const position = getRelativePosition(defender.facing_direction, dx, dy);
@@ -108,6 +110,19 @@ function calculateDamage(attacker, attackerPos, defender, defenderPos, isSplash,
         } else if (position === 'REAR') {
             positionalBonus = constants.BONUS_REAR;
         }
+
+        // 2. Charge Bonus (If moved this turn)
+        // We assume if remainingMovement < speed, the unit has moved.
+        if (attacker.remainingMovement < attacker.speed) {
+            chargeBonus = attacker.charge_bonus || 0;
+        }
+
+        // 3. Ability Bonuses (e.g., Anti-Cavalry)
+        if (attacker.special_abilities && attacker.special_abilities.includes('anti_cavalry')) {
+            if (defender.type === 'light_cavalry' || defender.type === 'heavy_cavalry') {
+                abilityBonus = constants.BONUS_ANTI_CAVALRY;
+            }
+        }
     }
 
     const healthFactor = constants.MIN_DAMAGE_REDUCTION_BY_HEALTH + ((attacker.current_health / attacker.max_health) * (1 - constants.MIN_DAMAGE_REDUCTION_BY_HEALTH));
@@ -115,7 +130,7 @@ function calculateDamage(attacker, attackerPos, defender, defenderPos, isSplash,
     const defenseFactor = 1 - ((defender.defence + bonusShield + terrainDefense) / 100);
     const clampedDefenseFactor = Math.max(constants.MAX_DAMAGE_REDUCTION_BY_DEFENSE, defenseFactor);
 
-    let baseDamage = (attacker.attack + highGroundBonus + positionalBonus) * healthFactor * clampedDefenseFactor;
+    let baseDamage = (attacker.attack + highGroundBonus + positionalBonus + chargeBonus + abilityBonus) * healthFactor * clampedDefenseFactor;
 
     if (attacker.is_ranged) {
         if (isSplash) baseDamage *= ((100 - attacker.accuracy) / 100);
