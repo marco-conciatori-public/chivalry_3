@@ -263,9 +263,11 @@ const UiManager = {
             chargeRow = formatStat('Charge Bonus', entity.charge_bonus);
         }
 
-        let shieldRow = '';
+        // UPDATED: Defense display includes shield bonus if present
+        let defenseDisplay = entity.defence;
         if (entity.shield_bonus > 0) {
-            shieldRow = formatStat('Shield Bonus', entity.shield_bonus);
+            const totalDefense = entity.defence + entity.shield_bonus;
+            defenseDisplay = `${entity.defence} <span style="color:#555; font-size: 0.9em;">(${totalDefense})</span>`;
         }
 
         // Properly Format Abilities
@@ -294,8 +296,7 @@ const UiManager = {
             ${moraleRow}
             <hr style="border: 0; border-top: 1px solid #eee; margin: 8px 0;">
             ${formatStat('Attack', entity.attack)}
-            ${formatStat('Defense', entity.defence)}
-            ${shieldRow}
+            ${formatStat('Defense', defenseDisplay)}
             ${chargeRow}
             ${rangeRows}
             ${abilitiesRow}
