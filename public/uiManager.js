@@ -249,9 +249,12 @@ const UiManager = {
 
         const moraleDisplay = isTemplate ? entity.initial_morale : `${entity.current_morale}/${entity.initial_morale}`;
 
+        // Helper style for interactive tooltips (dotted underline)
+        const interactiveStyle = 'border-bottom: 1px dotted #888; cursor: help; display: inline-block; line-height: 1.2;';
+
         let moraleRow = '';
         if (!isTemplate) {
-            moraleRow = `<div class="stat-row"><span id="morale-stat-label" class="interactive-label" style="text-decoration: underline dotted; cursor: help;">Morale:</span> <strong>${moraleDisplay}</strong></div>`;
+            moraleRow = `<div class="stat-row"><span id="morale-stat-label" class="interactive-label" style="${interactiveStyle}">Morale:</span> <strong>${moraleDisplay}</strong></div>`;
         } else {
             moraleRow = formatStat('Morale', moraleDisplay);
         }
@@ -304,8 +307,8 @@ const UiManager = {
         let defenseRowHtml = '';
 
         if (!isTemplate) {
-            attackRowHtml = `<div class="stat-row"><span id="attack-stat-label" class="interactive-label" style="text-decoration: underline dotted; cursor: help;">Attack:</span> <strong>${dynamicAttackDisplay}</strong></div>`;
-            defenseRowHtml = `<div class="stat-row"><span id="defense-stat-label" class="interactive-label" style="text-decoration: underline dotted; cursor: help;">Defense:</span> <strong>${dynamicDefenseDisplay}</strong></div>`;
+            attackRowHtml = `<div class="stat-row"><span id="attack-stat-label" class="interactive-label" style="${interactiveStyle}">Attack:</span> <strong>${dynamicAttackDisplay}</strong></div>`;
+            defenseRowHtml = `<div class="stat-row"><span id="defense-stat-label" class="interactive-label" style="${interactiveStyle}">Defense:</span> <strong>${dynamicDefenseDisplay}</strong></div>`;
         } else {
             attackRowHtml = formatStat('Attack', dynamicAttackDisplay);
             defenseRowHtml = formatStat('Defense', dynamicDefenseDisplay);
@@ -322,16 +325,16 @@ const UiManager = {
             chargeRow = formatStat('Charge Bonus', entity.charge_bonus);
         }
 
-        // Properly Format Abilities
-        let abilitiesDisplay = 'None';
+        // Properly Format Abilities (Hidden if empty)
+        let abilitiesRow = '';
         if (entity.special_abilities && entity.special_abilities.length > 0) {
-            abilitiesDisplay = entity.special_abilities.map(ability =>
+            const abilitiesDisplay = entity.special_abilities.map(ability =>
                 ability.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
             ).join(', ');
+            abilitiesRow = formatStat('Abilities', abilitiesDisplay);
         }
 
         let costRow = isTemplate ? formatStat('Cost', entity.cost || '-') : '';
-        let abilitiesRow = formatStat('Abilities', abilitiesDisplay);
 
         let statusEffect = '';
         if (!isTemplate && entity.is_fleeing) statusEffect = `<div style="color:red; font-weight:bold; margin:5px 0;">⚠ FLEEING</div>`;
