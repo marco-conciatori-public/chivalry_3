@@ -81,21 +81,28 @@ const UiManager = {
             const isTurn = gameState.turn === id;
             const li = document.createElement('li');
             li.className = 'player-item';
+
+            // Flex layout for positioning
+            li.style.display = 'flex';
+            li.style.alignItems = 'center';
+
             if (isTurn) {
                 li.style.border = '2px solid #333';
                 li.style.fontWeight = 'bold';
             }
-            const goldDisplay = p.gold !== undefined ? ` (${p.gold}g)` : '';
+
             const colorBox = document.createElement('div');
             colorBox.className = 'player-color-box';
             colorBox.style.backgroundColor = p.color;
+            colorBox.style.marginRight = '8px'; // Add spacing
+
             const nameSpan = document.createElement('span');
 
             let displayName = p.name;
             if (isMe) displayName += " (You)";
-            if (p.isAI) displayName += " [AI]"; // Mark AI in legend
+            if (p.isAI) displayName += " [AI]";
 
-            nameSpan.innerText = `${displayName}${goldDisplay}`;
+            nameSpan.innerText = displayName;
 
             if (isMe) {
                 nameSpan.style.cursor = 'pointer';
@@ -123,12 +130,24 @@ const UiManager = {
                     input.focus();
                 };
             }
+
             const turnMarker = document.createElement('span');
             turnMarker.className = 'current-turn-marker';
             turnMarker.innerText = isTurn ? 'TURN' : '';
+            turnMarker.style.marginLeft = '8px';
+
+            // Gold on the right
+            const goldSpan = document.createElement('span');
+            goldSpan.innerText = p.gold !== undefined ? `${p.gold}g` : '';
+            goldSpan.style.marginLeft = 'auto'; // Push to right
+            goldSpan.style.fontWeight = 'bold';
+            goldSpan.style.color = '#b7950b';
+
             li.appendChild(colorBox);
             li.appendChild(nameSpan);
             li.appendChild(turnMarker);
+            li.appendChild(goldSpan);
+
             this.elements.playerList.appendChild(li);
         });
     },
