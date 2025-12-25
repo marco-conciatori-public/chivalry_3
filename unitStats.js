@@ -2,9 +2,10 @@
 module.exports = {
     knight: {
         attack: 70,
-        bonus_vs: ['archer'],
         defence: 60,
         has_shield: true,
+        shield_bonus: 20,
+        special_abilities: [],
         speed: 2,
         initial_morale: 90,
         is_commander: false,
@@ -17,9 +18,10 @@ module.exports = {
     },
     archer: {
         attack: 45,
-        bonus_vs: ['scout'],
         defence: 20,
         has_shield: false,
+        shield_bonus: 0,
+        special_abilities: [],
         speed: 2,
         initial_morale: 60,
         is_commander: false,
@@ -32,9 +34,10 @@ module.exports = {
     },
     wizard: {
         attack: 85,
-        bonus_vs: ['knight'],
         defence: 10,
         has_shield: false,
+        shield_bonus: 0,
+        special_abilities: [],
         speed: 1,
         initial_morale: 40,
         is_commander: false,
@@ -47,9 +50,10 @@ module.exports = {
     },
     scout: {
         attack: 30,
-        bonus_vs: ['wizard'],
         defence: 30,
         has_shield: false,
+        shield_bonus: 0,
+        special_abilities: [],
         speed: 3,
         initial_morale: 50,
         is_commander: false,

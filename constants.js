@@ -7,8 +7,6 @@ module.exports = {
     STARTING_GOLD: 2000,
 
     // Combat Mechanics
-    BONUS_DAMAGE: 20,
-    BONUS_SHIELD: 20,
     MIN_DAMAGE_REDUCTION_BY_HEALTH: 0.2,
     MAX_DAMAGE_REDUCTION_BY_DEFENSE: 0.1,
     DAMAGE_RANDOM_BASE: 0.8,

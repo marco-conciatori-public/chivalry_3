@@ -73,11 +73,6 @@ function hasLineOfSight(start, end, terrainMap) {
 // --- COMBAT LOGIC ---
 
 function calculateDamage(attacker, attackerPos, defender, defenderPos, isSplash, terrainMap) {
-    let bonusDamage = 0;
-    if (attacker.bonus_vs && attacker.bonus_vs.includes(defender.type)) {
-        bonusDamage = constants.BONUS_DAMAGE;
-    }
-
     let bonusShield = 0;
     if (defender.has_shield) {
         const dx = attackerPos.x - defenderPos.x;
@@ -88,7 +83,7 @@ function calculateDamage(attacker, attackerPos, defender, defenderPos, isSplash,
         if (defender.facing_direction === 4) { if (dy > 0 && dx === 0) isShielded = true; if (dx > 0 && dy === 0) isShielded = true; }
         if (defender.facing_direction === 6) { if (dx < 0 && dy === 0) isShielded = true; if (dy > 0 && dx === 0) isShielded = true; }
 
-        if (isShielded) bonusShield = constants.BONUS_SHIELD;
+        if (isShielded) bonusShield = defender.shield_bonus || 0;
     }
 
     const tile = terrainMap[defenderPos.y][defenderPos.x];
@@ -105,7 +100,7 @@ function calculateDamage(attacker, attackerPos, defender, defenderPos, isSplash,
     const defenseFactor = 1 - ((defender.defence + bonusShield + terrainDefense) / 100);
     const clampedDefenseFactor = Math.max(constants.MAX_DAMAGE_REDUCTION_BY_DEFENSE, defenseFactor);
 
-    let baseDamage = (attacker.attack + bonusDamage + highGroundBonus) * healthFactor * clampedDefenseFactor;
+    let baseDamage = (attacker.attack + highGroundBonus) * healthFactor * clampedDefenseFactor;
 
     if (attacker.is_ranged) {
         if (isSplash) baseDamage *= ((100 - attacker.accuracy) / 100);
