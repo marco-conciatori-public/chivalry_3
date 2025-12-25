@@ -397,6 +397,10 @@ const UiManager = {
         }
     },
 
+    clearLog() {
+        this.elements.logContent.innerHTML = '';
+    },
+
     addLogEntry(msg, gameState, onUnitClick) {
         const div = document.createElement('div');
         div.className = 'log-entry';

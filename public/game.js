@@ -25,11 +25,12 @@ UiManager.init();
 
 socket.on('init', (data) => {
     // Only update myId if the server provides a valid one.
-    // When the game restarts, the server broadcasts 'init' with myId: null.
-    // We must preserve our existing myId in that case.
     if (data.myId) {
         myId = data.myId;
     }
+
+    // Check if we are re-initializing (New Game started)
+    const isReInit = !!localState;
 
     localState = data.state;
     clientUnitStats = data.unitStats;
@@ -62,6 +63,12 @@ socket.on('init', (data) => {
 
     UiManager.updateLegend(localState, myId, (name) => socket.emit('changeName', name));
     UiManager.updateControls(localState, myId, clientUnitStats);
+
+    // UPDATED: Clear log on restart, always show welcome message (once)
+    if (isReInit) {
+        UiManager.clearLog();
+    }
+
     UiManager.addLogEntry("Welcome to Grid War!", localState, () => {});
 });
 
