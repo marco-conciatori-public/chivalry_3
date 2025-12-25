@@ -131,11 +131,6 @@ const UiManager = {
                 };
             }
 
-            const turnMarker = document.createElement('span');
-            turnMarker.className = 'current-turn-marker';
-            turnMarker.innerText = isTurn ? 'TURN' : '';
-            turnMarker.style.marginLeft = '8px';
-
             // Gold on the right
             const goldSpan = document.createElement('span');
             goldSpan.innerText = p.gold !== undefined ? `${p.gold}g` : '';
@@ -145,7 +140,6 @@ const UiManager = {
 
             li.appendChild(colorBox);
             li.appendChild(nameSpan);
-            li.appendChild(turnMarker);
             li.appendChild(goldSpan);
 
             this.elements.playerList.appendChild(li);
