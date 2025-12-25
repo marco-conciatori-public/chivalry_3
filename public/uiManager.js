@@ -19,6 +19,8 @@ const UiManager = {
     },
 
     currentMoraleBreakdown: null,
+    currentAttackBreakdown: null,
+    currentDefenseBreakdown: null,
     tooltipEl: null,
 
     init() {
@@ -217,6 +219,9 @@ const UiManager = {
 
     updateUnitInfo(entity, isTemplate, selectedTemplate, gameState, selectedCell) {
         this.currentMoraleBreakdown = null;
+        this.currentAttackBreakdown = null;
+        this.currentDefenseBreakdown = null;
+
         if (!entity) {
             this.elements.unitInfoContent.innerHTML = '<em>Click a unit to see details</em>';
             return;
@@ -246,12 +251,66 @@ const UiManager = {
 
         let moraleRow = '';
         if (!isTemplate) {
-            moraleRow = `<div class="stat-row"><span id="morale-stat-label" class="interactive-label">Morale:</span> <strong>${moraleDisplay}</strong></div>`;
+            moraleRow = `<div class="stat-row"><span id="morale-stat-label" class="interactive-label" style="text-decoration: underline dotted; cursor: help;">Morale:</span> <strong>${moraleDisplay}</strong></div>`;
         } else {
             moraleRow = formatStat('Morale', moraleDisplay);
         }
 
-        // Conditional Stats
+        // Conditional Stats & Dynamic Calculations
+        let attackValue = entity.attack;
+        let defenseValue = entity.defence;
+        let shieldBonus = entity.shield_bonus || 0;
+
+        let dynamicAttackDisplay = attackValue;
+        let dynamicDefenseDisplay = defenseValue;
+
+        // Initialize breakdowns if unit is on grid
+        if (!isTemplate) {
+            this.currentAttackBreakdown = [{ label: "Base Attack", value: attackValue }];
+            this.currentDefenseBreakdown = [{ label: "Base Defense", value: defenseValue }];
+        }
+
+        // Calculate dynamic bonuses for units on the grid
+        if (!isTemplate && gameState && gameState.terrainMap && selectedCell) {
+            const terrain = gameState.terrainMap[selectedCell.y][selectedCell.x];
+            if (terrain) {
+                // Attack Bonus (High Ground)
+                if (terrain.highGround) {
+                    const highGroundBonus = 10; // Value matches gameLogic
+                    const totalAttack = attackValue + highGroundBonus;
+                    dynamicAttackDisplay = `${attackValue} <span style="color:#27ae60; font-size: 0.9em;">(${totalAttack})</span>`;
+                    this.currentAttackBreakdown.push({ label: "High Ground", value: highGroundBonus });
+                }
+
+                // Defense Bonus (Terrain + Shield)
+                const terrainDefense = terrain.defense || 0;
+
+                if (shieldBonus > 0) this.currentDefenseBreakdown.push({ label: "Shield", value: shieldBonus });
+                if (terrainDefense > 0) this.currentDefenseBreakdown.push({ label: "Terrain", value: terrainDefense });
+
+                const totalDefense = defenseValue + shieldBonus + terrainDefense;
+
+                if (totalDefense !== defenseValue) {
+                    dynamicDefenseDisplay = `${defenseValue} <span style="color:#555; font-size: 0.9em;">(${totalDefense})</span>`;
+                }
+            }
+        } else if (shieldBonus > 0) {
+            // For templates or fallback, just show shield bonus if present
+            const totalDefense = defenseValue + shieldBonus;
+            dynamicDefenseDisplay = `${defenseValue} <span style="color:#555; font-size: 0.9em;">(${totalDefense})</span>`;
+        }
+
+        let attackRowHtml = '';
+        let defenseRowHtml = '';
+
+        if (!isTemplate) {
+            attackRowHtml = `<div class="stat-row"><span id="attack-stat-label" class="interactive-label" style="text-decoration: underline dotted; cursor: help;">Attack:</span> <strong>${dynamicAttackDisplay}</strong></div>`;
+            defenseRowHtml = `<div class="stat-row"><span id="defense-stat-label" class="interactive-label" style="text-decoration: underline dotted; cursor: help;">Defense:</span> <strong>${dynamicDefenseDisplay}</strong></div>`;
+        } else {
+            attackRowHtml = formatStat('Attack', dynamicAttackDisplay);
+            defenseRowHtml = formatStat('Defense', dynamicDefenseDisplay);
+        }
+
         let rangeRows = '';
         if (entity.is_ranged) {
             rangeRows += formatStat('Range', entity.range);
@@ -261,13 +320,6 @@ const UiManager = {
         let chargeRow = '';
         if (entity.charge_bonus > 0) {
             chargeRow = formatStat('Charge Bonus', entity.charge_bonus);
-        }
-
-        // UPDATED: Defense display includes shield bonus if present
-        let defenseDisplay = entity.defence;
-        if (entity.shield_bonus > 0) {
-            const totalDefense = entity.defence + entity.shield_bonus;
-            defenseDisplay = `${entity.defence} <span style="color:#555; font-size: 0.9em;">(${totalDefense})</span>`;
         }
 
         // Properly Format Abilities
@@ -295,19 +347,33 @@ const UiManager = {
             ${attacksRow}
             ${moraleRow}
             <hr style="border: 0; border-top: 1px solid #eee; margin: 8px 0;">
-            ${formatStat('Attack', entity.attack)}
-            ${formatStat('Defense', defenseDisplay)}
+            ${attackRowHtml}
+            ${defenseRowHtml}
             ${chargeRow}
             ${rangeRows}
             ${abilitiesRow}
         `;
 
         if (!isTemplate) {
-            const el = document.getElementById('morale-stat-label');
-            if (el) {
-                el.addEventListener('mouseenter', (e) => this.showMoraleTooltip(e));
-                el.addEventListener('mousemove', (e) => this.moveTooltip(e));
-                el.addEventListener('mouseleave', () => this.hideMoraleTooltip());
+            const moraleEl = document.getElementById('morale-stat-label');
+            if (moraleEl) {
+                moraleEl.addEventListener('mouseenter', (e) => this.showMoraleTooltip(e));
+                moraleEl.addEventListener('mousemove', (e) => this.moveTooltip(e));
+                moraleEl.addEventListener('mouseleave', () => this.hideTooltip());
+            }
+
+            const attackEl = document.getElementById('attack-stat-label');
+            if (attackEl) {
+                attackEl.addEventListener('mouseenter', (e) => this.showAttackTooltip(e));
+                attackEl.addEventListener('mousemove', (e) => this.moveTooltip(e));
+                attackEl.addEventListener('mouseleave', () => this.hideTooltip());
+            }
+
+            const defenseEl = document.getElementById('defense-stat-label');
+            if (defenseEl) {
+                defenseEl.addEventListener('mouseenter', (e) => this.showDefenseTooltip(e));
+                defenseEl.addEventListener('mousemove', (e) => this.moveTooltip(e));
+                defenseEl.addEventListener('mouseleave', () => this.hideTooltip());
             }
         }
     },
@@ -405,10 +471,10 @@ const UiManager = {
         this.elements.contextMenu.style.display = 'none';
     },
 
-    showMoraleTooltip(e) {
-        if (!this.currentMoraleBreakdown || this.currentMoraleBreakdown.length === 0) return;
+    renderTooltip(e, breakdown) {
+        if (!breakdown || breakdown.length === 0) return;
         let html = '';
-        this.currentMoraleBreakdown.forEach(item => {
+        breakdown.forEach(item => {
             const colorClass = item.value >= 0 ? 'positive' : 'negative';
             const sign = item.value >= 0 ? '+' : '';
             html += `<div class="tooltip-row"><span>${item.label}</span><span class="tooltip-val ${colorClass}">${sign}${item.value}</span></div>`;
@@ -418,12 +484,29 @@ const UiManager = {
         this.moveTooltip(e);
     },
 
+    showMoraleTooltip(e) {
+        this.renderTooltip(e, this.currentMoraleBreakdown);
+    },
+
+    showAttackTooltip(e) {
+        this.renderTooltip(e, this.currentAttackBreakdown);
+    },
+
+    showDefenseTooltip(e) {
+        this.renderTooltip(e, this.currentDefenseBreakdown);
+    },
+
     moveTooltip(e) {
         this.tooltipEl.style.left = `${e.pageX + 15}px`;
         this.tooltipEl.style.top = `${e.pageY + 15}px`;
     },
 
-    hideMoraleTooltip() {
+    hideTooltip() {
         this.tooltipEl.style.display = 'none';
+    },
+
+    // Kept for backward compatibility if called elsewhere, but refactored to use generic
+    hideMoraleTooltip() {
+        this.hideTooltip();
     }
 };
