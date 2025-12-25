@@ -237,10 +237,33 @@ const UiManager = {
             moraleRow = formatStat('Morale', moraleDisplay);
         }
 
-        // Show Special Abilities
-        let abilitiesDisplay = (entity.special_abilities && entity.special_abilities.length > 0) ? entity.special_abilities.join(', ') : 'None';
+        // Conditional Stats
+        let rangeRows = '';
+        if (entity.is_ranged) {
+            rangeRows += formatStat('Range', entity.range);
+            rangeRows += formatStat('Accuracy', entity.accuracy + '%');
+        }
+
+        let chargeRow = '';
+        if (entity.charge_bonus > 0) {
+            chargeRow = formatStat('Charge Bonus', entity.charge_bonus);
+        }
+
+        let shieldRow = '';
+        if (entity.shield_bonus > 0) {
+            shieldRow = formatStat('Shield Bonus', entity.shield_bonus);
+        }
+
+        // Properly Format Abilities
+        let abilitiesDisplay = 'None';
+        if (entity.special_abilities && entity.special_abilities.length > 0) {
+            abilitiesDisplay = entity.special_abilities.map(ability =>
+                ability.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+            ).join(', ');
+        }
+
         let costRow = isTemplate ? formatStat('Cost', entity.cost || '-') : '';
-        let extraRows = formatStat('Abilities', abilitiesDisplay);
+        let abilitiesRow = formatStat('Abilities', abilitiesDisplay);
 
         let statusEffect = '';
         if (!isTemplate && entity.is_fleeing) statusEffect = `<div style="color:red; font-weight:bold; margin:5px 0;">⚠ FLEEING</div>`;
@@ -258,8 +281,10 @@ const UiManager = {
             <hr style="border: 0; border-top: 1px solid #eee; margin: 8px 0;">
             ${formatStat('Attack', entity.attack)}
             ${formatStat('Defense', entity.defence)}
-            ${formatStat('Range', entity.range)}
-            ${extraRows}
+            ${shieldRow}
+            ${chargeRow}
+            ${rangeRows}
+            ${abilitiesRow}
         `;
 
         if (!isTemplate) {
