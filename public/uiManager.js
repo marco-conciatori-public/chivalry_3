@@ -186,18 +186,32 @@ const UiManager = {
 
         let effects = [];
         // Removed redundant display of defense and cost values
-        if (terrain.cost >= 10) effects.push(`Impassable`);
+        // Removed "Impassable" from effects list as requested
         if (terrain.blocksLos) effects.push(`Blocks Sight`);
-        if (terrain.highGround) effects.push(`High Ground (+Range)`);
+        if (terrain.highGround) effects.push(`High Ground (+ range, + attack)`);
 
-        let effectsHtml = effects.length > 0 ? effects.join(', ') : 'None';
+        let effectsHtml = effects.length > 0 ? effects.join(', ') : '';
+
+        // Only show footer if there are effects
+        let footerHtml = '';
+        if (effects.length > 0) {
+            footerHtml = `
+            <hr style="border: 0; border-top: 1px solid #eee; margin: 8px 0;">
+            <div style="font-size: 0.9em; color: #555;">${effectsHtml}</div>
+            `;
+        }
+
+        // Logic for Movement Cost display
+        let moveCostDisplay = terrain.cost;
+        if (terrain.cost >= 99) {
+            moveCostDisplay = "Impassable";
+        }
 
         this.elements.cellInfoContent.innerHTML = `
             <div style="font-size: 1.1em; font-weight: bold; margin-bottom: 5px;">${terrain.id.toUpperCase()} <span style="font-size:0.8em">(${x},${y})</span></div>
-            ${formatStat('Movement Cost', terrain.cost)}
+            ${formatStat('Movement Cost', moveCostDisplay)}
             ${formatStat('Defense Bonus', terrain.defense + '%')}
-            <hr style="border: 0; border-top: 1px solid #eee; margin: 8px 0;">
-            <div style="font-size: 0.9em; color: #555;">${effectsHtml}</div>
+            ${footerHtml}
         `;
     },
 
