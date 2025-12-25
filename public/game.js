@@ -24,7 +24,13 @@ UiManager.init();
 // --- SOCKET LISTENERS ---
 
 socket.on('init', (data) => {
-    myId = data.myId;
+    // Only update myId if the server provides a valid one.
+    // When the game restarts, the server broadcasts 'init' with myId: null.
+    // We must preserve our existing myId in that case.
+    if (data.myId) {
+        myId = data.myId;
+    }
+
     localState = data.state;
     clientUnitStats = data.unitStats;
 
