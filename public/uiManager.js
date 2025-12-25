@@ -33,7 +33,9 @@ const UiManager = {
 
         // Setup Screen listeners are wired in game.js, but we provide methods here
         this.elements.btnNewGameTrigger.addEventListener('click', () => {
-            this.showSetupScreen();
+            if (confirm("Are you sure you want to start a new game? Current progress will be lost.")) {
+                this.showSetupScreen();
+            }
         });
     },
 

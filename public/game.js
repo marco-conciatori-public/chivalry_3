@@ -272,10 +272,8 @@ document.getElementById('end-turn-btn').addEventListener('click', () => {
 
 // Setup Screen Button
 document.getElementById('btn-start-game').addEventListener('click', () => {
-    if (confirm("Are you sure you want to start a new game? Current progress will be lost.")) {
-        const settings = UiManager.getSetupSettings();
-        socket.emit('startGame', settings);
-    }
+    const settings = UiManager.getSetupSettings();
+    socket.emit('startGame', settings);
 });
 
 // Template Listeners
