@@ -58,13 +58,16 @@ const UiManager = {
     },
 
     updateStatus(gameState, myId) {
+        // Default to Turn 1 if undefined (backward compatibility/safety)
+        const turnCount = gameState.turnCount || 1;
+
         if (gameState.turn === myId) {
-            this.elements.status.innerText = "YOUR TURN";
+            this.elements.status.innerText = `Turn ${turnCount}: YOUR TURN`;
             this.elements.status.style.color = "#27ae60";
         } else {
             const turnPlayer = gameState.players[gameState.turn];
             const turnName = turnPlayer ? turnPlayer.name : "Opponent";
-            this.elements.status.innerText = `${turnName}'s Turn...`;
+            this.elements.status.innerText = `Turn ${turnCount}: ${turnName}'s Turn...`;
             this.elements.status.style.color = "#c0392b";
         }
     },

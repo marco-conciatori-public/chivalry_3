@@ -20,6 +20,7 @@ let gameState = {
     terrainMap: null,
     players: {},
     turn: null,
+    turnCount: 1, // Global turn counter
     isGameActive: false // Track if the game is in Lobby or Playing state
 };
 
@@ -81,6 +82,7 @@ function startNewGame(settings) {
     // 5. Set Turn
     const allIds = Object.keys(gameState.players);
     gameState.turn = allIds.length > 0 ? allIds[0] : null;
+    gameState.turnCount = 1;
 
     // 6. Set Game Active
     gameState.isGameActive = true;
@@ -321,6 +323,12 @@ io.on('connection', (socket) => {
         const currentIndex = ids.indexOf(gameState.turn);
         const nextIndex = (currentIndex + 1) % ids.length;
         gameState.turn = ids[nextIndex];
+
+        // Increment global turn counter only when the cycle wraps around to the first player
+        if (nextIndex === 0) {
+            gameState.turnCount++;
+        }
+
         const nextPlayer = gameState.players[gameState.turn];
         modifyUnitsForPlayer(gameState.turn, (u) => { u.remainingMovement = u.speed; u.hasAttacked = false; });
 
