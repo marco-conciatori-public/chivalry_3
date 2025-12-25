@@ -44,8 +44,7 @@ module.exports = {
             BASE_VAR: 2,           // Variance (Math.random() * VAR)
             DENSITY: 0.3,          // Multiplier for area scaling
             MAX_ATTEMPTS_SCALE: 2000, // Safety break for while loop
-            GROUP_SIZE_SMALL: 2,
-            GROUP_SIZE_LARGE: 3
+            GROUP_SIZE_SMALL: 2
         },
         STREETS: {
             BASE_MIN: 2,

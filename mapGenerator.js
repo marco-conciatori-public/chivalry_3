@@ -54,7 +54,8 @@ function generateMap(gameState) {
 
     while(groupsPlaced < targetMountainGroups && mountainAttempts < (CFG.MOUNTAINS.MAX_ATTEMPTS_SCALE * areaScale)) {
         mountainAttempts++;
-        const size = Math.random() < 0.5 ? CFG.MOUNTAINS.GROUP_SIZE_SMALL : CFG.MOUNTAINS.GROUP_SIZE_LARGE;
+
+        const size = Math.ceil(Math.log(GRID_SIZE));
 
         const mx = Math.floor(Math.random() * (GRID_SIZE - size - 2)) + 1;
         const my = Math.floor(Math.random() * (GRID_SIZE - size - 2)) + 1;
