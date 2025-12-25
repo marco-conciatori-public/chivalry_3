@@ -126,13 +126,10 @@ const Renderer = {
 
                     let size = 1;
 
-                    // Check for 3x3
-                    if (this.checkSquare(gameState.terrainMap, x, y, 3, 'mountain', coveredMountains)) {
-                        size = 3;
-                    }
-                    // Check for 2x2
-                    else if (this.checkSquare(gameState.terrainMap, x, y, 2, 'mountain', coveredMountains)) {
-                        size = 2;
+                    // Dynamically find maximum square size
+                    // Keep increasing size as long as the square is valid (all mountains, not covered, in bounds)
+                    while (this.checkSquare(gameState.terrainMap, x, y, size + 1, 'mountain', coveredMountains)) {
+                        size++;
                     }
 
                     // Mark covered cells
