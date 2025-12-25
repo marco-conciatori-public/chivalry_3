@@ -1,72 +1,372 @@
-module.exports = {
-    // Game Grid
-    GRID_SIZE: 50,
+// UI MANAGER: Handles DOM updates
+const UiManager = {
+    elements: {
+        playerList: document.getElementById('player-list'),
+        connectionStatus: document.getElementById('connection-status'),
+        unitInfoContent: document.getElementById('unit-info-content'),
+        cellInfoContent: document.getElementById('cell-info-content'),
+        logContent: document.getElementById('log-content'),
+        endTurnBtn: document.getElementById('end-turn-btn'),
+        contextMenu: document.getElementById('context-menu'),
+        gameArea: document.getElementById('game-area'),
+        status: document.getElementById('status'),
+        toolbar: document.getElementById('toolbar'),
+        btnRotate: document.getElementById('btn-rotate'),
+        btnAttack: document.getElementById('btn-attack'),
+        setupScreen: document.getElementById('setup-screen'),
+        btnStartGame: document.getElementById('btn-start-game'),
+        btnNewGameTrigger: document.getElementById('btn-new-game-trigger')
+    },
 
-    // Player Configuration
-    PLAYER_COLORS: ['#3498db', '#e74c3c', '#2ecc71', '#f1c40f', '#9b59b6'],
-    STARTING_GOLD: 2000,
+    currentMoraleBreakdown: null,
+    tooltipEl: null,
 
-    // Combat Mechanics
-    BONUS_DAMAGE: 20,
-    BONUS_SHIELD: 20,
-    MIN_DAMAGE_REDUCTION_BY_HEALTH: 0.2,
-    MAX_DAMAGE_REDUCTION_BY_DEFENSE: 0.1,
-    DAMAGE_RANDOM_BASE: 0.8,
-    DAMAGE_RANDOM_VARIANCE: 0.4,
+    init() {
+        // Create Tooltip
+        this.tooltipEl = document.createElement('div');
+        this.tooltipEl.id = 'morale-tooltip';
+        this.tooltipEl.style.display = 'none';
+        document.body.appendChild(this.tooltipEl);
 
-    // Morale Mechanics
-    MORALE_THRESHOLD: 30,
-    MAX_MORALE: 100,
-    COMMANDER_INFLUENCE_RANGE: 4,
+        // Setup Screen listeners are wired in game.js, but we provide methods here
+        this.elements.btnNewGameTrigger.addEventListener('click', () => {
+            this.showSetupScreen();
+        });
+    },
 
-    // Map Generation Configuration
-    MAP_GEN: {
-        SPAWN_ZONE_HEIGHT: 2,      // Top/Bottom rows reserved for spawning
-        BASE_AREA: 100,            // Reference area (10x10) for scaling calculations
-        IMPASSABLE_THRESHOLD: 10,  // Terrain cost above this is considered a wall/obstacle
+    showSetupScreen() {
+        this.elements.setupScreen.classList.remove('hidden');
+    },
 
-        MOUNTAINS: {
-            BASE_MIN: 1,           // Minimum groups for base area
-            BASE_VAR: 2,           // Variance (Math.random() * VAR)
-            DENSITY: 0.3,          // Multiplier for area scaling
-            MAX_ATTEMPTS_SCALE: 2000, // Safety break for while loop
-            GROUP_SIZE_SMALL: 2,
-            GROUP_SIZE_LARGE: 3
-        },
-        STREETS: {
-            BASE_MIN: 2,
-            BASE_VAR: 2,
-            LENGTH_FACTOR: 0.8,    // Relative to GRID_SIZE
-            TURN_BIAS: 0.2,        // Probability to turn
-            DIRECTION_BIAS: 0.8    // Probability to continue in main direction
-        },
-        WALLS: {
-            BASE_MIN: 1,
-            BASE_VAR: 2,
-            DENSITY: 0.25,
-            LENGTH_MIN: 3,
-            LENGTH_VAR: 6
-        },
-        FORESTS: {
-            BASE_MIN: 2,
-            BASE_VAR: 2,
-            DENSITY: 0.7,
-            BLOB_SIZE_MIN: 4,
-            BLOB_SIZE_VAR: 8
-        },
-        RIVERS: {
-            DENSITY: 0.15,
-            LENGTH_FACTOR: 1.5
+    hideSetupScreen() {
+        this.elements.setupScreen.classList.add('hidden');
+    },
+
+    getSetupSettings() {
+        return {
+            gridSize: document.getElementById('cfg-grid-size').value,
+            startingGold: document.getElementById('cfg-gold').value,
+            aiCount: document.getElementById('cfg-ai-count').value,
+            aiDifficulty: document.getElementById('cfg-ai-difficulty').value
+        };
+    },
+
+    updateConnectionStatus(id) {
+        this.elements.connectionStatus.innerText = `Connected as ID: ${id.substr(0,4)}...`;
+    },
+
+    updateStatus(gameState, myId) {
+        if (gameState.turn === myId) {
+            this.elements.status.innerText = "YOUR TURN";
+            this.elements.status.style.color = "#27ae60";
+        } else {
+            const turnPlayer = gameState.players[gameState.turn];
+            const turnName = turnPlayer ? turnPlayer.name : "Opponent";
+            this.elements.status.innerText = `${turnName}'s Turn...`;
+            this.elements.status.style.color = "#c0392b";
         }
     },
 
-    // TERRAIN DEFINITIONS
-    TERRAIN: {
-        PLAINS: { id: 'plains', symbol: '', cost: 1, defense: 0, blocksLos: false, color: '#a3d5a5' },
-        FOREST: { id: 'forest', symbol: '🌲', cost: 2, defense: 20, blocksLos: true, color: '#a3d5a5' },
-        MOUNTAIN: { id: 'mountain', symbol: '🏔️', cost: 3, defense: 30, blocksLos: true, color: '#bdc3c7', highGround: true },
-        WALL: { id: 'wall', symbol: '🧱', cost: 99, defense: 0, blocksLos: true, color: '#7f8c8d', highGround: true },
-        WATER: { id: 'water', symbol: '🌊', cost: 99, defense: 0, blocksLos: false, color: '#85c1e9' },
-        STREET: { id: 'street', symbol: '', cost: 0.5, defense: 0, blocksLos: false, color: '#8b5a2b' }
+    updateLegend(gameState, myId, onRename) {
+        if (!gameState.players) return;
+
+        this.updateLogNames(gameState);
+
+        this.elements.playerList.innerHTML = '';
+        Object.keys(gameState.players).forEach(id => {
+            const p = gameState.players[id];
+            const isMe = id === myId;
+            const isTurn = gameState.turn === id;
+            const li = document.createElement('li');
+            li.className = 'player-item';
+            if (isTurn) {
+                li.style.border = '2px solid #333';
+                li.style.fontWeight = 'bold';
+            }
+            const goldDisplay = p.gold !== undefined ? ` (${p.gold}g)` : '';
+            const colorBox = document.createElement('div');
+            colorBox.className = 'player-color-box';
+            colorBox.style.backgroundColor = p.color;
+            const nameSpan = document.createElement('span');
+
+            let displayName = p.name;
+            if (isMe) displayName += " (You)";
+            if (p.isAI) displayName += " [AI]"; // Mark AI in legend
+
+            nameSpan.innerText = `${displayName}${goldDisplay}`;
+
+            if (isMe) {
+                nameSpan.style.cursor = 'pointer';
+                nameSpan.title = 'Double-click to rename';
+                nameSpan.ondblclick = (e) => {
+                    e.stopPropagation();
+                    const input = document.createElement('input');
+                    input.type = 'text';
+                    input.value = p.name;
+                    input.style.maxWidth = '100px';
+                    input.style.padding = '2px';
+                    input.style.border = '1px solid #aaa';
+                    input.style.borderRadius = '3px';
+                    const save = () => {
+                        const newName = input.value.trim();
+                        if (newName && newName !== p.name) onRename(newName);
+                        else this.updateLegend(gameState, myId, onRename);
+                    };
+                    input.onblur = save;
+                    input.onkeydown = (e) => {
+                        if (e.key === 'Enter') save();
+                        e.stopPropagation();
+                    };
+                    li.replaceChild(input, nameSpan);
+                    input.focus();
+                };
+            }
+            const turnMarker = document.createElement('span');
+            turnMarker.className = 'current-turn-marker';
+            turnMarker.innerText = isTurn ? 'TURN' : '';
+            li.appendChild(colorBox);
+            li.appendChild(nameSpan);
+            li.appendChild(turnMarker);
+            this.elements.playerList.appendChild(li);
+        });
+    },
+
+    // NEW: Updates all player name spans in the log based on current game state
+    updateLogNames(gameState) {
+        const playerSpans = this.elements.logContent.querySelectorAll('.log-player');
+        playerSpans.forEach(span => {
+            const playerId = span.getAttribute('data-id');
+            if (playerId && gameState.players[playerId]) {
+                const currentName = gameState.players[playerId].name;
+                if (span.innerText !== currentName) {
+                    span.innerText = currentName;
+                }
+            }
+        });
+    },
+
+    updateControls(gameState, myId, clientUnitStats) {
+        const isMyTurn = gameState.turn === myId;
+        const myPlayer = gameState.players[myId];
+        this.elements.endTurnBtn.disabled = !isMyTurn;
+        this.elements.toolbar.style.opacity = isMyTurn ? '1' : '0.5';
+        this.elements.toolbar.style.pointerEvents = isMyTurn ? 'auto' : 'none';
+
+        document.querySelectorAll('.template').forEach(el => {
+            const type = el.dataset.type;
+            const stats = clientUnitStats[type];
+            if (stats && myPlayer) {
+                if (myPlayer.gold < stats.cost) el.classList.add('disabled');
+                else el.classList.remove('disabled');
+                const icon = type === 'knight' ? '⚔️' : type === 'archer' ? '🏹' : type === 'wizard' ? '🧙' : '🏇';
+                const name = type.charAt(0).toUpperCase() + type.slice(1);
+                el.innerHTML = `${icon} ${name} <span style="font-size:0.8em; color:#666;">(${stats.cost}g)</span>`;
+            }
+        });
+    },
+
+    updateCellInfo(terrain, x, y) {
+        if (!terrain) {
+            this.elements.cellInfoContent.innerHTML = '<em>Hover over a cell</em>';
+            return;
+        }
+
+        const formatStat = (label, value) => `<div class="stat-row"><span>${label}:</span> <strong>${value}</strong></div>`;
+
+        let effects = [];
+        // Removed redundant display of defense and cost values
+        if (terrain.cost >= 10) effects.push(`Impassable`);
+        if (terrain.blocksLos) effects.push(`Blocks Sight`);
+        if (terrain.highGround) effects.push(`High Ground (+Range)`);
+
+        let effectsHtml = effects.length > 0 ? effects.join(', ') : 'None';
+
+        this.elements.cellInfoContent.innerHTML = `
+            <div style="font-size: 1.1em; font-weight: bold; margin-bottom: 5px;">${terrain.id.toUpperCase()} <span style="font-size:0.8em">(${x},${y})</span></div>
+            ${formatStat('Movement Cost', terrain.cost)}
+            ${formatStat('Defense Bonus', terrain.defense + '%')}
+            <hr style="border: 0; border-top: 1px solid #eee; margin: 8px 0;">
+            <div style="font-size: 0.9em; color: #555;">${effectsHtml}</div>
+        `;
+    },
+
+    updateUnitInfo(entity, isTemplate, selectedTemplate, gameState, selectedCell) {
+        this.currentMoraleBreakdown = null;
+        if (!entity) {
+            this.elements.unitInfoContent.innerHTML = '<em>Click a unit to see details</em>';
+            return;
+        }
+        if (!isTemplate && entity.morale_breakdown) {
+            this.currentMoraleBreakdown = entity.morale_breakdown;
+        }
+
+        const formatStat = (label, value) => `<div class="stat-row"><span>${label}:</span> <strong>${value}</strong></div>`;
+
+        let typeDisplay = (isTemplate ? selectedTemplate : entity.type).toUpperCase();
+        if (!isTemplate && entity.is_commander) typeDisplay += ' 👑';
+
+        const healthDisplay = isTemplate ? entity.max_health : `${entity.current_health}/${entity.max_health}`;
+        const movesDisplay = isTemplate ? entity.speed : `${entity.remainingMovement}/${entity.speed}`;
+
+        let attacksRow = '';
+        if (!isTemplate) {
+            const attacksLeft = entity.hasAttacked ? 0 : 1;
+            attacksRow = formatStat('Attacks', `${attacksLeft}/1`);
+        }
+
+        const moraleDisplay = isTemplate ? entity.initial_morale : `${entity.current_morale}/${entity.initial_morale}`;
+
+        let moraleRow = '';
+        if (!isTemplate) {
+            moraleRow = `<div class="stat-row"><span id="morale-stat-label" class="interactive-label">Morale:</span> <strong>${moraleDisplay}</strong></div>`;
+        } else {
+            moraleRow = formatStat('Morale', moraleDisplay);
+        }
+
+        let bonusDisplay = (entity.bonus_vs && entity.bonus_vs.length > 0) ? entity.bonus_vs.join(', ') : 'None';
+        let costRow = isTemplate ? formatStat('Cost', entity.cost || '-') : '';
+        let extraRows = formatStat('Bonus against', bonusDisplay);
+
+        let statusEffect = '';
+        if (!isTemplate && entity.is_fleeing) statusEffect = `<div style="color:red; font-weight:bold; margin:5px 0;">⚠ FLEEING</div>`;
+        else if (!isTemplate && entity.is_commander) statusEffect = `<div style="color:gold; font-weight:bold; margin:5px 0;">♛ COMMANDER</div>`;
+
+        this.elements.unitInfoContent.innerHTML = `
+            <div style="font-size: 1.1em; font-weight: bold; margin-bottom: 5px;">${typeDisplay}</div>
+            ${statusEffect}
+            ${costRow}
+            <hr style="border: 0; border-top: 1px solid #eee; margin: 8px 0;">
+            ${formatStat('Health', healthDisplay)}
+            ${formatStat('Moves', movesDisplay)}
+            ${attacksRow}
+            ${moraleRow}
+            <hr style="border: 0; border-top: 1px solid #eee; margin: 8px 0;">
+            ${formatStat('Attack', entity.attack)}
+            ${formatStat('Defense', entity.defence)}
+            ${formatStat('Range', entity.range)}
+            ${extraRows}
+        `;
+
+        if (!isTemplate) {
+            const el = document.getElementById('morale-stat-label');
+            if (el) {
+                el.addEventListener('mouseenter', (e) => this.showMoraleTooltip(e));
+                el.addEventListener('mousemove', (e) => this.moveTooltip(e));
+                el.addEventListener('mouseleave', () => this.hideMoraleTooltip());
+            }
+        }
+    },
+
+    addLogEntry(msg, gameState, onUnitClick) {
+        const div = document.createElement('div');
+        div.className = 'log-entry';
+
+        // Parse {p:PLAYER_ID} and store ID in data attribute for dynamic updates
+        let formattedMsg = msg
+            .replace(/{p:([^}]+)}/g, (match, playerId) => {
+                const p = gameState.players[playerId];
+                const name = p ? p.name : 'Unknown';
+                // Store ID for future updates
+                return `<span class="log-player" data-id="${playerId}">${name}</span>`;
+            })
+            .replace(/{u:([^:]+):(\d+):(\d+):([^}]+)}/g, (match, type, x, y, ownerId) => {
+                const color = gameState.players[ownerId] ? gameState.players[ownerId].color : '#3498db';
+                return `<span class="log-unit" style="color: ${color}" data-x="${x}" data-y="${y}">${type}</span>`;
+            });
+
+        div.innerHTML = formattedMsg;
+
+        div.querySelectorAll('.log-unit').forEach(span => {
+            span.onclick = () => {
+                const x = parseInt(span.dataset.x);
+                const y = parseInt(span.dataset.y);
+                onUnitClick(x, y);
+            };
+        });
+
+        this.elements.logContent.appendChild(div);
+        this.elements.logContent.scrollTop = this.elements.logContent.scrollHeight;
+    },
+
+    getVisualCellSize(internalCellSize) {
+        const canvas = document.getElementById('gameCanvas');
+        if (!canvas) return internalCellSize;
+        const rect = canvas.getBoundingClientRect();
+        // Calculate scale factor (Display Width / Internal Width)
+        const scale = rect.width / canvas.width;
+        return internalCellSize * scale;
+    },
+
+    showFloatingText(gridX, gridY, text, color, internalCellSize) {
+        const el = document.createElement('div');
+        el.className = 'floating-text';
+        el.innerText = text;
+        el.style.color = color;
+
+        // Calculate Visual Scale
+        const visualCellSize = this.getVisualCellSize(internalCellSize);
+
+        const jitterX = (Math.random() * 20) - 10;
+        const jitterY = (Math.random() * 20) - 10;
+
+        const left = (gridX * visualCellSize) + (visualCellSize / 2) + jitterX;
+        const top = (gridY * visualCellSize) + (visualCellSize / 2) + jitterY;
+
+        el.style.left = `${left}px`;
+        el.style.top = `${top}px`;
+
+        this.elements.gameArea.appendChild(el);
+        setTimeout(() => { el.remove(); }, 1500);
+    },
+
+    showContextMenu(clientX, clientY, entity, selectedCell, internalCellSize) {
+        if (entity) {
+            this.elements.btnRotate.disabled = entity.remainingMovement < 1;
+            this.elements.btnAttack.disabled = entity.hasAttacked;
+        }
+
+        const gameAreaRect = this.elements.gameArea.getBoundingClientRect();
+
+        if (selectedCell) {
+            // Calculate Visual Scale
+            const visualCellSize = this.getVisualCellSize(internalCellSize);
+
+            // Position relative to the cell
+            const menuLeft = (selectedCell.x * visualCellSize) + visualCellSize + 5;
+            const menuTop = (selectedCell.y * visualCellSize);
+            this.elements.contextMenu.style.left = `${menuLeft}px`;
+            this.elements.contextMenu.style.top = `${menuTop}px`;
+        } else {
+            // Position at mouse click (already screen coords)
+            this.elements.contextMenu.style.left = `${clientX - gameAreaRect.left}px`;
+            this.elements.contextMenu.style.top = `${clientY - gameAreaRect.top}px`;
+        }
+        this.elements.contextMenu.style.display = 'flex';
+    },
+
+    hideContextMenu() {
+        this.elements.contextMenu.style.display = 'none';
+    },
+
+    showMoraleTooltip(e) {
+        if (!this.currentMoraleBreakdown || this.currentMoraleBreakdown.length === 0) return;
+        let html = '';
+        this.currentMoraleBreakdown.forEach(item => {
+            const colorClass = item.value >= 0 ? 'positive' : 'negative';
+            const sign = item.value >= 0 ? '+' : '';
+            html += `<div class="tooltip-row"><span>${item.label}</span><span class="tooltip-val ${colorClass}">${sign}${item.value}</span></div>`;
+        });
+        this.tooltipEl.innerHTML = html;
+        this.tooltipEl.style.display = 'block';
+        this.moveTooltip(e);
+    },
+
+    moveTooltip(e) {
+        this.tooltipEl.style.left = `${e.pageX + 15}px`;
+        this.tooltipEl.style.top = `${e.pageY + 15}px`;
+    },
+
+    hideMoraleTooltip() {
+        this.tooltipEl.style.display = 'none';
     }
 };
