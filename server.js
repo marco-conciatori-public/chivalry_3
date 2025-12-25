@@ -309,6 +309,12 @@ io.on('connection', (socket) => {
         }
     });
 
+    socket.on('endTurn', () => {
+        if (socket.id === gameState.turn) {
+            endTurn();
+        }
+    });
+
     function endTurn() {
         modifyUnitsForPlayer(gameState.turn, (u) => { u.remainingMovement = 0; u.hasAttacked = true; });
         const ids = Object.keys(gameState.players);
