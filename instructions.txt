@@ -1,3 +1,6 @@
+installa NVM
+    questo installa NPM e Node.js
+
 Una sola volta all'inizio, nella cartella principale del progetto, esegui i comandi:
 	npm init -y
 	npm install express socket.io
@@ -5,5 +8,10 @@ Una sola volta all'inizio, nella cartella principale del progetto, esegui i coma
 Fai partire il server con il comando:
 	node server.js
 
+Installa Ngrok
+Poi crea link per internet con:
+    ngrok http 3000
+
 In un browser connettiti a
     http://localhost:3000
+    o al link fornito da Ngrok
