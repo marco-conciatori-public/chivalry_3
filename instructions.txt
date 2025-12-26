@@ -1,4 +1,4 @@
-installa NVM
+Installa NVM
     questo installa NPM e Node.js
 
 Una sola volta all'inizio, nella cartella principale del progetto, esegui i comandi:
@@ -9,6 +9,8 @@ Fai partire il server con il comando:
 	node server.js
 
 Installa Ngrok
+Configura Ngrok (vedi TOKEN dal tuo account di Ngrok)
+    ngrok config add-authtoken TOKEN
 Poi crea link per internet con:
     ngrok http 3000
 
