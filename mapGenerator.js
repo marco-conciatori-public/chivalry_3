@@ -15,7 +15,7 @@ function generateMap(gameState) {
     // --- NEW VALID ZONE LOGIC FOR 4 PLAYERS ---
     const G = GRID_SIZE;
     const dimLong = Math.floor(G / 2);
-    const dimShort = Math.floor(G / 20);
+    const dimShort = Math.max(Math.floor(G / 20), 2);
     const centerOffset = Math.floor((G - dimLong) / 2);
 
     // Define the 4 forbidden base rectangles
