@@ -250,6 +250,9 @@ const UiManager = {
             this.elements.unitInfoContent.innerHTML = '<em>Click a unit to see details</em>';
             return;
         }
+
+        let isFleeRisk = false;
+
         if (!isTemplate && entity.morale_breakdown) {
             // Copy breakdown to avoid mutating the original reference if it's shared (though it should be fresh)
             this.currentMoraleBreakdown = [...entity.morale_breakdown];
@@ -258,6 +261,10 @@ const UiManager = {
             if (this.gameConstants && entity.current_morale < this.gameConstants.MORALE_THRESHOLD) {
                 const prob = 1 - (entity.current_morale / this.gameConstants.MORALE_THRESHOLD);
                 const probPct = Math.max(0, Math.min(100, Math.floor(prob * 100)));
+
+                if (probPct > 0) {
+                    isFleeRisk = true;
+                }
 
                 this.currentMoraleBreakdown.push({
                     label: "Flee Chance",
@@ -292,7 +299,8 @@ const UiManager = {
 
         let moraleRow = '';
         if (!isTemplate) {
-            moraleRow = `<div class="stat-row"><span id="morale-stat-label" class="interactive-label" style="${interactiveStyle}">Morale:</span> <strong>${moraleDisplay}</strong></div>`;
+            const moraleColor = isFleeRisk ? 'color: #e74c3c;' : ''; // Red if fleeing risk
+            moraleRow = `<div class="stat-row"><span id="morale-stat-label" class="interactive-label" style="${interactiveStyle}">Morale:</span> <strong style="${moraleColor}">${moraleDisplay}</strong></div>`;
         } else {
             moraleRow = formatStat('Morale', moraleDisplay);
         }
