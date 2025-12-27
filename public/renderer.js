@@ -13,6 +13,7 @@ const Renderer = {
         light_cavalry: '🐎',
         heavy_cavalry: '🏇',
         spearman: '🔱',
+        catapult: '☄️'
     },
 
     // Image Management
@@ -34,6 +35,7 @@ const Renderer = {
         'light_cavalry': '/images/light_cavalry.png',
         'heavy_cavalry': '/images/heavy_cavalry.png',   // Placeholder
         'spearman': '/images/spearman.png',         // Placeholder
+        'catapult': '/images/catapult.png'
     },
 
     init(ctx, gridSize, canvasWidth) {

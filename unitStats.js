@@ -101,5 +101,22 @@ module.exports = {
         range: 1,
         max_health: 100,
         cost: 80
+    },
+    catapult: {
+        attack: 60,
+        defence: 5,
+        has_shield: false,
+        shield_bonus: 0,
+        special_abilities: [],
+        charge_bonus: 0,
+        speed: 1,
+        initial_morale: 40,
+        is_commander: false,
+        is_ranged: true,
+        accuracy: 60,
+        is_melee_capable: false,
+        range: 9,
+        max_health: 50,
+        cost: 300
     }
 };
