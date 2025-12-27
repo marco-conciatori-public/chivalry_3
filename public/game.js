@@ -76,7 +76,7 @@ socket.on('init', (data) => {
         UiManager.clearLog();
     }
 
-    UiManager.addLogEntry("Welcome to Grid War!", localState, () => {});
+    UiManager.addLogEntry("Welcome to Chivalry 3!", localState, () => {});
 });
 
 socket.on('update', (state) => {
