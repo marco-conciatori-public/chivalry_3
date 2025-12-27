@@ -12,7 +12,7 @@ const Renderer = {
         archer: '🏹',
         light_cavalry: '🐎',
         heavy_cavalry: '🏇',
-        lancer: '🔱'
+        spearman: '🔱',
     },
 
     // Image Management
@@ -33,7 +33,7 @@ const Renderer = {
         'archer': '/images/archer.png',
         'light_cavalry': '/images/light_cavalry.png',
         'heavy_cavalry': '/images/heavy_cavalry.png',   // Placeholder
-        'lancer': '/images/spearman.png'          // Placeholder
+        'spearman': '/images/spearman.png',         // Placeholder
     },
 
     init(ctx, gridSize, canvasWidth) {

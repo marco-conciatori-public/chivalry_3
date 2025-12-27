@@ -9,7 +9,7 @@ module.exports = {
     // Combat Mechanics
     BONUS_FLANK: 10,
     BONUS_REAR: 20,
-    BONUS_ANTI_CAVALRY: 30, // Bonus damage for Lancers vs Cavalry
+    BONUS_ANTI_CAVALRY: 30, // Bonus damage for Spearmen vs Cavalry
     BONUS_HIGH_GROUND_ATTACK: 10,
     BONUS_HIGH_GROUND_RANGE: 1,
 
