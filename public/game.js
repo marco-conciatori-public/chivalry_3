@@ -101,6 +101,14 @@ socket.on('update', (state) => {
             }
         }
     }
+
+    // NEW: Auto-deselect template if we can't afford it anymore (e.g. after buying one)
+    if (selectedTemplate && clientUnitStats[selectedTemplate] && localState.players[myId]) {
+        if (localState.players[myId].gold < clientUnitStats[selectedTemplate].cost) {
+            resetSelection();
+        }
+    }
+
     renderGame();
     UiManager.updateStatus(localState, myId);
     UiManager.updateLegend(localState, myId, (name) => socket.emit('changeName', name));
@@ -372,7 +380,7 @@ canvas.addEventListener('click', (e) => {
     else if (selectedTemplate && !clickedEntity) {
         if (localState.turn === myId) {
             socket.emit('spawnEntity', { x, y, type: selectedTemplate });
-            resetSelection();
+            // Modified: Removed resetSelection() here to allow buying multiple units in sequence
         }
     }
     else if (selectedCell && !clickedEntity) {
