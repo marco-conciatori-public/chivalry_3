@@ -308,7 +308,7 @@ const UiManager = {
                 if (terrain.highGround) {
                     const highGroundBonus = (this.gameConstants) ? this.gameConstants.BONUS_HIGH_GROUND_ATTACK : 10;
                     const totalAttack = attackValue + highGroundBonus;
-                    dynamicAttackDisplay = `${attackValue} <span style="color:#27ae60; font-size: 0.9em;">(${totalAttack})</span>`;
+                    dynamicAttackDisplay = `<span style="color:#27ae60;">${totalAttack}</span>`;
                     this.currentAttackBreakdown.push({ label: "High Ground", value: highGroundBonus });
                 }
 
