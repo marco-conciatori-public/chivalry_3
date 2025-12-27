@@ -77,9 +77,9 @@ module.exports = {
     TERRAIN: {
         PLAINS: { id: 'plains', symbol: '', cost: 1, defense: 0, blocksLos: false, color: '#a3d5a5' },
         FOREST: { id: 'forest', symbol: '🌲', cost: 2, defense: 20, blocksLos: true, color: '#a3d5a5' },
-        MOUNTAIN: { id: 'mountain', symbol: '🏔️', cost: 3, defense: 30, blocksLos: true, color: '#bdc3c7', highGround: true },
+        MOUNTAIN: { id: 'mountain', symbol: '🏔️', cost: 3, defense: 30, blocksLos: true, color: '#8b5a2b', highGround: true },
         WALL: { id: 'wall', symbol: '🧱', cost: 99, defense: 0, blocksLos: true, color: '#7f8c8d', highGround: true },
         WATER: { id: 'water', symbol: '🌊', cost: 99, defense: 0, blocksLos: false, color: '#85c1e9' },
-        STREET: { id: 'street', symbol: '', cost: 0.5, defense: 0, blocksLos: false, color: '#8b5a2b' }
+        STREET: { id: 'street', symbol: '', cost: 0.5, defense: 0, blocksLos: false, color: '#A8AFB5' }
     }
 };

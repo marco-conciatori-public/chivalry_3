@@ -292,7 +292,7 @@ const Renderer = {
 
     drawTerrainSymbol(symbol, x, y, fontSize, size = 1) {
         this.ctx.save();
-        this.ctx.globalAlpha = 0.3;
+        this.ctx.globalAlpha = 0.4;
         this.ctx.font = `${fontSize}px Arial`;
         this.ctx.textAlign = "center";
         this.ctx.textBaseline = "middle";
