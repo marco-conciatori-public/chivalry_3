@@ -200,14 +200,30 @@ const Renderer = {
                 }
                 else if (interactionState === 'SELECTED' || interactionState === 'MENU') {
                     const isReachable = validMoves.some(m => m.x === x && m.y === y);
-                    const entity = gameState.grid[y][x];
-                    if (selectedCell && isReachable && !entity) {
+                    const entityAtCell = gameState.grid[y][x];
+
+                    // Check for Ranged Unit Attack Range Display
+                    let showAttackRange = false;
+                    if (selectedCell) {
+                        const selectedUnit = gameState.grid[selectedCell.y][selectedCell.x];
+                        // If it's a ranged unit and hasn't attacked yet, check the range
+                        if (selectedUnit && selectedUnit.is_ranged && !selectedUnit.hasAttacked) {
+                            showAttackRange = cellsInAttackRange.some(c => c.x === x && c.y === y);
+                        }
+                    }
+
+                    // Priority: Movement (Green) > Attack Range (Red)
+                    if (selectedCell && isReachable && !entityAtCell) {
                         this.ctx.fillStyle = "rgba(46, 204, 113, 0.4)";
                         this.ctx.fillRect(x * this.CELL_SIZE, y * this.CELL_SIZE, this.CELL_SIZE, this.CELL_SIZE);
                         this.ctx.beginPath();
                         this.ctx.arc(x * this.CELL_SIZE + this.CELL_SIZE/2, y * this.CELL_SIZE + this.CELL_SIZE/2, 4, 0, Math.PI * 2);
                         this.ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
                         this.ctx.fill();
+                    } else if (showAttackRange) {
+                        // Draw Attack Range
+                        this.ctx.fillStyle = "rgba(255, 0, 0, 0.2)";
+                        this.ctx.fillRect(x * this.CELL_SIZE, y * this.CELL_SIZE, this.CELL_SIZE, this.CELL_SIZE);
                     }
                 }
 
