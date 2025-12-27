@@ -206,8 +206,10 @@ const Renderer = {
                     let showAttackRange = false;
                     if (selectedCell) {
                         const selectedUnit = gameState.grid[selectedCell.y][selectedCell.x];
-                        // If it's a ranged unit and hasn't attacked yet, check the range
-                        if (selectedUnit && selectedUnit.is_ranged && !selectedUnit.hasAttacked) {
+                        // If it's a ranged unit, check the range
+                        // Note: We rely on cellsInAttackRange being populated correctly in game.js
+                        // based on whether we are commanding or inspecting the unit.
+                        if (selectedUnit && selectedUnit.is_ranged) {
                             showAttackRange = cellsInAttackRange.some(c => c.x === x && c.y === y);
                         }
                     }

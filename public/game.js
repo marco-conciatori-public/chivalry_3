@@ -179,12 +179,12 @@ function recalculateOptions(entity) {
     let moveDist = entity.remainingMovement;
     let canAttack = !entity.hasAttacked;
 
-    // If the unit belongs to a player who is NOT currently taking their turn,
-    // show their full potential (Speed / Attack) as if it were the start of their turn.
-    // This applies to:
-    // 1. Enemy units during my turn.
-    // 2. My units during enemy turn.
-    if (entity.owner !== localState.turn) {
+    // Show full potential if we are not the active player controlling this unit.
+    // This allows inspecting enemy units (active or inactive) and our own units (when inactive) to see their full range.
+    // We only show restricted movement/attack if WE are the owner AND it is OUR turn (i.e., we are commanding).
+    const isCommanding = (entity.owner === myId && localState.turn === myId);
+
+    if (!isCommanding) {
         moveDist = entity.speed;
         canAttack = true;
     }
