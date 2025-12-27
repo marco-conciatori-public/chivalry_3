@@ -285,37 +285,52 @@ io.on('connection', (socket) => {
 
         const combatResults = { events: [], logs: [] };
 
-        if (attacker && target && attacker.owner === socket.id && target.owner !== socket.id && !attacker.hasAttacked) {
-            const dist = Math.abs(attackerPos.x - targetPos.x) + Math.abs(attackerPos.y - targetPos.y);
+        // Validate Attack
+        // 1. Attacker must exist, belong to player, and have attack available
+        if (!attacker || attacker.owner !== socket.id || attacker.hasAttacked) return;
 
-            const attackerTerrain = gameState.terrainMap[attackerPos.y][attackerPos.x];
-            let effectiveRange = attacker.range;
+        // 2. Target validation
+        if (target) {
+            // Cannot attack own units
+            if (target.owner === socket.id) return;
+        } else {
+            // Only ranged units can attack empty cells
+            if (!attacker.is_ranged) return;
+        }
 
-            // Use constant for High Ground range bonus
-            if (attackerTerrain.highGround && attacker.is_ranged) {
-                effectiveRange += constants.BONUS_HIGH_GROUND_RANGE;
+        const dist = Math.abs(attackerPos.x - targetPos.x) + Math.abs(attackerPos.y - targetPos.y);
+
+        const attackerTerrain = gameState.terrainMap[attackerPos.y][attackerPos.x];
+        let effectiveRange = attacker.range;
+
+        // Use constant for High Ground range bonus
+        if (attackerTerrain.highGround && attacker.is_ranged) {
+            effectiveRange += constants.BONUS_HIGH_GROUND_RANGE;
+        }
+
+        if (dist <= effectiveRange) {
+            if (attacker.is_ranged && !gameLogic.hasLineOfSight(attackerPos, targetPos, gameState.terrainMap)) {
+                return;
             }
 
-            if (dist <= effectiveRange) {
-                if (attacker.is_ranged && !gameLogic.hasLineOfSight(attackerPos, targetPos, gameState.terrainMap)) {
-                    return;
-                }
+            if (!gameLogic.isValidAttackAngle(attacker, attackerPos, targetPos)) {
+                return;
+            }
 
-                if (!gameLogic.isValidAttackAngle(attacker, attackerPos, targetPos)) {
-                    return;
-                }
-
+            if (target) {
                 combatResults.logs.push(`{u:${attacker.type}:${attackerPos.x}:${attackerPos.y}:${attacker.owner}} attacks {u:${target.type}:${targetPos.x}:${targetPos.y}:${target.owner}}!`);
-
-                gameLogic.performCombat(attacker, attackerPos, target, targetPos, false, combatResults, gameState);
-
-                attacker.hasAttacked = true;
-                attacker.remainingMovement = 0;
-
-                gameLogic.updateAllUnitsMorale(gameState);
-                io.emit('update', gameState);
-                io.emit('combatResults', combatResults);
+            } else {
+                combatResults.logs.push(`{u:${attacker.type}:${attackerPos.x}:${attackerPos.y}:${attacker.owner}} fires at (${targetPos.x}, ${targetPos.y})!`);
             }
+
+            gameLogic.performCombat(attacker, attackerPos, target, targetPos, false, combatResults, gameState);
+
+            attacker.hasAttacked = true;
+            attacker.remainingMovement = 0;
+
+            gameLogic.updateAllUnitsMorale(gameState);
+            io.emit('update', gameState);
+            io.emit('combatResults', combatResults);
         }
     });
 

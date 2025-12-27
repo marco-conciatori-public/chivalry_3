@@ -218,8 +218,17 @@ function recalculateOptions(entity) {
                 if (dist <= range && dist > 0 && hasLoS && isValidAngle) {
                     cellsInAttackRange.push({x, y});
                     const targetEntity = localState.grid[y][x];
-                    if (targetEntity && targetEntity.owner !== entity.owner) {
-                        validAttackTargets.push({x, y});
+
+                    if (entity.is_ranged) {
+                        // Ranged units can target empty cells or enemies
+                        if (!targetEntity || targetEntity.owner !== entity.owner) {
+                            validAttackTargets.push({x, y});
+                        }
+                    } else {
+                        // Melee units must target an enemy
+                        if (targetEntity && targetEntity.owner !== entity.owner) {
+                            validAttackTargets.push({x, y});
+                        }
                     }
                 }
             }
