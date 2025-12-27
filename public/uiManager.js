@@ -289,7 +289,10 @@ const UiManager = {
         let shieldBonus = entity.shield_bonus || 0;
 
         let dynamicAttackDisplay = attackValue;
+
+        // --- DEFENSE DISPLAY LOGIC ---
         let dynamicDefenseDisplay = defenseValue;
+        let terrainDefense = 0;
 
         // Initialize breakdowns if unit is on grid
         if (!isTemplate) {
@@ -310,21 +313,29 @@ const UiManager = {
                 }
 
                 // Defense Bonus (Terrain + Shield)
-                const terrainDefense = terrain.defense || 0;
+                terrainDefense = terrain.defense || 0;
 
                 if (shieldBonus > 0) this.currentDefenseBreakdown.push({ label: "Shield", value: shieldBonus });
                 if (terrainDefense > 0) this.currentDefenseBreakdown.push({ label: "Terrain", value: terrainDefense });
-
-                const totalDefense = defenseValue + shieldBonus + terrainDefense;
-
-                if (totalDefense !== defenseValue) {
-                    dynamicDefenseDisplay = `${defenseValue} <span style="color:#555; font-size: 0.9em;">(${totalDefense})</span>`;
-                }
             }
-        } else if (shieldBonus > 0) {
-            // For templates or fallback, just show shield bonus if present
-            const totalDefense = defenseValue + shieldBonus;
-            dynamicDefenseDisplay = `${defenseValue} <span style="color:#555; font-size: 0.9em;">(${totalDefense})</span>`;
+        } else if (shieldBonus > 0 && isTemplate) {
+            // For templates, we acknowledge shield exists in breakdown (not strictly needed as no tooltip for templates, but good logic)
+        }
+
+        // --- CALCULATE DISPLAY VALUES ---
+        // Value without bracket: Base + Terrain (everything EXCEPT shield)
+        const defenseNoShield = defenseValue + terrainDefense;
+
+        // Value with bracket: Base + Terrain + Shield (everything)
+        const totalDefense = defenseValue + terrainDefense + shieldBonus;
+
+        if (shieldBonus > 0) {
+            // If shield exists, show: Non-Shielded (Total)
+            dynamicDefenseDisplay = `${defenseNoShield} <span style="color:#555; font-size: 0.9em;">(${totalDefense})</span>`;
+        } else {
+            // If no shield, non-shielded == total. Just show the total.
+            // This implicitly handles cases where only Terrain bonus exists (e.g. 50+30 -> 80)
+            dynamicDefenseDisplay = `${defenseNoShield}`;
         }
 
         let attackRowHtml = '';
