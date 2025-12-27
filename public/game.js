@@ -198,7 +198,9 @@ function recalculateOptions(entity) {
                     hasLoS = clientHasLineOfSight(selectedCell, {x, y});
                 }
 
-                if (dist <= range && dist > 0 && hasLoS) {
+                const isValidAngle = clientIsValidAttackDirection(entity, selectedCell, {x, y});
+
+                if (dist <= range && dist > 0 && hasLoS && isValidAngle) {
                     cellsInAttackRange.push({x, y});
                     const targetEntity = localState.grid[y][x];
                     if (targetEntity && targetEntity.owner !== myId) {
@@ -208,6 +210,27 @@ function recalculateOptions(entity) {
             }
         }
     }
+}
+
+function clientIsValidAttackDirection(unit, start, end) {
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    // 0: Up, 2: Right, 4: Down, 6: Left
+
+    if (unit.is_ranged) {
+        // 90 degree cone
+        if (unit.facing_direction === 0) return dy < 0 && Math.abs(dx) <= Math.abs(dy);
+        if (unit.facing_direction === 2) return dx > 0 && Math.abs(dy) <= Math.abs(dx);
+        if (unit.facing_direction === 4) return dy > 0 && Math.abs(dx) <= Math.abs(dy);
+        if (unit.facing_direction === 6) return dx < 0 && Math.abs(dy) <= Math.abs(dx);
+    } else {
+        // Front only (linear)
+        if (unit.facing_direction === 0) return dx === 0 && dy < 0;
+        if (unit.facing_direction === 2) return dy === 0 && dx > 0;
+        if (unit.facing_direction === 4) return dx === 0 && dy > 0;
+        if (unit.facing_direction === 6) return dy === 0 && dx < 0;
+    }
+    return false;
 }
 
 function clientHasLineOfSight(start, end) {

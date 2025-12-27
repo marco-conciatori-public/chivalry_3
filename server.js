@@ -301,6 +301,10 @@ io.on('connection', (socket) => {
                     return;
                 }
 
+                if (!gameLogic.isValidAttackAngle(attacker, attackerPos, targetPos)) {
+                    return;
+                }
+
                 combatResults.logs.push(`{u:${attacker.type}:${attackerPos.x}:${attackerPos.y}:${attacker.owner}} attacks {u:${target.type}:${targetPos.x}:${targetPos.y}:${target.owner}}!`);
 
                 gameLogic.performCombat(attacker, attackerPos, target, targetPos, false, combatResults, gameState);
