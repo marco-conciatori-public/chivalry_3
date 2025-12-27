@@ -85,7 +85,7 @@ module.exports = {
         max_health: 50,
         cost: 200
     },
-    lancer: {
+    spearman: {
         attack: 25,
         defence: 20,
         has_shield: true,

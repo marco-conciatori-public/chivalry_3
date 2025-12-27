@@ -191,7 +191,7 @@ const UiManager = {
                 else if (type === 'archer') icon = '🏹';
                 else if (type === 'light_cavalry') icon = '🐎';
                 else if (type === 'heavy_cavalry') icon = '🏇';
-                else if (type === 'lancer') icon = '🔱';
+                else if (type === 'spearman') icon = '🔱';
 
                 // Format Name
                 const name = type.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
