@@ -251,7 +251,21 @@ const UiManager = {
             return;
         }
         if (!isTemplate && entity.morale_breakdown) {
-            this.currentMoraleBreakdown = entity.morale_breakdown;
+            // Copy breakdown to avoid mutating the original reference if it's shared (though it should be fresh)
+            this.currentMoraleBreakdown = [...entity.morale_breakdown];
+
+            // --- ADDED: Flee Probability Calculation ---
+            if (this.gameConstants && entity.current_morale < this.gameConstants.MORALE_THRESHOLD) {
+                const prob = 1 - (entity.current_morale / this.gameConstants.MORALE_THRESHOLD);
+                const probPct = Math.max(0, Math.min(100, Math.floor(prob * 100)));
+
+                this.currentMoraleBreakdown.push({
+                    label: "Flee Chance",
+                    value: `${probPct}%`,
+                    isText: true,
+                    color: '#e74c3c' // Red
+                });
+            }
         }
 
         const formatStat = (label, value) => `<div class="stat-row"><span>${label}:</span> <strong>${value}</strong></div>`;
@@ -517,9 +531,13 @@ const UiManager = {
         if (!breakdown || breakdown.length === 0) return;
         let html = '';
         breakdown.forEach(item => {
-            const colorClass = item.value >= 0 ? 'positive' : 'negative';
-            const sign = item.value >= 0 ? '+' : '';
-            html += `<div class="tooltip-row"><span>${item.label}</span><span class="tooltip-val ${colorClass}">${sign}${item.value}</span></div>`;
+            if (item.isText) {
+                html += `<div class="tooltip-row"><span>${item.label}</span><span class="tooltip-val" style="color:${item.color || '#333'}">${item.value}</span></div>`;
+            } else {
+                const colorClass = item.value >= 0 ? 'positive' : 'negative';
+                const sign = item.value >= 0 ? '+' : '';
+                html += `<div class="tooltip-row"><span>${item.label}</span><span class="tooltip-val ${colorClass}">${sign}${item.value}</span></div>`;
+            }
         });
         this.tooltipEl.innerHTML = html;
         this.tooltipEl.style.display = 'block';
