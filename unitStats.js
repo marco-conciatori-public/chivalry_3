@@ -7,7 +7,7 @@ module.exports = {
         shield_bonus: 10, // Weak shield
         special_abilities: [],
         charge_bonus: 10,
-        speed: 4,
+        speed: 3,
         initial_morale: 50,
         is_commander: false,
         is_ranged: false,
@@ -47,17 +47,17 @@ module.exports = {
         is_ranged: true,
         accuracy: 80,
         is_melee_capable: false, // Lose to everyone in melee (uses 50% damage penalty usually or just low stats)
-        range: 3,
+        range: 6,
         max_health: 100,
         cost: 70
     },
     light_cavalry: {
-        attack: 30,
+        attack: 25,
         defence: 10,
         has_shield: true,
         shield_bonus: 10, // Weak shield
         special_abilities: [],
-        charge_bonus: 30,
+        charge_bonus: 20,
         speed: 5,
         initial_morale: 45,
         is_commander: false,
@@ -69,12 +69,12 @@ module.exports = {
         cost: 90
     },
     heavy_cavalry: {
-        attack: 50,
+        attack: 40,
         defence: 45,
         has_shield: true,
         shield_bonus: 15, // Medium shield
         special_abilities: [],
-        charge_bonus: 50,
+        charge_bonus: 30,
         speed: 4,
         initial_morale: 90,
         is_commander: false,
