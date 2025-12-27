@@ -91,7 +91,7 @@ module.exports = {
         has_shield: true,
         shield_bonus: 15, // Medium shield
         special_abilities: ['anti_cavalry'],
-        charge_bonus: 20,
+        charge_bonus: 10,
         speed: 3,
         initial_morale: 60,
         is_commander: false,
