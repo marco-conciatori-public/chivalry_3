@@ -155,7 +155,7 @@ function calculateDamage(attacker, attackerPos, defender, defenderPos, isSplash,
 
     if (attacker.is_ranged) {
         if (isSplash) baseDamage *= ((100 - attacker.accuracy) / 100);
-        else baseDamage *= (attacker.accuracy / 100);
+        else baseDamage *= (attacker.accuracy / 100) / 2;
     }
 
     const randomFactor = constants.DAMAGE_RANDOM_BASE + (Math.random() * constants.DAMAGE_RANDOM_VARIANCE);
