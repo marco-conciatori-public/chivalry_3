@@ -150,7 +150,7 @@ function selectUnitFromLog(x, y) {
 
     UiManager.updateUnitInfo(entity, false, null, localState, selectedCell);
 
-    if (entity && entity.owner === myId && localState.turn === myId) {
+    if (entity && !entity.is_fleeing) {
         recalculateOptions(entity);
     }
     renderGame();
@@ -175,11 +175,26 @@ function recalculateOptions(entity) {
         return;
     }
 
-    validMoves = getReachableCells(selectedCell, entity.remainingMovement, localState.grid, localState.terrainMap);
+    // Determine stats to use for visualization
+    let moveDist = entity.remainingMovement;
+    let canAttack = !entity.hasAttacked;
+
+    // If the unit belongs to a player who is NOT currently taking their turn,
+    // show their full potential (Speed / Attack) as if it were the start of their turn.
+    // This applies to:
+    // 1. Enemy units during my turn.
+    // 2. My units during enemy turn.
+    if (entity.owner !== localState.turn) {
+        moveDist = entity.speed;
+        canAttack = true;
+    }
+
+    validMoves = getReachableCells(selectedCell, moveDist, localState.grid, localState.terrainMap);
 
     validAttackTargets = [];
     cellsInAttackRange = [];
-    if (!entity.hasAttacked) {
+
+    if (canAttack) {
         let range = entity.range;
         const myTerrain = localState.terrainMap[selectedCell.y][selectedCell.x];
 
@@ -203,7 +218,7 @@ function recalculateOptions(entity) {
                 if (dist <= range && dist > 0 && hasLoS && isValidAngle) {
                     cellsInAttackRange.push({x, y});
                     const targetEntity = localState.grid[y][x];
-                    if (targetEntity && targetEntity.owner !== myId) {
+                    if (targetEntity && targetEntity.owner !== entity.owner) {
                         validAttackTargets.push({x, y});
                     }
                 }
@@ -396,9 +411,9 @@ canvas.addEventListener('click', (e) => {
         selectedCell = { x, y };
         interactionState = 'SELECTED';
         UiManager.updateUnitInfo(clickedEntity, false, null, localState, selectedCell);
-        if (clickedEntity.owner === myId && localState.turn === myId) {
-            if (!clickedEntity.is_fleeing) recalculateOptions(clickedEntity);
-        }
+
+        // Calculate options for any unit (including enemies) to show ranges
+        if (!clickedEntity.is_fleeing) recalculateOptions(clickedEntity);
     }
     else if (selectedTemplate && !clickedEntity) {
         if (localState.turn === myId) {
@@ -408,7 +423,10 @@ canvas.addEventListener('click', (e) => {
     }
     else if (selectedCell && !clickedEntity) {
         const isValid = validMoves.some(m => m.x === x && m.y === y);
-        if (isValid) {
+
+        // Ensure we only emit move command if we own the unit AND it's our turn
+        const selectedUnit = localState.grid[selectedCell.y][selectedCell.x];
+        if (isValid && selectedUnit && selectedUnit.owner === myId && localState.turn === myId) {
             socket.emit('moveEntity', { from: selectedCell, to: { x, y } });
             interactionState = 'SELECTED';
         } else {
