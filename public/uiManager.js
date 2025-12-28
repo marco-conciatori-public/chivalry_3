@@ -215,6 +215,7 @@ const UiManager = {
         // Removed "Impassable" from effects list as requested
         if (terrain.blocksLos) effects.push(`Blocks Sight`);
         if (terrain.highGround) effects.push(`High Ground (+ range, + attack)`);
+        if (terrain.cover > 0) effects.push(`Cover (+${terrain.cover}% vs Ranged)`);
 
         let effectsHtml = effects.length > 0 ? effects.join(', ') : '';
 
@@ -237,6 +238,7 @@ const UiManager = {
             <div style="font-size: 1.1em; font-weight: bold; margin-bottom: 5px;">${terrain.id.toUpperCase()} <span style="font-size:0.8em">(${x},${y})</span></div>
             ${formatStat('Movement Cost', moveCostDisplay)}
             ${formatStat('Defense Bonus', terrain.defense + '%')}
+            ${terrain.cover > 0 ? formatStat('Cover Bonus', terrain.cover + '%') : ''}
             ${footerHtml}
         `;
     },
@@ -336,9 +338,11 @@ const UiManager = {
 
                 // Defense Bonus (Terrain + Shield)
                 terrainDefense = terrain.defense || 0;
+                const terrainCover = terrain.cover || 0;
 
                 if (shieldBonus > 0) this.currentDefenseBreakdown.push({ label: "Shield", value: shieldBonus });
                 if (terrainDefense > 0) this.currentDefenseBreakdown.push({ label: "Terrain", value: terrainDefense });
+                if (terrainCover > 0) this.currentDefenseBreakdown.push({ label: "Cover (vs Ranged)", value: terrainCover });
             }
         } else if (shieldBonus > 0 && isTemplate) {
             // For templates, we acknowledge shield exists in breakdown (not strictly needed as no tooltip for templates, but good logic)
