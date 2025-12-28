@@ -182,7 +182,10 @@ io.on('connection', (socket) => {
         }
 
         const terrain = gameState.terrainMap[y][x];
-        if (terrain.cost > constants.MAP_GEN.IMPASSABLE_THRESHOLD) return;
+
+        // Prevent spawning on obstacles or water (Height != 0)
+        // Plains, Forest, Street are 0. Mountains/Walls are 2. Water is -2.
+        if (Math.abs(terrain.height) > 0) return;
 
         if (!gameState.grid[y][x]) {
             const baseStats = unitStats[type];
@@ -301,10 +304,12 @@ io.on('connection', (socket) => {
         const dist = Math.abs(attackerPos.x - targetPos.x) + Math.abs(attackerPos.y - targetPos.y);
 
         const attackerTerrain = gameState.terrainMap[attackerPos.y][attackerPos.x];
+        const targetTerrain = gameState.terrainMap[targetPos.y][targetPos.x];
         let effectiveRange = attacker.range;
 
-        // Use constant for High Ground range bonus
-        if (attackerTerrain.highGround && attacker.is_ranged) {
+        // DYNAMIC HIGH GROUND RANGE BONUS
+        // Checks if attacker is higher than the target location
+        if (attacker.is_ranged && attackerTerrain.height > targetTerrain.height) {
             effectiveRange += constants.BONUS_HIGH_GROUND_RANGE;
         }
 

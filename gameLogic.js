@@ -16,7 +16,9 @@ function getPathCost(start, end, grid, terrainMap, maxMoves) {
         if (current.x === end.x && current.y === end.y) return current.cost;
         if (current.cost >= maxMoves) continue;
 
+        const currentTerrain = terrainMap[current.y][current.x];
         const dirs = [[0, 1], [0, -1], [1, 0], [-1, 0]];
+
         for (const [dx, dy] of dirs) {
             const nx = current.x + dx;
             const ny = current.y + dy;
@@ -25,11 +27,24 @@ function getPathCost(start, end, grid, terrainMap, maxMoves) {
                 const key = `${nx},${ny}`;
                 const targetTerrain = terrainMap[ny][nx];
 
-                if (targetTerrain.cost > constants.MAP_GEN.IMPASSABLE_THRESHOLD) continue;
+                // --- HEIGHT MECHANIC ---
+                // 1. Check if height difference allows movement (<= 1)
+                const heightDiff = Math.abs(targetTerrain.height - currentTerrain.height);
+                if (heightDiff > constants.HEIGHT_DIFFERENCE_LIMIT) continue;
+
+                // 2. Unit Collision Check
                 if (grid[ny][nx] && (nx !== end.x || ny !== end.y)) continue;
                 if (grid[ny][nx]) continue;
 
-                const newCost = current.cost + targetTerrain.cost;
+                // 3. Calculate Cost
+                let moveCost = targetTerrain.cost;
+
+                // Extra cost for moving UP
+                if (targetTerrain.height > currentTerrain.height) {
+                    moveCost += (targetTerrain.height - currentTerrain.height) * constants.MOVEMENT_COST_HEIGHT_PENALTY;
+                }
+
+                const newCost = current.cost + moveCost;
 
                 if (newCost <= maxMoves) {
                     if (costs[key] === undefined || newCost < costs[key]) {
@@ -116,9 +131,12 @@ function calculateDamage(attacker, attackerPos, defender, defenderPos, isSplash,
         terrainCover = tile.cover || 0;
     }
 
+    // --- HEIGHT BONUS (Dynamic) ---
     let highGroundBonus = 0;
     const attackerTile = terrainMap[attackerPos.y][attackerPos.x];
-    if (attackerTile.highGround) {
+    const defenderTile = terrainMap[defenderPos.y][defenderPos.x];
+
+    if (attackerTile.height > defenderTile.height) {
         highGroundBonus = constants.BONUS_HIGH_GROUND_ATTACK;
     }
 
@@ -139,7 +157,6 @@ function calculateDamage(attacker, attackerPos, defender, defenderPos, isSplash,
         }
 
         // 2. Charge Bonus (If moved this turn)
-        // We assume if remainingMovement < speed, the unit has moved.
         if (attacker.remainingMovement < attacker.speed) {
             chargeBonus = attacker.charge_bonus || 0;
         }
@@ -154,7 +171,6 @@ function calculateDamage(attacker, attackerPos, defender, defenderPos, isSplash,
 
     const healthFactor = constants.MIN_DAMAGE_REDUCTION_BY_HEALTH + ((attacker.current_health / attacker.max_health) * (1 - constants.MIN_DAMAGE_REDUCTION_BY_HEALTH));
 
-    // Include Cover in Defense Calculation
     const defenseFactor = 1 - ((defender.defence + bonusShield + terrainDefense + terrainCover) / 100);
     const clampedDefenseFactor = Math.max(constants.MAX_DAMAGE_REDUCTION_BY_DEFENSE, defenseFactor);
 
@@ -182,7 +198,7 @@ function applyDamage(unit, pos, amount, grid) {
 }
 
 function performCombat(attacker, attackerPos, defender, defenderPos, isRetaliation, combatResults, gameState) {
-    // 1. Direct Damage (Only if there is a defender)
+    // 1. Direct Damage
     if (defender) {
         const damage = calculateDamage(attacker, attackerPos, defender, defenderPos, false, gameState.terrainMap);
 
@@ -238,7 +254,7 @@ function performCombat(attacker, attackerPos, defender, defenderPos, isRetaliati
         });
     }
 
-    // 3. Retaliation (Only if defender exists, survived, and is melee capable)
+    // 3. Retaliation
     if (defender && !isRetaliation && defender.current_health > 0 && defender.is_melee_capable) {
         const dist = Math.abs(attackerPos.x - defenderPos.x) + Math.abs(attackerPos.y - defenderPos.y);
         if (dist === 1) {
@@ -429,7 +445,11 @@ function handleFleeingMovement(entity, startX, startY, gameState, io) {
             const ny = y + dy;
             if (nx >= 0 && nx < constants.GRID_SIZE && ny >= 0 && ny < constants.GRID_SIZE) {
                 const key = `${nx},${ny}`;
-                if (gameState.terrainMap[ny][nx].cost > constants.MAP_GEN.IMPASSABLE_THRESHOLD) continue;
+
+                // Height check for fleeing
+                const diff = Math.abs(gameState.terrainMap[ny][nx].height - gameState.terrainMap[y][x].height);
+                if (diff > constants.HEIGHT_DIFFERENCE_LIMIT) continue;
+
                 if (!visited.has(key) && !gameState.grid[ny][nx]) {
                     visited.add(key);
                     queue.push({ x: nx, y: ny, path: [...path, { x: nx, y: ny }] });

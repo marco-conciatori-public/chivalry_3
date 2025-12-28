@@ -224,10 +224,7 @@ const UiManager = {
         const formatStat = (label, value) => `<div class="stat-row"><span>${label}:</span> <strong>${value}</strong></div>`;
 
         let effects = [];
-        // Removed redundant display of defense and cost values
-        // Removed "Impassable" from effects list as requested
         if (terrain.blocksLos) effects.push(`Blocks Sight`);
-        if (terrain.highGround) effects.push(`High Ground (+ range, + attack)`);
         if (terrain.cover > 0) effects.push(`Cover (+${terrain.cover}% vs Ranged)`);
 
         let effectsHtml = effects.length > 0 ? effects.join(', ') : '';
@@ -241,17 +238,11 @@ const UiManager = {
             `;
         }
 
-        // Logic for Movement Cost display
-        let moveCostDisplay = terrain.cost;
-        if (terrain.cost >= 99) {
-            moveCostDisplay = "Impassable";
-        }
-
         this.elements.cellInfoContent.innerHTML = `
             <div style="font-size: 1.1em; font-weight: bold; margin-bottom: 5px;">${terrain.id.toUpperCase()} <span style="font-size:0.8em">(${x},${y})</span></div>
-            ${formatStat('Movement Cost', moveCostDisplay)}
+            ${formatStat('Height', terrain.height)}
+            ${formatStat('Move Cost (Base)', terrain.cost)}
             ${formatStat('Defense Bonus', terrain.defense + '%')}
-            ${terrain.cover > 0 ? formatStat('Cover Bonus', terrain.cover + '%') : ''}
             ${footerHtml}
         `;
     },
@@ -341,13 +332,8 @@ const UiManager = {
         if (!isTemplate && gameState && gameState.terrainMap && selectedCell) {
             const terrain = gameState.terrainMap[selectedCell.y][selectedCell.x];
             if (terrain) {
-                // Attack Bonus (High Ground)
-                if (terrain.highGround) {
-                    const highGroundBonus = (this.gameConstants) ? this.gameConstants.BONUS_HIGH_GROUND_ATTACK : 10;
-                    const totalAttack = attackValue + highGroundBonus;
-                    dynamicAttackDisplay = `<span style="color:#27ae60;">${totalAttack}</span>`;
-                    this.currentAttackBreakdown.push({ label: "High Ground", value: highGroundBonus });
-                }
+                // NOTE: High Ground Attack bonus is relative to target, so we can't show it as a static bonus here anymore.
+                // We could conceptually show it if we have a target selected, but this function is just for the unit info panel.
 
                 // Defense Bonus (Terrain + Shield)
                 terrainDefense = terrain.defense || 0;
@@ -372,8 +358,6 @@ const UiManager = {
             // If shield exists, show: Non-Shielded (Total)
             dynamicDefenseDisplay = `${defenseNoShield} <span style="color:#555; font-size: 0.9em;">(${totalDefense})</span>`;
         } else {
-            // If no shield, non-shielded == total. Just show the total.
-            // This implicitly handles cases where only Terrain bonus exists (e.g. 50+30 -> 80)
             dynamicDefenseDisplay = `${defenseNoShield}`;
         }
 

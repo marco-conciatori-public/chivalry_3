@@ -33,11 +33,15 @@ module.exports = {
     MORALE_BONUS_COMMANDER_SELF: 20,
     MORALE_BONUS_COMMANDER_AURA: 10,
 
+    // Movement & Height Mechanics
+    HEIGHT_DIFFERENCE_LIMIT: 1,      // Max height difference allowed for movement
+    MOVEMENT_COST_HEIGHT_PENALTY: 1, // Extra cost per height level when moving UP
+
     // Map Generation Configuration
     MAP_GEN: {
         SPAWN_ZONE_HEIGHT: 2,      // Top/Bottom rows reserved for spawning
         BASE_AREA: 100,            // Reference area (10x10) for scaling calculations
-        IMPASSABLE_THRESHOLD: 10,  // Terrain cost above this is considered a wall/obstacle
+        IMPASSABLE_THRESHOLD: 10,  // KEEPING FOR LEGACY/MAP GEN SAFETY (though logic is now height-based)
 
         MOUNTAINS: {
             BASE_MIN: 1,           // Minimum groups for base area
@@ -74,12 +78,14 @@ module.exports = {
     },
 
     // TERRAIN DEFINITIONS
+    // Height: 0 (Ground), 2 (High Obstacle), -2 (Deep Water)
+    // Moving 0 -> 2 is blocked (diff > 1).
     TERRAIN: {
-        PLAINS: { id: 'plains', symbol: '', cost: 1, defense: 0, cover: 0, blocksLos: false, color: '#a3d5a5' },
-        FOREST: { id: 'forest', symbol: '🌲', cost: 2, defense: 20, cover: 20, blocksLos: false, color: '#a3d5a5' }, // Forest now has cover and allows LoS
-        MOUNTAIN: { id: 'mountain', symbol: '🏔️', cost: 3, defense: 30, cover: 0, blocksLos: true, color: '#8b5a2b', highGround: true },
-        WALL: { id: 'wall', symbol: '🧱', cost: 99, defense: 0, cover: 0, blocksLos: true, color: '#7f8c8d', highGround: true },
-        WATER: { id: 'water', symbol: '🌊', cost: 99, defense: 0, cover: 0, blocksLos: false, color: '#85c1e9' },
-        STREET: { id: 'street', symbol: '', cost: 0.5, defense: 0, cover: 0, blocksLos: false, color: '#A8AFB5' }
+        PLAINS:   { id: 'plains',   symbol: '',   cost: 1,   height: 0,  defense: 0,  cover: 0,  blocksLos: false, color: '#a3d5a5' },
+        FOREST:   { id: 'forest',   symbol: '🌲', cost: 2,   height: 0,  defense: 20, cover: 20, blocksLos: false, color: '#a3d5a5' },
+        MOUNTAIN: { id: 'mountain', symbol: '🏔️', cost: 1,   height: 2,  defense: 30, cover: 0,  blocksLos: true,  color: '#8b5a2b' },
+        WALL:     { id: 'wall',     symbol: '🧱', cost: 1,   height: 2,  defense: 0,  cover: 0,  blocksLos: true,  color: '#7f8c8d' },
+        WATER:    { id: 'water',    symbol: '🌊', cost: 1,   height: -2, defense: 0,  cover: 0,  blocksLos: false, color: '#85c1e9' },
+        STREET:   { id: 'street',   symbol: '',   cost: 0.5, height: 0,  defense: 0,  cover: 0,  blocksLos: false, color: '#A8AFB5' }
     }
 };

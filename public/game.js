@@ -181,8 +181,6 @@ function recalculateOptions(entity) {
     let canAttack = !entity.hasAttacked;
 
     // Show full potential if we are not the active player controlling this unit.
-    // This allows inspecting enemy units (active or inactive) and our own units (when inactive) to see their full range.
-    // We only show restricted movement/attack if WE are the owner AND it is OUR turn (i.e., we are commanding).
     const isCommanding = (entity.owner === myId && localState.turn === myId);
 
     if (!isCommanding) {
@@ -198,17 +196,18 @@ function recalculateOptions(entity) {
     if (canAttack) {
         let range = entity.range;
         const myTerrain = localState.terrainMap[selectedCell.y][selectedCell.x];
-
-        // Use received constant for range bonus
         const rangeBonus = gameConstants ? gameConstants.BONUS_HIGH_GROUND_RANGE : 1;
-
-        if (myTerrain.highGround && entity.is_ranged) {
-            range += rangeBonus;
-        }
 
         for (let y = 0; y < GRID_SIZE; y++) {
             for (let x = 0; x < GRID_SIZE; x++) {
                 const dist = Math.abs(selectedCell.x - x) + Math.abs(selectedCell.y - y);
+
+                // Dynamic Range Bonus Check
+                let effectiveRange = range;
+                if (entity.is_ranged && myTerrain.height > localState.terrainMap[y][x].height) {
+                    effectiveRange += rangeBonus;
+                }
+
                 let hasLoS = true;
                 if (entity.is_ranged) {
                     hasLoS = clientHasLineOfSight(selectedCell, {x, y});
@@ -216,7 +215,7 @@ function recalculateOptions(entity) {
 
                 const isValidAngle = clientIsValidAttackDirection(entity, selectedCell, {x, y});
 
-                if (dist <= range && dist > 0 && hasLoS && isValidAngle) {
+                if (dist <= effectiveRange && dist > 0 && hasLoS && isValidAngle) {
                     cellsInAttackRange.push({x, y});
                     const targetEntity = localState.grid[y][x];
 
@@ -284,7 +283,9 @@ function getReachableCells(start, maxDist, grid, terrainMap) {
     costs[`${start.x},${start.y}`] = 0;
     let reachable = [];
 
-    const impassableThreshold = (gameConstants && gameConstants.MAP_GEN) ? gameConstants.MAP_GEN.IMPASSABLE_THRESHOLD : 10;
+    // Constants fallback
+    const heightDiffLimit = (gameConstants) ? gameConstants.HEIGHT_DIFFERENCE_LIMIT : 1;
+    const heightPenalty = (gameConstants) ? gameConstants.MOVEMENT_COST_HEIGHT_PENALTY : 1;
 
     while(queue.length > 0) {
         queue.sort((a,b) => a.cost - b.cost);
@@ -297,16 +298,31 @@ function getReachableCells(start, maxDist, grid, terrainMap) {
         }
 
         const dirs = [[0, 1], [0, -1], [1, 0], [-1, 0]];
+        const currentTerrain = terrainMap[current.y][current.x];
+
         for (const [dx, dy] of dirs) {
             const nx = current.x + dx;
             const ny = current.y + dy;
             if (nx >= 0 && nx < GRID_SIZE && ny >= 0 && ny < GRID_SIZE) {
                 const key = `${nx},${ny}`;
                 const t = terrainMap[ny][nx];
-                if (t.cost > impassableThreshold) continue;
+
+                // --- HEIGHT CHECK ---
+                // Block if height difference is too great
+                const hDiff = Math.abs(t.height - currentTerrain.height);
+                if (hDiff > heightDiffLimit) continue;
+
+                // Unit Collision
                 if (grid[ny][nx]) continue;
 
-                const newCost = current.cost + t.cost;
+                // --- COST CALCULATION ---
+                let moveCost = t.cost;
+                // Add penalty for moving UP
+                if (t.height > currentTerrain.height) {
+                    moveCost += (t.height - currentTerrain.height) * heightPenalty;
+                }
+
+                const newCost = current.cost + moveCost;
                 if (newCost <= maxDist) {
                     if (costs[key] === undefined || newCost < costs[key]) {
                         costs[key] = newCost;
