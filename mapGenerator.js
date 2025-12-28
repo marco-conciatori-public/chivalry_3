@@ -5,10 +5,10 @@ function generateMap(gameState) {
     const GRID_SIZE = constants.GRID_SIZE;
     const CFG = constants.MAP_GEN;
 
-    // 1. Reset to Plains
+    // 1. Reset to Plains (Use UNIQUE objects for each cell to allow independent height)
     for (let y = 0; y < GRID_SIZE; y++) {
         for (let x = 0; x < GRID_SIZE; x++) {
-            gameState.terrainMap[y][x] = constants.TERRAIN.PLAINS;
+            gameState.terrainMap[y][x] = { ...constants.TERRAIN.PLAINS };
         }
     }
 
@@ -29,8 +29,6 @@ function generateMap(gameState) {
     const isValidZone = (x, y) => {
         // Check map bounds
         if (x < 0 || x >= G || y < 0 || y >= G) return false;
-        // Check spawn buffer (generic top/bottom buffer from constants if needed, but we rely on bases now)
-        if (y < CFG.SPAWN_ZONE_HEIGHT || y >= G - CFG.SPAWN_ZONE_HEIGHT) return false;
 
         // Check against any base area
         for (let b of bases) {
@@ -43,53 +41,56 @@ function generateMap(gameState) {
 
     const areaScale = (GRID_SIZE * GRID_SIZE) / CFG.BASE_AREA;
 
-    // --- GENERATE OBSTACLES FIRST ---
+    // --- GENERATE ELEVATION MAP ---
+    // Algorithm: Initialize random heights, then smooth repeatedly.
+    // This creates natural slopes where adjacent cells have small differences.
+    let heightMap = Array(GRID_SIZE).fill(0).map(() => Array(GRID_SIZE).fill(0));
 
-    // 2. MOUNTAINS
-    const baseMountains = Math.floor(Math.random() * CFG.MOUNTAINS.BASE_VAR) + CFG.MOUNTAINS.BASE_MIN;
-    const targetMountainGroups = Math.floor(baseMountains * areaScale * CFG.MOUNTAINS.DENSITY);
-
-    let mountainAttempts = 0;
-    let groupsPlaced = 0;
-
-    while (groupsPlaced < targetMountainGroups && mountainAttempts < (CFG.MOUNTAINS.MAX_ATTEMPTS_SCALE * areaScale)) {
-        mountainAttempts++;
-
-        const maxSize = Math.ceil(Math.log(GRID_SIZE));
-        const effectiveMax = Math.max(maxSize, CFG.MOUNTAINS.GROUP_SIZE_SMALL);
-        const size = Math.floor(Math.random() * (effectiveMax - CFG.MOUNTAINS.GROUP_SIZE_SMALL + 1)) + CFG.MOUNTAINS.GROUP_SIZE_SMALL;
-
-        const mx = Math.floor(Math.random() * (GRID_SIZE - size - 2)) + 1;
-        const my = Math.floor(Math.random() * (GRID_SIZE - size - 2)) + 1;
-
-        let canPlace = true;
-        for (let y = my - 1; y < my + size + 1; y++) {
-            for (let x = mx - 1; x < mx + size + 1; x++) {
-                if (y >= 0 && y < GRID_SIZE && x >= 0 && x < GRID_SIZE) {
-                    if (!isValidZone(x, y)) {
-                        canPlace = false;
-                        break;
-                    }
-                    if (gameState.terrainMap[y][x].id === 'mountain') {
-                        canPlace = false;
-                        break;
-                    }
-                }
-            }
-            if (!canPlace) break;
-        }
-
-        if (canPlace) {
-            for (let y = my; y < my + size; y++) {
-                for (let x = mx; x < mx + size; x++) {
-                    gameState.terrainMap[y][x] = constants.TERRAIN.MOUNTAIN;
-                }
-            }
-            groupsPlaced++;
+    // Seed
+    for(let y=0; y<GRID_SIZE; y++) {
+        for(let x=0; x<GRID_SIZE; x++) {
+            heightMap[y][x] = Math.floor(Math.random() * (constants.MAX_ELEVATION + 1));
         }
     }
 
-    // 3. WALLS
+    // Smooth (Average with neighbors)
+    const iterations = 4;
+    for(let i=0; i<iterations; i++) {
+        let newMap = Array(GRID_SIZE).fill(0).map(() => Array(GRID_SIZE).fill(0));
+        for(let y=0; y<GRID_SIZE; y++) {
+            for(let x=0; x<GRID_SIZE; x++) {
+                let sum = heightMap[y][x];
+                let count = 1;
+
+                // Check neighbors
+                const dirs = [[0,1],[0,-1],[1,0],[-1,0]];
+                for(let d of dirs) {
+                    const ny = y + d[1];
+                    const nx = x + d[0];
+                    if(nx >= 0 && nx < GRID_SIZE && ny >= 0 && ny < GRID_SIZE) {
+                        sum += heightMap[ny][nx];
+                        count++;
+                    }
+                }
+
+                newMap[y][x] = sum / count;
+            }
+        }
+        heightMap = newMap;
+    }
+
+    // Apply Elevation to Grid (Rounding to integers)
+    for(let y=0; y<GRID_SIZE; y++) {
+        for(let x=0; x<GRID_SIZE; x++) {
+            const h = Math.round(heightMap[y][x]);
+            // Clamp to ensure we stay within bounds (though averaging usually keeps it within)
+            const finalH = Math.max(0, Math.min(constants.MAX_ELEVATION, h));
+            gameState.terrainMap[y][x].height = finalH;
+        }
+    }
+
+    // --- WALLS ---
+    // Walls now sit ON TOP of the terrain height
     const baseWalls = Math.floor(Math.random() * CFG.WALLS.BASE_VAR) + CFG.WALLS.BASE_MIN;
     const numWalls = Math.floor(baseWalls * areaScale * CFG.WALLS.DENSITY);
 
@@ -104,12 +105,18 @@ function generateMap(gameState) {
             let wy = isVertical ? startY + l : startY;
 
             if (isValidZone(wx, wy) && (gameState.terrainMap[wy][wx].id === 'plains')) {
-                gameState.terrainMap[wy][wx] = constants.TERRAIN.WALL;
+                const currentHeight = gameState.terrainMap[wy][wx].height;
+                // Wall is a new object inheriting from WALL constant
+                gameState.terrainMap[wy][wx] = {
+                    ...constants.TERRAIN.WALL,
+                    height: currentHeight + 2 // Wall adds height
+                };
             }
         }
     }
 
-    // 4. FORESTS
+    // --- FORESTS ---
+    // Forests sit ON TOP of terrain (inherit ground height)
     const baseForests = Math.floor(Math.random() * CFG.FORESTS.BASE_VAR) + CFG.FORESTS.BASE_MIN;
     const numForests = Math.floor(baseForests * areaScale * CFG.FORESTS.DENSITY);
 
@@ -128,7 +135,11 @@ function generateMap(gameState) {
 
                 if (isValidZone(current.x, current.y)) {
                     if (gameState.terrainMap[current.y][current.x].id === 'plains') {
-                        gameState.terrainMap[current.y][current.x] = constants.TERRAIN.FOREST;
+                        const currentHeight = gameState.terrainMap[current.y][current.x].height;
+                        gameState.terrainMap[current.y][current.x] = {
+                            ...constants.TERRAIN.FOREST,
+                            height: currentHeight
+                        };
                         placedCount++;
                         [{dx:0, dy:1}, {dx:0, dy:-1}, {dx:1, dy:0}, {dx:-1, dy:0}].forEach(({dx, dy}) => {
                             openSet.push({x: current.x + dx, y: current.y + dy});
@@ -139,7 +150,8 @@ function generateMap(gameState) {
         }
     }
 
-    // 5. RIVERS
+    // --- RIVERS ---
+    // Rivers override height to -2
     const numRivers = Math.max(1, Math.floor(areaScale * CFG.RIVERS.DENSITY));
     for(let r=0; r<numRivers; r++) {
         let rx = Math.floor(Math.random() * GRID_SIZE);
@@ -148,8 +160,9 @@ function generateMap(gameState) {
 
         for(let i=0; i<riverLength; i++) {
             if (isValidZone(rx, ry)) {
-                if (gameState.terrainMap[ry][rx].id !== 'mountain') {
-                    gameState.terrainMap[ry][rx] = constants.TERRAIN.WATER;
+                // Only replace if it's not a wall (optional choice, keeps walls intact)
+                if (gameState.terrainMap[ry][rx].id !== 'wall') {
+                    gameState.terrainMap[ry][rx] = { ...constants.TERRAIN.WATER };
                 }
             }
             let move = Math.random();
@@ -158,7 +171,8 @@ function generateMap(gameState) {
         }
     }
 
-    // --- GENERATE STREETS LAST ---
+    // --- STREETS ---
+    // Streets sit on ground height
     const isStreet = (gx, gy) => {
         if (gx < 0 || gx >= GRID_SIZE || gy < 0 || gy >= GRID_SIZE) return false;
         return gameState.terrainMap[gy][gx].id === 'street';
@@ -196,7 +210,11 @@ function generateMap(gameState) {
 
         for(let j=0; j<length; j++) {
             if(isValidZone(x, y) && gameState.terrainMap[y][x].id === 'plains' && !causesBlob(x, y)) {
-                gameState.terrainMap[y][x] = constants.TERRAIN.STREET;
+                const currentHeight = gameState.terrainMap[y][x].height;
+                gameState.terrainMap[y][x] = {
+                    ...constants.TERRAIN.STREET,
+                    height: currentHeight
+                };
             }
             let nextX = x + currentDir[0];
             let nextY = y + currentDir[1];
@@ -229,25 +247,35 @@ function generateMap(gameState) {
         }
     }
 
-    // 7. STREET ANTIALIASING
+    // --- STREET ANTIALIASING ---
+    // Make sure we carry height over
     for (let y = 0; y < GRID_SIZE - 1; y++) {
         for (let x = 0; x < GRID_SIZE - 1; x++) {
             const tl = gameState.terrainMap[y][x].id === 'street';
             const tr = gameState.terrainMap[y][x+1].id === 'street';
             const bl = gameState.terrainMap[y+1][x].id === 'street';
             const br = gameState.terrainMap[y+1][x+1].id === 'street';
+
+            const fillStreet = (fx, fy) => {
+                const currentHeight = gameState.terrainMap[fy][fx].height;
+                gameState.terrainMap[fy][fx] = {
+                    ...constants.TERRAIN.STREET,
+                    height: currentHeight
+                };
+            }
+
             if (tl && br && !tr && !bl) {
                 if (isValidZone(x + 1, y) && gameState.terrainMap[y][x+1].id === 'plains' && !causesBlob(x+1, y)) {
-                    gameState.terrainMap[y][x+1] = constants.TERRAIN.STREET;
+                    fillStreet(x+1, y);
                 } else if (isValidZone(x, y + 1) && gameState.terrainMap[y+1][x].id === 'plains' && !causesBlob(x, y+1)) {
-                    gameState.terrainMap[y+1][x] = constants.TERRAIN.STREET;
+                    fillStreet(x, y+1);
                 }
             }
             if (tr && bl && !tl && !br) {
                 if (isValidZone(x, y) && gameState.terrainMap[y][x].id === 'plains' && !causesBlob(x, y)) {
-                    gameState.terrainMap[y][x] = constants.TERRAIN.STREET;
+                    fillStreet(x, y);
                 } else if (isValidZone(x + 1, y + 1) && gameState.terrainMap[y+1][x+1].id === 'plains' && !causesBlob(x+1, y+1)) {
-                    gameState.terrainMap[y+1][x+1] = constants.TERRAIN.STREET;
+                    fillStreet(x+1, y+1);
                 }
             }
         }

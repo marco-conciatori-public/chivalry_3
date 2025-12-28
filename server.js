@@ -40,7 +40,12 @@ function startNewGame(settings) {
 
     // 2. Reset Grid & Terrain
     gameState.grid = Array(constants.GRID_SIZE).fill(null).map(() => Array(constants.GRID_SIZE).fill(null));
-    gameState.terrainMap = Array(constants.GRID_SIZE).fill(null).map(() => Array(constants.GRID_SIZE).fill(constants.TERRAIN.PLAINS));
+
+    // CRITICAL: Initialize with COPIES of the object, not the same reference,
+    // to allow mapGenerator to set unique heights per cell.
+    gameState.terrainMap = Array(constants.GRID_SIZE).fill(null).map(() =>
+        Array(constants.GRID_SIZE).fill(null).map(() => ({...constants.TERRAIN.PLAINS}))
+    );
 
     // 3. Regenerate Map
     mapGenerator.generateMap(gameState);
@@ -185,7 +190,12 @@ io.on('connection', (socket) => {
 
         // Prevent spawning on obstacles or water (Height != 0)
         // Plains, Forest, Street are 0. Mountains/Walls are 2. Water is -2.
-        if (Math.abs(terrain.height) > 0) return;
+        // UPDATE: Check valid height or specific terrain types.
+        // Water is height -2. Walls are height > 2 maybe.
+        // We probably just want to ban spawning on Water.
+        // And maybe Walls?
+
+        if (terrain.id === 'water' || terrain.id === 'wall') return;
 
         if (!gameState.grid[y][x]) {
             const baseStats = unitStats[type];

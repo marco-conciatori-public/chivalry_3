@@ -24,7 +24,6 @@ const Renderer = {
         // Terrains
         'wall': '/images/wall.png',
         'forest': '/images/forest.png',
-        'mountain': '/images/mountain.png',
         'water': '/images/water.png',
         'street': '/images/street.png',
         'plains': '/images/plains.png',
@@ -68,6 +67,31 @@ const Renderer = {
         );
     },
 
+    // Helper to adjust brightness of a hex color
+    adjustColorBrightness(hex, percent) {
+        // Strip the #
+        hex = hex.replace(/^\s*#|\s*$/g, '');
+        // Convert to RGB
+        var r = parseInt(hex.substr(0, 2), 16);
+        var g = parseInt(hex.substr(2, 2), 16);
+        var b = parseInt(hex.substr(4, 2), 16);
+
+        // Calculate adjustment
+        var amt = Math.floor(2.55 * percent);
+
+        r += amt;
+        g += amt;
+        b += amt;
+
+        // Clamp
+        if (r > 255) r = 255; else if (r < 0) r = 0;
+        if (g > 255) g = 255; else if (g < 0) g = 0;
+        if (b > 255) b = 255; else if (b < 0) b = 0;
+
+        // Return new hex
+        return '#' + (g | (b << 8) | (r << 16)).toString(16).padStart(6, '0');
+    },
+
     draw(gameState, myId, selectedCell, interactionState, validMoves, validAttackTargets, cellsInAttackRange, gameConstants) {
         if (!gameState) return;
 
@@ -75,14 +99,50 @@ const Renderer = {
 
         // Dynamic Font
         const fontSize = Math.floor(this.CELL_SIZE * 0.7);
+        const maxElevation = gameConstants ? gameConstants.MAX_ELEVATION : 5;
 
-        // --- LAYER 1: Background Colors ---
+        // --- LAYER 1: Background & Elevation ---
         for (let y = 0; y < this.GRID_SIZE; y++) {
             for (let x = 0; x < this.GRID_SIZE; x++) {
                 if (gameState.terrainMap) {
                     const terrain = gameState.terrainMap[y][x];
-                    this.ctx.fillStyle = terrain.color;
+                    let baseColor = terrain.color;
+
+                    // Elevation Coloring Logic
+                    // Water (-2) stays blue. Walls are drawn on top but have ground underneath usually,
+                    // but here terrain.height includes the wall height for mechanics.
+                    // For rendering base tile, we want ground height.
+
+                    let visualHeight = terrain.height;
+
+                    if (terrain.id === 'water') {
+                        // Keep base water color, maybe darken slightly for deep
+                        this.ctx.fillStyle = baseColor;
+                    } else {
+                        // For non-water, lighten based on height relative to Max Elevation
+                        // Base color is at height 0. Max height = lighter.
+                        // Example: Height 0 = 0% adjust. Height 5 = 40% lighten.
+
+                        let effectiveHeight = visualHeight;
+                        // Don't make walls purely white, treat them relative to ground?
+                        // Simple approach: Use raw height.
+
+                        const brightnessPct = (effectiveHeight / maxElevation) * 40; // up to +40% brightness
+                        // If it's very low (negative?), darken?
+
+                        this.ctx.fillStyle = this.adjustColorBrightness(baseColor, brightnessPct);
+                    }
+
                     this.ctx.fillRect(x * this.CELL_SIZE, y * this.CELL_SIZE, this.CELL_SIZE, this.CELL_SIZE);
+
+                    // Draw Height Number (Subtle) for clarity
+                    if (terrain.id !== 'water' && this.CELL_SIZE > 20) {
+                        this.ctx.fillStyle = "rgba(0,0,0,0.2)";
+                        this.ctx.font = `${Math.floor(this.CELL_SIZE * 0.25)}px Arial`;
+                        this.ctx.textAlign = "right";
+                        this.ctx.textBaseline = "bottom";
+                        this.ctx.fillText(terrain.height, (x+1) * this.CELL_SIZE - 2, (y+1) * this.CELL_SIZE - 2);
+                    }
                 }
             }
         }
@@ -112,50 +172,17 @@ const Renderer = {
         }
 
         // --- LAYER 2: Terrain Features (Images) ---
-        // We use a set to keep track of mountain cells we've already drawn as part of a bigger block
-        const coveredMountains = new Set();
-
         for (let y = 0; y < this.GRID_SIZE; y++) {
             for (let x = 0; x < this.GRID_SIZE; x++) {
                 if (!gameState.terrainMap) continue;
 
                 const terrain = gameState.terrainMap[y][x];
 
-                // Special handling for Mountains to draw big images
-                if (terrain.id === 'mountain') {
-                    const key = `${x},${y}`;
-                    if (coveredMountains.has(key)) continue;
-
-                    let size = 1;
-
-                    // Dynamically find maximum square size
-                    // Keep increasing size as long as the square is valid (all mountains, not covered, in bounds)
-                    while (this.checkSquare(gameState.terrainMap, x, y, size + 1, 'mountain', coveredMountains)) {
-                        size++;
-                    }
-
-                    // Mark covered cells
-                    for (let dy = 0; dy < size; dy++) {
-                        for (let dx = 0; dx < size; dx++) {
-                            coveredMountains.add(`${x + dx},${y + dy}`);
-                        }
-                    }
-
-                    // Draw the mountain
-                    if (this.images['mountain']) {
-                        this.ctx.drawImage(this.images['mountain'], x * this.CELL_SIZE, y * this.CELL_SIZE, this.CELL_SIZE * size, this.CELL_SIZE * size);
-                    } else if (terrain.symbol) {
-                        // Scale symbol if it's a block
-                        this.drawTerrainSymbol(terrain.symbol, x, y, fontSize * size, size);
-                    }
-
-                } else {
-                    // Standard Terrain Drawing
-                    if (this.images[terrain.id]) {
-                        this.ctx.drawImage(this.images[terrain.id], x * this.CELL_SIZE, y * this.CELL_SIZE, this.CELL_SIZE, this.CELL_SIZE);
-                    } else if (terrain.symbol) {
-                        this.drawTerrainSymbol(terrain.symbol, x, y, fontSize);
-                    }
+                // Draw Images for specific types (Forest, Wall, Water if textured)
+                if (this.images[terrain.id]) {
+                    this.ctx.drawImage(this.images[terrain.id], x * this.CELL_SIZE, y * this.CELL_SIZE, this.CELL_SIZE, this.CELL_SIZE);
+                } else if (terrain.symbol) {
+                    this.drawTerrainSymbol(terrain.symbol, x, y, fontSize);
                 }
             }
         }
