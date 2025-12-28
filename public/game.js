@@ -134,7 +134,8 @@ socket.on('combatResults', (data) => {
 
 // --- RENDER LOOP ---
 function renderGame() {
-    Renderer.draw(localState, myId, selectedCell, interactionState, validMoves, validAttackTargets, cellsInAttackRange);
+    // Pass gameConstants to Renderer so it can draw aura ranges
+    Renderer.draw(localState, myId, selectedCell, interactionState, validMoves, validAttackTargets, cellsInAttackRange, gameConstants);
 }
 
 // --- LOGIC HELPER ---

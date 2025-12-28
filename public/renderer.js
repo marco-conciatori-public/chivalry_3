@@ -68,7 +68,7 @@ const Renderer = {
         );
     },
 
-    draw(gameState, myId, selectedCell, interactionState, validMoves, validAttackTargets, cellsInAttackRange) {
+    draw(gameState, myId, selectedCell, interactionState, validMoves, validAttackTargets, cellsInAttackRange, gameConstants) {
         if (!gameState) return;
 
         this.ctx.clearRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
@@ -161,6 +161,17 @@ const Renderer = {
         }
 
         // --- LAYER 3: Overlays & Highlights ---
+
+        // Draw Commander Aura (Underlay for visibility)
+        if (selectedCell && gameState.grid && gameConstants) {
+            const unit = gameState.grid[selectedCell.y][selectedCell.x];
+            // Check if unit exists and is a commander (friendly or enemy)
+            if (unit && unit.is_commander) {
+                const range = gameConstants.COMMANDER_INFLUENCE_RANGE || 4;
+                this.drawCommanderAura(selectedCell.x, selectedCell.y, range);
+            }
+        }
+
         for (let y = 0; y < this.GRID_SIZE; y++) {
             for (let x = 0; x < this.GRID_SIZE; x++) {
 
@@ -289,6 +300,73 @@ const Renderer = {
                 }
             }
         }
+    },
+
+    // Draws the yellow perimeter around a commander's influence range
+    drawCommanderAura(cx, cy, range) {
+        this.ctx.save();
+        this.ctx.strokeStyle = "#f1c40f"; // Yellow
+        this.ctx.lineWidth = 3;
+        this.ctx.lineCap = "round";
+
+        const minX = Math.max(0, cx - range);
+        const maxX = Math.min(this.GRID_SIZE - 1, cx + range);
+        const minY = Math.max(0, cy - range);
+        const maxY = Math.min(this.GRID_SIZE - 1, cy + range);
+
+        // First pass: Draw faint fill
+        this.ctx.fillStyle = "rgba(241, 196, 15, 0.1)";
+        for (let y = minY; y <= maxY; y++) {
+            for (let x = minX; x <= maxX; x++) {
+                if (Math.abs(x - cx) + Math.abs(y - cy) <= range) {
+                    this.ctx.fillRect(x * this.CELL_SIZE, y * this.CELL_SIZE, this.CELL_SIZE, this.CELL_SIZE);
+                }
+            }
+        }
+
+        // Second pass: Draw border lines on edges
+        for (let y = minY; y <= maxY; y++) {
+            for (let x = minX; x <= maxX; x++) {
+                const dist = Math.abs(x - cx) + Math.abs(y - cy);
+                if (dist > range) continue;
+
+                const screenX = x * this.CELL_SIZE;
+                const screenY = y * this.CELL_SIZE;
+
+                // Check neighbors. If neighbor is out of range or out of bounds, draw edge.
+
+                // Top Edge
+                if ((y - 1 < 0) || (Math.abs(x - cx) + Math.abs((y - 1) - cy) > range)) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(screenX, screenY);
+                    this.ctx.lineTo(screenX + this.CELL_SIZE, screenY);
+                    this.ctx.stroke();
+                }
+                // Bottom Edge
+                if ((y + 1 >= this.GRID_SIZE) || (Math.abs(x - cx) + Math.abs((y + 1) - cy) > range)) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(screenX, screenY + this.CELL_SIZE);
+                    this.ctx.lineTo(screenX + this.CELL_SIZE, screenY + this.CELL_SIZE);
+                    this.ctx.stroke();
+                }
+                // Left Edge
+                if ((x - 1 < 0) || (Math.abs((x - 1) - cx) + Math.abs(y - cy) > range)) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(screenX, screenY);
+                    this.ctx.lineTo(screenX, screenY + this.CELL_SIZE);
+                    this.ctx.stroke();
+                }
+                // Right Edge
+                if ((x + 1 >= this.GRID_SIZE) || (Math.abs((x + 1) - cx) + Math.abs(y - cy) > range)) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(screenX + this.CELL_SIZE, screenY);
+                    this.ctx.lineTo(screenX + this.CELL_SIZE, screenY + this.CELL_SIZE);
+                    this.ctx.stroke();
+                }
+            }
+        }
+
+        this.ctx.restore();
     },
 
     // Helper to check if a square of 'type' exists at x,y with given size
