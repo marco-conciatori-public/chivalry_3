@@ -325,8 +325,20 @@ io.on('connection', (socket) => {
 
             gameLogic.performCombat(attacker, attackerPos, target, targetPos, false, combatResults, gameState);
 
+            // LOGIC CHANGE: Check for "Momentum" rule
+            // If Melee attack AND target destroyed, allow using remaining movement.
+            const targetDestroyed = target && !gameState.grid[targetPos.y][targetPos.x];
+            const isMelee = !attacker.is_ranged;
+
             attacker.hasAttacked = true;
-            attacker.remainingMovement = 0;
+
+            if (isMelee && targetDestroyed) {
+                // Keep existing remainingMovement
+                // If it was 0, it stays 0. If they had moves left, they keep them.
+            } else {
+                // Standard rule: Attacking ends movement
+                attacker.remainingMovement = 0;
+            }
 
             gameLogic.updateAllUnitsMorale(gameState);
             io.emit('update', gameState);
