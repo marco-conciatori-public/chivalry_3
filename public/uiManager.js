@@ -24,6 +24,13 @@ const UiManager = {
     tooltipEl: null,
     gameConstants: null,
 
+    // Definitions for Ability Tooltips
+    abilityDescriptions: {
+        'anti_cavalry': 'Deals significant bonus damage against Cavalry units.',
+        'charge': 'Deals bonus damage if the unit moves before attacking.',
+        'shield_wall': 'Increases defense when adjacent to other shield units.'
+    },
+
     init() {
         // Create Tooltip
         this.tooltipEl = document.createElement('div');
@@ -32,15 +39,21 @@ const UiManager = {
         document.body.appendChild(this.tooltipEl);
 
         // Setup Screen listeners are wired in game.js, but we provide methods here
-        this.elements.btnNewGameTrigger.addEventListener('click', () => {
-            if (confirm("Are you sure you want to start a new game? Current progress will be lost.")) {
-                this.showSetupScreen();
-            }
-        });
+        if (this.elements.btnNewGameTrigger) {
+            this.elements.btnNewGameTrigger.addEventListener('click', () => {
+                if (confirm("Are you sure you want to start a new game? Current progress will be lost.")) {
+                    this.showSetupScreen();
+                }
+            });
+        }
     },
 
     setConstants(constants) {
         this.gameConstants = constants;
+        // Update descriptions with actual values if available
+        if (constants) {
+            this.abilityDescriptions['anti_cavalry'] = `Deals +${constants.BONUS_ANTI_CAVALRY} bonus damage against Cavalry units.`;
+        }
     },
 
     showSetupScreen() {
@@ -253,6 +266,9 @@ const UiManager = {
             return;
         }
 
+        // Helper style for interactive tooltips (dotted underline)
+        const interactiveStyle = 'border-bottom: 1px dotted #888; cursor: help; display: inline-block; line-height: 1.2;';
+
         let isFleeRisk = false;
 
         if (!isTemplate && entity.morale_breakdown) {
@@ -295,9 +311,6 @@ const UiManager = {
         }
 
         const moraleDisplay = isTemplate ? entity.initial_morale : `${entity.current_morale}/${entity.initial_morale}`;
-
-        // Helper style for interactive tooltips (dotted underline)
-        const interactiveStyle = 'border-bottom: 1px dotted #888; cursor: help; display: inline-block; line-height: 1.2;';
 
         let moraleRow = '';
         if (!isTemplate) {
@@ -386,13 +399,16 @@ const UiManager = {
             chargeRow = formatStat('Charge Bonus', entity.charge_bonus);
         }
 
-        // Properly Format Abilities (Hidden if empty)
+        // Properly Format Abilities (Hidden if empty) with Tooltip capability on EACH item
         let abilitiesRow = '';
         if (entity.special_abilities && entity.special_abilities.length > 0) {
-            const abilitiesDisplay = entity.special_abilities.map(ability =>
-                ability.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
-            ).join(', ');
-            abilitiesRow = formatStat('Abilities', abilitiesDisplay);
+            const abilitiesHtml = entity.special_abilities.map(ability => {
+                const name = ability.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+                // Use a class to identify these for event binding
+                return `<span class="ability-tag" style="${interactiveStyle} margin-right: 5px;" data-ability="${ability}">${name}</span>`;
+            }).join(', ');
+
+            abilitiesRow = `<div class="stat-row"><span>Abilities:</span> <strong>${abilitiesHtml}</strong></div>`;
         }
 
         let costRow = isTemplate ? formatStat('Cost', entity.cost || '-') : '';
@@ -417,6 +433,14 @@ const UiManager = {
             ${rangeRows}
             ${abilitiesRow}
         `;
+
+        // Attach listeners for INDIVIDUAL ability tooltips
+        const abilityTags = this.elements.unitInfoContent.querySelectorAll('.ability-tag');
+        abilityTags.forEach(tag => {
+            tag.addEventListener('mouseenter', (e) => this.showAbilityTooltip(e, tag.dataset.ability));
+            tag.addEventListener('mousemove', (e) => this.moveTooltip(e));
+            tag.addEventListener('mouseleave', () => this.hideTooltip());
+        });
 
         if (!isTemplate) {
             const moraleEl = document.getElementById('morale-stat-label');
@@ -558,6 +582,18 @@ const UiManager = {
 
     showMoraleTooltip(e) {
         this.renderTooltip(e, this.currentMoraleBreakdown);
+    },
+
+    showAbilityTooltip(e, abilityKey) {
+        if (!abilityKey) return;
+        const name = abilityKey.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        const desc = this.abilityDescriptions[abilityKey] || 'Special Unit Ability';
+
+        const html = `<div style="font-weight:bold; margin-bottom:4px;">${name}</div><div>${desc}</div>`;
+
+        this.tooltipEl.innerHTML = html;
+        this.tooltipEl.style.display = 'block';
+        this.moveTooltip(e);
     },
 
     showAttackTooltip(e) {
