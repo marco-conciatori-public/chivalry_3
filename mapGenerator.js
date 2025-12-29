@@ -103,8 +103,13 @@ function generateMap(gameState) {
         for(let x=0; x<GRID_SIZE; x++) {
             // Normalize current value to 0..1 range
             const normalized = (heightMap[y][x] - minH) / (maxH - minH);
+
+            // Tweak: Bias towards lower heights. Power > 1 pushes values down.
+            // 2.5 creates a stronger curve favoring lower ground (mostly plains).
+            const biased = Math.pow(normalized, 2.5);
+
             // Scale to target range (0..5)
-            const scaled = normalized * TARGET_MAX_HEIGHT;
+            const scaled = biased * TARGET_MAX_HEIGHT;
 
             const finalH = Math.round(scaled);
             gameState.terrainMap[y][x].height = finalH;
@@ -181,7 +186,8 @@ function generateMap(gameState) {
 
     // --- RIVERS ---
     // Rivers override height to -2
-    const numRivers = Math.max(1, Math.floor(areaScale * CFG.RIVERS.DENSITY));
+    // Reduced density by multiplier 0.6
+    const numRivers = Math.max(1, Math.floor(areaScale * CFG.RIVERS.DENSITY * 0.6));
     for(let r=0; r<numRivers; r++) {
         let rx = Math.floor(Math.random() * GRID_SIZE);
         let ry = Math.floor(Math.random() * GRID_SIZE);
