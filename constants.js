@@ -65,7 +65,8 @@ module.exports = {
             BASE_VAR: 2,
             DENSITY: 0.7,
             BLOB_SIZE_MIN: 4,
-            BLOB_SIZE_VAR: 8
+            BLOB_SIZE_VAR: 8,
+            MAX_HEIGHT: 3 // Max elevation (inclusive) where forests can grow
         },
         RIVERS: {
             DENSITY: 0.15,

@@ -159,14 +159,20 @@ function generateMap(gameState) {
                 if (isValidZone(current.x, current.y)) {
                     if (gameState.terrainMap[current.y][current.x].id === 'plains') {
                         const currentHeight = gameState.terrainMap[current.y][current.x].height;
-                        gameState.terrainMap[current.y][current.x] = {
-                            ...constants.TERRAIN.FOREST,
-                            height: currentHeight
-                        };
-                        placedCount++;
-                        [{dx:0, dy:1}, {dx:0, dy:-1}, {dx:1, dy:0}, {dx:-1, dy:0}].forEach(({dx, dy}) => {
-                            openSet.push({x: current.x + dx, y: current.y + dy});
-                        });
+
+                        // Check against MAX_FOREST_HEIGHT (Default to full height if constant missing)
+                        const heightLimit = CFG.FORESTS.MAX_HEIGHT !== undefined ? CFG.FORESTS.MAX_HEIGHT : TARGET_MAX_HEIGHT;
+
+                        if (currentHeight <= heightLimit) {
+                            gameState.terrainMap[current.y][current.x] = {
+                                ...constants.TERRAIN.FOREST,
+                                height: currentHeight
+                            };
+                            placedCount++;
+                            [{dx:0, dy:1}, {dx:0, dy:-1}, {dx:1, dy:0}, {dx:-1, dy:0}].forEach(({dx, dy}) => {
+                                openSet.push({x: current.x + dx, y: current.y + dy});
+                            });
+                        }
                     }
                 }
             }
