@@ -67,6 +67,26 @@ const Renderer = {
         );
     },
 
+    // Helper to interpolate between two hex colors
+    interpolateColor(color1, color2, factor) {
+        if (factor > 1) factor = 1;
+        if (factor < 0) factor = 0;
+
+        const r1 = parseInt(color1.substring(1, 3), 16);
+        const g1 = parseInt(color1.substring(3, 5), 16);
+        const b1 = parseInt(color1.substring(5, 7), 16);
+
+        const r2 = parseInt(color2.substring(1, 3), 16);
+        const g2 = parseInt(color2.substring(3, 5), 16);
+        const b2 = parseInt(color2.substring(5, 7), 16);
+
+        const r = Math.round(r1 + factor * (r2 - r1));
+        const g = Math.round(g1 + factor * (g2 - g1));
+        const b = Math.round(b1 + factor * (b2 - b1));
+
+        return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+    },
+
     // Helper to adjust brightness of a hex color
     adjustColorBrightness(hex, percent) {
         // Strip the #
@@ -109,28 +129,28 @@ const Renderer = {
                     let baseColor = terrain.color;
 
                     // Elevation Coloring Logic
-                    // Water (-2) stays blue. Walls are drawn on top but have ground underneath usually,
-                    // but here terrain.height includes the wall height for mechanics.
-                    // For rendering base tile, we want ground height.
-
-                    let visualHeight = terrain.height;
-
                     if (terrain.id === 'water') {
-                        // Keep base water color, maybe darken slightly for deep
+                        // Keep base water color
                         this.ctx.fillStyle = baseColor;
                     } else {
-                        // For non-water, lighten based on height relative to Max Elevation
-                        // Base color is at height 0. Max height = lighter.
-                        // Example: Height 0 = 0% adjust. Height 5 = 40% lighten.
+                        // Gradient Logic: Green -> Brown -> White
+                        const h = terrain.height;
+                        const maxH = maxElevation;
 
-                        let effectiveHeight = visualHeight;
-                        // Don't make walls purely white, treat them relative to ground?
-                        // Simple approach: Use raw height.
+                        // Colors
+                        const C_LOW = '#66bb6a';   // Green (Height 0) - Nice Grass Green
+                        const C_HIGH = '#8d6e63';  // Brown (Height Max-1) - Earthy Brown
+                        const C_PEAK = '#ffffff';  // White (Height Max)
 
-                        const brightnessPct = (effectiveHeight / maxElevation) * 40; // up to +40% brightness
-                        // If it's very low (negative?), darken?
-
-                        this.ctx.fillStyle = this.adjustColorBrightness(baseColor, brightnessPct);
+                        if (h >= maxH) {
+                            this.ctx.fillStyle = C_PEAK;
+                        } else {
+                            // Interpolate between Low and High
+                            // h goes from 0 to maxH - 1
+                            const range = Math.max(1, maxH - 1);
+                            const factor = Math.max(0, Math.min(1, h / range));
+                            this.ctx.fillStyle = this.interpolateColor(C_LOW, C_HIGH, factor);
+                        }
                     }
 
                     this.ctx.fillRect(x * this.CELL_SIZE, y * this.CELL_SIZE, this.CELL_SIZE, this.CELL_SIZE);
