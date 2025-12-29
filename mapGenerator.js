@@ -4,6 +4,7 @@ function generateMap(gameState) {
     // Read constants inside function to ensure dynamic updates from Server are caught
     const GRID_SIZE = constants.GRID_SIZE;
     const CFG = constants.MAP_GEN;
+    const TARGET_MAX_HEIGHT = constants.MAX_ELEVATION; // Should be 5
 
     // 1. Reset to Plains (Use UNIQUE objects for each cell to allow independent height)
     for (let y = 0; y < GRID_SIZE; y++) {
@@ -49,7 +50,7 @@ function generateMap(gameState) {
     // Seed
     for(let y=0; y<GRID_SIZE; y++) {
         for(let x=0; x<GRID_SIZE; x++) {
-            heightMap[y][x] = Math.floor(Math.random() * (constants.MAX_ELEVATION + 1));
+            heightMap[y][x] = Math.random() * (TARGET_MAX_HEIGHT + 1);
         }
     }
 
@@ -79,12 +80,33 @@ function generateMap(gameState) {
         heightMap = newMap;
     }
 
+    // --- NORMALIZE ELEVATION ---
+    // This ensures we always have heights ranging exactly from 0 to TARGET_MAX_HEIGHT (5)
+    // Smoothing tends to pull values towards the middle, eliminating 0s and 5s. This fixes that.
+    let minH = Infinity;
+    let maxH = -Infinity;
+
+    for(let y=0; y<GRID_SIZE; y++) {
+        for(let x=0; x<GRID_SIZE; x++) {
+            if (heightMap[y][x] < minH) minH = heightMap[y][x];
+            if (heightMap[y][x] > maxH) maxH = heightMap[y][x];
+        }
+    }
+
+    // Prevent division by zero if map is flat
+    if (maxH === minH) {
+        maxH = minH + 1;
+    }
+
     // Apply Elevation to Grid (Rounding to integers)
     for(let y=0; y<GRID_SIZE; y++) {
         for(let x=0; x<GRID_SIZE; x++) {
-            const h = Math.round(heightMap[y][x]);
-            // Clamp to ensure we stay within bounds (though averaging usually keeps it within)
-            const finalH = Math.max(0, Math.min(constants.MAX_ELEVATION, h));
+            // Normalize current value to 0..1 range
+            const normalized = (heightMap[y][x] - minH) / (maxH - minH);
+            // Scale to target range (0..5)
+            const scaled = normalized * TARGET_MAX_HEIGHT;
+
+            const finalH = Math.round(scaled);
             gameState.terrainMap[y][x].height = finalH;
         }
     }
@@ -107,6 +129,7 @@ function generateMap(gameState) {
             if (isValidZone(wx, wy) && (gameState.terrainMap[wy][wx].id === 'plains')) {
                 const currentHeight = gameState.terrainMap[wy][wx].height;
                 // Wall is a new object inheriting from WALL constant
+                // With max elevation 5, walls can reach 7.
                 gameState.terrainMap[wy][wx] = {
                     ...constants.TERRAIN.WALL,
                     height: currentHeight + 2 // Wall adds height

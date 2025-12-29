@@ -135,17 +135,18 @@ const Renderer = {
                     } else {
                         // Gradient Logic: Green -> Brown -> White
                         const h = terrain.height;
-                        const maxH = maxElevation;
+                        const maxH = maxElevation; // Should be 5
 
                         // Colors
                         const C_LOW = '#66bb6a';   // Green (Height 0) - Nice Grass Green
                         const C_HIGH = '#8d6e63';  // Brown (Height Max-1) - Earthy Brown
                         const C_PEAK = '#ffffff';  // White (Height Max)
 
+                        // If height >= maxElevation (including walls at 6, 7 etc), use Peak White
                         if (h >= maxH) {
                             this.ctx.fillStyle = C_PEAK;
                         } else {
-                            // Interpolate between Low and High
+                            // Interpolate between Low and High (0 to 4)
                             // h goes from 0 to maxH - 1
                             const range = Math.max(1, maxH - 1);
                             const factor = Math.max(0, Math.min(1, h / range));
