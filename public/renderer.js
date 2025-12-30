@@ -67,7 +67,8 @@ const Renderer = {
     // If coordinates are null, zoom towards the center of the canvas
     zoomAt(delta, screenX, screenY) {
         const oldZoom = this.zoom;
-        const newZoom = Math.max(0.5, Math.min(oldZoom + delta, 3.0));
+        // Limit minimum zoom to 1.0 (initial scale) instead of 0.5
+        const newZoom = Math.max(1.0, Math.min(oldZoom + delta, 3.0));
 
         if (newZoom === oldZoom) return;
 
@@ -86,9 +87,23 @@ const Renderer = {
         this.zoom = newZoom;
 
         // Calculate new Pan such that the world coordinate remains at the same screen position
-        // pan = screen - world * newZoom
         this.panX = screenX - (worldX * newZoom);
         this.panY = screenY - (worldY * newZoom);
+
+        // CLAMP PANNING to prevent seeing outside the grid
+        const canvasW = this.ctx.canvas.width;
+        const canvasH = this.ctx.canvas.height;
+
+        // The maximum constraint is 0 (cannot pan right to show left gap)
+        // The minimum constraint is canvasW * (1 - newZoom) (cannot pan left to show right gap)
+        const minPanX = canvasW * (1 - newZoom);
+        const maxPanX = 0;
+
+        const minPanY = canvasH * (1 - newZoom);
+        const maxPanY = 0;
+
+        this.panX = Math.min(Math.max(this.panX, minPanX), maxPanX);
+        this.panY = Math.min(Math.max(this.panY, minPanY), maxPanY);
     },
 
     getZoom() {
