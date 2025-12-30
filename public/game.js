@@ -391,6 +391,9 @@ canvas.addEventListener('mouseleave', () => {
 
 // MINIMAP NAVIGATION
 function handleMinimapInput(e) {
+    // Stop propagation so we don't click the canvas underneath
+    e.stopPropagation();
+
     const rect = minimapCanvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;

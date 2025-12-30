@@ -262,7 +262,8 @@ canvas#minimap {
     background: rgba(0, 0, 0, 0.5); /* Semi-transparent background */
     box-shadow: 0 0 5px rgba(0,0,0,0.5);
     z-index: 150; /* Above game canvas, below modal */
-    pointer-events: none; /* Let clicks pass through if needed, though usually we want interactions elsewhere */
+    pointer-events: auto; /* UPDATED: Changed from none to auto to allow clicks */
+    cursor: crosshair;
 }
 
 /* Overlay Layer */
