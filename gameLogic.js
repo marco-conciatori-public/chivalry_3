@@ -198,35 +198,55 @@ function applyDamage(unit, pos, amount, grid) {
 }
 
 function performCombat(attacker, attackerPos, defender, defenderPos, isRetaliation, combatResults, gameState) {
-    // 1. Direct Damage
+    // 1. Calculate Main Damage
+    let damageToDefender = 0;
     if (defender) {
-        const damage = calculateDamage(attacker, attackerPos, defender, defenderPos, false, gameState.terrainMap);
+        damageToDefender = calculateDamage(attacker, attackerPos, defender, defenderPos, false, gameState.terrainMap);
+    }
 
-        defender.raw_morale -= damage;
+    // 2. PRE-CALCULATE SIMULTANEOUS RETALIATION
+    // Determine if retaliation should happen BEFORE applying any damage.
+    // This allows simultaneous combat where a dying unit still strikes back.
+    let doRetaliate = false;
+    let retaliationDamage = 0;
+
+    if (defender && !isRetaliation && defender.is_melee_capable) {
+        const dist = Math.abs(attackerPos.x - defenderPos.x) + Math.abs(attackerPos.y - defenderPos.y);
+        // Retaliation Condition: Melee range (dist === 1)
+        if (dist === 1) {
+            doRetaliate = true;
+            // Calculate damage using current state (health) before receiving damage
+            retaliationDamage = calculateDamage(defender, defenderPos, attacker, attackerPos, false, gameState.terrainMap);
+        }
+    }
+
+    // 3. Apply Damage to Defender
+    if (defender) {
+        defender.raw_morale -= damageToDefender;
         if (!isRetaliation || defender.is_melee_capable) {
-            attacker.raw_morale += Math.floor(damage / 2);
+            attacker.raw_morale += Math.floor(damageToDefender / 2);
         }
 
         combatResults.events.push({
             x: defenderPos.x,
             y: defenderPos.y,
             type: 'damage',
-            value: damage,
+            value: damageToDefender,
             color: '#e74c3c'
         });
 
-        combatResults.logs.push(` -> Dealt ${damage} damage to {u:${defender.type}:${defenderPos.x}:${defenderPos.y}:${defender.owner}}.`);
+        combatResults.logs.push(` -> Dealt ${damageToDefender} damage to {u:${defender.type}:${defenderPos.x}:${defenderPos.y}:${defender.owner}}.`);
 
-        const killed = applyDamage(defender, defenderPos, damage, gameState.grid);
+        const defenderKilled = applyDamage(defender, defenderPos, damageToDefender, gameState.grid);
 
-        if (killed) {
+        if (defenderKilled) {
             combatResults.events.push({ x: defenderPos.x, y: defenderPos.y, type: 'death', value: '💀' });
             combatResults.logs.push(`-- {u:${defender.type}:${defenderPos.x}:${defenderPos.y}:${defender.owner}} was destroyed!`);
             applyDeathMoraleEffects(defenderPos, defender.owner, gameState.grid);
         }
     }
 
-    // 2. Splash Damage (Ranged Only, No Retaliation)
+    // 4. Splash Damage (Ranged Only, No Retaliation)
     if (attacker.is_ranged && !isRetaliation) {
         const neighbors = [
             {x: defenderPos.x, y: defenderPos.y - 1},
@@ -254,12 +274,29 @@ function performCombat(attacker, attackerPos, defender, defenderPos, isRetaliati
         });
     }
 
-    // 3. Retaliation
-    if (defender && !isRetaliation && defender.current_health > 0 && defender.is_melee_capable) {
-        const dist = Math.abs(attackerPos.x - defenderPos.x) + Math.abs(attackerPos.y - defenderPos.y);
-        if (dist === 1) {
-            combatResults.logs.push(`-- {u:${defender.type}:${defenderPos.x}:${defenderPos.y}:${defender.owner}} retaliates!`);
-            performCombat(defender, defenderPos, attacker, attackerPos, true, combatResults, gameState);
+    // 5. Apply Retaliation (Simultaneous)
+    // Applied regardless of whether the defender survived the initial hit
+    if (doRetaliate) {
+        combatResults.logs.push(`-- {u:${defender.type}:${defenderPos.x}:${defenderPos.y}:${defender.owner}} retaliates simultaneously!`);
+
+        attacker.raw_morale -= retaliationDamage;
+        defender.raw_morale += Math.floor(retaliationDamage / 2);
+
+        combatResults.events.push({
+            x: attackerPos.x,
+            y: attackerPos.y,
+            type: 'damage',
+            value: retaliationDamage,
+            color: '#e74c3c'
+        });
+
+        combatResults.logs.push(` -> Retaliation dealt ${retaliationDamage} damage to {u:${attacker.type}:${attackerPos.x}:${attackerPos.y}:${attacker.owner}}.`);
+
+        const attackerKilled = applyDamage(attacker, attackerPos, retaliationDamage, gameState.grid);
+        if (attackerKilled) {
+            combatResults.events.push({ x: attackerPos.x, y: attackerPos.y, type: 'death', value: '💀' });
+            combatResults.logs.push(`-- {u:${attacker.type}:${attackerPos.x}:${attackerPos.y}:${attacker.owner}} was destroyed!`);
+            applyDeathMoraleEffects(attackerPos, attacker.owner, gameState.grid);
         }
     }
 }
