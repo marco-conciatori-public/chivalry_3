@@ -8,8 +8,8 @@ const ctx = canvas.getContext('2d');
 let myId = null;
 let localState = null;
 let clientUnitStats = {};
-let gameConstants = null; // Store received constants
-let GRID_SIZE = 50; // Updated by init
+let gameConstants = null;
+let GRID_SIZE = 50;
 
 // Game Interaction State
 let selectedCell = null;
@@ -19,77 +19,60 @@ let validMoves = [];
 let validAttackTargets = [];
 let cellsInAttackRange = [];
 
-// Initialize Helper Modules
 UiManager.init();
-// Renderer initialized in socket init
 
 // --- SOCKET LISTENERS ---
 
 socket.on('init', (data) => {
-    // Only update myId if the server provides a valid one.
     if (data.myId) {
         myId = data.myId;
     }
-
-    // Check if we are re-initializing (New Game started)
     const isReInit = !!localState;
 
     localState = data.state;
     clientUnitStats = data.unitStats;
     gameConstants = data.gameConstants;
 
-    // Pass constants to UiManager
     if(UiManager.setConstants) {
         UiManager.setConstants(gameConstants);
     }
 
-    // Update Grid Config
     if (localState.grid) {
         GRID_SIZE = localState.grid.length;
-        // Re-initialize Renderer with new grid size AND minimap
         Renderer.init(ctx, GRID_SIZE, canvas.width, minimapCanvas);
     }
 
-    // Handle Setup Screen Visibility based on Game State
     if (localState.isGameActive) {
         UiManager.hideSetupScreen();
     } else {
         UiManager.showSetupScreen();
     }
 
-    // Load Images then Render
     Renderer.loadAssets().then(() => {
-        // Initial Render after images are loaded
         renderGame();
     });
 
     UiManager.updateConnectionStatus(myId);
     resetSelection();
-
-    // Render immediately (with fallbacks) in case images take time
     renderGame();
 
     UiManager.updateLegend(localState, myId, (name) => socket.emit('changeName', name));
     UiManager.updateControls(localState, myId, clientUnitStats);
 
-    // UPDATED: Clear log on restart, always show welcome message (once)
     if (isReInit) {
         UiManager.clearLog();
     }
-
     UiManager.addLogEntry("Welcome to Chivalry 3!", localState, () => {});
 });
 
 socket.on('update', (state) => {
     localState = state;
-    // Ensure GRID_SIZE is synced on update as well, just in case
     if (localState.grid && localState.grid.length !== GRID_SIZE) {
         GRID_SIZE = localState.grid.length;
         Renderer.setGridSize(GRID_SIZE, canvas.width);
     }
 
     if (selectedCell) {
-        // Validation: Ensure selected cell is still within bounds
         if (selectedCell.x >= GRID_SIZE || selectedCell.y >= GRID_SIZE) {
             resetSelection();
         } else {
@@ -103,7 +86,6 @@ socket.on('update', (state) => {
         }
     }
 
-    // NEW: Auto-deselect template if we can't afford it anymore (e.g. after buying one)
     if (selectedTemplate && clientUnitStats[selectedTemplate] && localState.players[myId]) {
         if (localState.players[myId].gold < clientUnitStats[selectedTemplate].cost) {
             resetSelection();
@@ -135,7 +117,6 @@ socket.on('combatResults', (data) => {
 
 // --- RENDER LOOP ---
 function renderGame() {
-    // Pass gameConstants to Renderer so it can draw aura ranges
     Renderer.draw(localState, myId, selectedCell, interactionState, validMoves, validAttackTargets, cellsInAttackRange, gameConstants);
 }
 
@@ -177,11 +158,8 @@ function recalculateOptions(entity) {
         return;
     }
 
-    // Determine stats to use for visualization
     let moveDist = entity.remainingMovement;
     let canAttack = !entity.hasAttacked;
-
-    // Show full potential if we are not the active player controlling this unit.
     const isCommanding = (entity.owner === myId && localState.turn === myId);
 
     if (!isCommanding) {
@@ -203,7 +181,6 @@ function recalculateOptions(entity) {
             for (let x = 0; x < GRID_SIZE; x++) {
                 const dist = Math.abs(selectedCell.x - x) + Math.abs(selectedCell.y - y);
 
-                // Dynamic Range Bonus Check
                 let effectiveRange = range;
                 if (entity.is_ranged && myTerrain.height > localState.terrainMap[y][x].height) {
                     effectiveRange += rangeBonus;
@@ -221,12 +198,10 @@ function recalculateOptions(entity) {
                     const targetEntity = localState.grid[y][x];
 
                     if (entity.is_ranged) {
-                        // Ranged units can target empty cells or enemies
                         if (!targetEntity || targetEntity.owner !== entity.owner) {
                             validAttackTargets.push({x, y});
                         }
                     } else {
-                        // Melee units must target an enemy
                         if (targetEntity && targetEntity.owner !== entity.owner) {
                             validAttackTargets.push({x, y});
                         }
@@ -240,16 +215,12 @@ function recalculateOptions(entity) {
 function clientIsValidAttackDirection(unit, start, end) {
     const dx = end.x - start.x;
     const dy = end.y - start.y;
-    // 0: Up, 2: Right, 4: Down, 6: Left
-
     if (unit.is_ranged) {
-        // 90 degree cone
         if (unit.facing_direction === 0) return dy < 0 && Math.abs(dx) <= Math.abs(dy);
         if (unit.facing_direction === 2) return dx > 0 && Math.abs(dy) <= Math.abs(dx);
         if (unit.facing_direction === 4) return dy > 0 && Math.abs(dx) <= Math.abs(dy);
         if (unit.facing_direction === 6) return dx < 0 && Math.abs(dy) <= Math.abs(dx);
     } else {
-        // Front only (linear)
         if (unit.facing_direction === 0) return dx === 0 && dy < 0;
         if (unit.facing_direction === 2) return dy === 0 && dx > 0;
         if (unit.facing_direction === 4) return dx === 0 && dy > 0;
@@ -284,7 +255,6 @@ function getReachableCells(start, maxDist, grid, terrainMap) {
     costs[`${start.x},${start.y}`] = 0;
     let reachable = [];
 
-    // Constants fallback
     const heightDiffLimit = (gameConstants) ? gameConstants.HEIGHT_DIFFERENCE_LIMIT : 1;
     const heightPenalty = (gameConstants) ? gameConstants.MOVEMENT_COST_HEIGHT_PENALTY : 1;
 
@@ -308,17 +278,11 @@ function getReachableCells(start, maxDist, grid, terrainMap) {
                 const key = `${nx},${ny}`;
                 const t = terrainMap[ny][nx];
 
-                // --- HEIGHT CHECK ---
-                // Block if height difference is too great
                 const hDiff = Math.abs(t.height - currentTerrain.height);
                 if (hDiff > heightDiffLimit) continue;
-
-                // Unit Collision
                 if (grid[ny][nx]) continue;
 
-                // --- COST CALCULATION ---
                 let moveCost = t.cost;
-                // Add penalty for moving UP
                 if (t.height > currentTerrain.height) {
                     moveCost += (t.height - currentTerrain.height) * heightPenalty;
                 }
@@ -341,10 +305,27 @@ function getReachableCells(start, maxDist, grid, terrainMap) {
 // ZOOM LISTENER (Mouse Wheel)
 canvas.addEventListener('wheel', (e) => {
     e.preventDefault();
-    const currentZoom = Renderer.getZoom();
-    const delta = Math.sign(e.deltaY) * -0.1; // -0.1 for zoom in/out speed
-    const newZoom = currentZoom + delta;
-    Renderer.setZoom(newZoom);
+    const rect = canvas.getBoundingClientRect();
+
+    // Calculate Mouse Position in Screen Coordinates (Canvas internal resolution)
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+
+    // Check if mouse is actually over the canvas/grid
+    let mouseX = null;
+    let mouseY = null;
+
+    if (e.clientX >= rect.left && e.clientX <= rect.right &&
+        e.clientY >= rect.top && e.clientY <= rect.bottom) {
+        mouseX = (e.clientX - rect.left) * scaleX;
+        mouseY = (e.clientY - rect.top) * scaleY;
+    }
+
+    const delta = Math.sign(e.deltaY) * -0.1;
+
+    // Pass mouse coordinates to zoomAt to zoom towards cursor
+    // If null, it defaults to center
+    Renderer.zoomAt(delta, mouseX, mouseY);
     renderGame();
 });
 
@@ -353,13 +334,11 @@ document.getElementById('end-turn-btn').addEventListener('click', () => {
     resetSelection();
 });
 
-// Setup Screen Button
 document.getElementById('btn-start-game').addEventListener('click', () => {
     const settings = UiManager.getSetupSettings();
     socket.emit('startGame', settings);
 });
 
-// Template Listeners
 document.querySelectorAll('.template').forEach(el => {
     el.addEventListener('click', () => {
         if (localState.turn !== myId) return;
@@ -380,10 +359,13 @@ canvas.addEventListener('click', (e) => {
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
 
-    // Apply Zoom to Coordinate Calculation
-    const zoom = Renderer.getZoom();
-    const x = Math.floor(((e.clientX - rect.left) * scaleX) / (Renderer.CELL_SIZE * zoom));
-    const y = Math.floor(((e.clientY - rect.top) * scaleY) / (Renderer.CELL_SIZE * zoom));
+    // Apply Zoom AND Pan to Coordinate Calculation
+    const screenX = (e.clientX - rect.left) * scaleX;
+    const screenY = (e.clientY - rect.top) * scaleY;
+
+    // Inverse Transform: grid = (screen - pan) / zoom
+    const x = Math.floor((screenX - Renderer.panX) / (Renderer.CELL_SIZE * Renderer.zoom));
+    const y = Math.floor((screenY - Renderer.panY) / (Renderer.CELL_SIZE * Renderer.zoom));
 
     if (x < 0 || x >= GRID_SIZE || y < 0 || y >= GRID_SIZE) {
         resetSelection();
@@ -438,7 +420,7 @@ canvas.addEventListener('click', (e) => {
     if (clickedEntity && selectedCell && selectedCell.x === x && selectedCell.y === y) {
         if (clickedEntity.owner === myId && localState.turn === myId) {
             if (clickedEntity.is_fleeing) return;
-            UiManager.showContextMenu(e.clientX, e.clientY, clickedEntity, selectedCell, Renderer.CELL_SIZE * zoom);
+            UiManager.showContextMenu(e.clientX, e.clientY, clickedEntity, selectedCell, Renderer.CELL_SIZE * Renderer.zoom);
             interactionState = 'MENU';
         }
         renderGame();
@@ -450,20 +432,15 @@ canvas.addEventListener('click', (e) => {
         selectedCell = { x, y };
         interactionState = 'SELECTED';
         UiManager.updateUnitInfo(clickedEntity, false, null, localState, selectedCell);
-
-        // Calculate options for any unit (including enemies) to show ranges
         if (!clickedEntity.is_fleeing) recalculateOptions(clickedEntity);
     }
     else if (selectedTemplate && !clickedEntity) {
         if (localState.turn === myId) {
             socket.emit('spawnEntity', { x, y, type: selectedTemplate });
-            // Modified: Removed resetSelection() here to allow buying multiple units in sequence
         }
     }
     else if (selectedCell && !clickedEntity) {
         const isValid = validMoves.some(m => m.x === x && m.y === y);
-
-        // Ensure we only emit move command if we own the unit AND it's our turn
         const selectedUnit = localState.grid[selectedCell.y][selectedCell.x];
         if (isValid && selectedUnit && selectedUnit.owner === myId && localState.turn === myId) {
             socket.emit('moveEntity', { from: selectedCell, to: { x, y } });
@@ -478,7 +455,7 @@ canvas.addEventListener('click', (e) => {
     renderGame();
 });
 
-// Canvas Hover for Cell Info
+// Canvas Hover
 canvas.addEventListener('mousemove', (e) => {
     if (!localState || !Renderer.CELL_SIZE) return;
 
@@ -486,10 +463,11 @@ canvas.addEventListener('mousemove', (e) => {
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
 
-    // Apply Zoom
-    const zoom = Renderer.getZoom();
-    const x = Math.floor(((e.clientX - rect.left) * scaleX) / (Renderer.CELL_SIZE * zoom));
-    const y = Math.floor(((e.clientY - rect.top) * scaleY) / (Renderer.CELL_SIZE * zoom));
+    const screenX = (e.clientX - rect.left) * scaleX;
+    const screenY = (e.clientY - rect.top) * scaleY;
+
+    const x = Math.floor((screenX - Renderer.panX) / (Renderer.CELL_SIZE * Renderer.zoom));
+    const y = Math.floor((screenY - Renderer.panY) / (Renderer.CELL_SIZE * Renderer.zoom));
 
     if (x >= 0 && x < GRID_SIZE && y >= 0 && y < GRID_SIZE && localState.terrainMap) {
         const terrain = localState.terrainMap[y][x];
@@ -503,7 +481,6 @@ canvas.addEventListener('mouseleave', () => {
     UiManager.updateCellInfo(null);
 });
 
-// Menu Buttons
 const btnAttack = document.getElementById('btn-attack');
 const btnRotate = document.getElementById('btn-rotate');
 const btnDeselect = document.getElementById('btn-deselect');
