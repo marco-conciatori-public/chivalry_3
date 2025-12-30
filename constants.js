@@ -83,8 +83,8 @@ module.exports = {
         // Note: Mountains config removed as specific terrain type is gone
 
         STREETS: {
-            BASE_MIN: 2,
-            BASE_VAR: 2,
+            BASE_MIN: 0,
+            BASE_VAR: 0,
             LENGTH_FACTOR: 0.8,    // Relative to GRID_SIZE
             TURN_BIAS: 0.2,        // Probability to turn
             DIRECTION_BIAS: 0.8    // Probability to continue in main direction
