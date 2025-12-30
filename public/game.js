@@ -19,6 +19,12 @@ let validMoves = [];
 let validAttackTargets = [];
 let cellsInAttackRange = [];
 
+// Dragging State
+let isDragging = false;
+let dragStartX = 0;
+let dragStartY = 0;
+let hasDragged = false; // Flag to prevent click event if user was dragging
+
 UiManager.init();
 
 // --- SOCKET LISTENERS ---
@@ -306,12 +312,9 @@ function getReachableCells(start, maxDist, grid, terrainMap) {
 canvas.addEventListener('wheel', (e) => {
     e.preventDefault();
     const rect = canvas.getBoundingClientRect();
-
-    // Calculate Mouse Position in Screen Coordinates (Canvas internal resolution)
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
 
-    // Check if mouse is actually over the canvas/grid
     let mouseX = null;
     let mouseY = null;
 
@@ -322,12 +325,101 @@ canvas.addEventListener('wheel', (e) => {
     }
 
     const delta = Math.sign(e.deltaY) * -0.1;
-
-    // Pass mouse coordinates to zoomAt to zoom towards cursor
-    // If null, it defaults to center
     Renderer.zoomAt(delta, mouseX, mouseY);
     renderGame();
 });
+
+// DRAGGING LOGIC (Mouse Down/Move/Up on Canvas)
+canvas.addEventListener('mousedown', (e) => {
+    // Only drag if zoomed in
+    if (Renderer.getZoom() > 1.0) {
+        isDragging = true;
+        hasDragged = false;
+        dragStartX = e.clientX;
+        dragStartY = e.clientY;
+    }
+});
+
+canvas.addEventListener('mousemove', (e) => {
+    if (!localState || !Renderer.CELL_SIZE) return;
+
+    // Handle Hover Info
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const screenX = (e.clientX - rect.left) * scaleX;
+    const screenY = (e.clientY - rect.top) * scaleY;
+
+    // Handle Dragging
+    if (isDragging) {
+        const dx = (e.clientX - dragStartX) * scaleX;
+        const dy = (e.clientY - dragStartY) * scaleY;
+
+        // Threshold to distinguish click from drag
+        if (Math.abs(dx) > 5 || Math.abs(dy) > 5) hasDragged = true;
+
+        if (hasDragged) {
+            Renderer.pan(dx, dy);
+            dragStartX = e.clientX;
+            dragStartY = e.clientY;
+            renderGame();
+            // Don't update cell info while dragging for performance/clarity
+            return;
+        }
+    }
+
+    // Normal Hover
+    const x = Math.floor((screenX - Renderer.panX) / (Renderer.CELL_SIZE * Renderer.zoom));
+    const y = Math.floor((screenY - Renderer.panY) / (Renderer.CELL_SIZE * Renderer.zoom));
+
+    if (x >= 0 && x < GRID_SIZE && y >= 0 && y < GRID_SIZE && localState.terrainMap) {
+        const terrain = localState.terrainMap[y][x];
+        UiManager.updateCellInfo(terrain, x, y);
+    } else {
+        UiManager.updateCellInfo(null);
+    }
+});
+
+canvas.addEventListener('mouseup', () => {
+    isDragging = false;
+});
+
+canvas.addEventListener('mouseleave', () => {
+    isDragging = false;
+    UiManager.updateCellInfo(null);
+});
+
+// MINIMAP NAVIGATION
+function handleMinimapInput(e) {
+    const rect = minimapCanvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    // Normalize 0-1
+    const nX = x / minimapCanvas.width;
+    const nY = y / minimapCanvas.height;
+
+    Renderer.centerOn(nX, nY);
+    renderGame();
+}
+
+// Support clicking and dragging on minimap
+let isMinimapDragging = false;
+
+minimapCanvas.addEventListener('mousedown', (e) => {
+    isMinimapDragging = true;
+    handleMinimapInput(e);
+});
+
+minimapCanvas.addEventListener('mousemove', (e) => {
+    if (isMinimapDragging) {
+        handleMinimapInput(e);
+    }
+});
+
+minimapCanvas.addEventListener('mouseup', () => isMinimapDragging = false);
+minimapCanvas.addEventListener('mouseleave', () => isMinimapDragging = false);
+
 
 document.getElementById('end-turn-btn').addEventListener('click', () => {
     socket.emit('endTurn');
@@ -355,15 +447,19 @@ document.querySelectorAll('.template').forEach(el => {
 
 // Canvas Click
 canvas.addEventListener('click', (e) => {
+    // Abort if this was a drag operation
+    if (hasDragged) {
+        hasDragged = false;
+        return;
+    }
+
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
 
-    // Apply Zoom AND Pan to Coordinate Calculation
     const screenX = (e.clientX - rect.left) * scaleX;
     const screenY = (e.clientY - rect.top) * scaleY;
 
-    // Inverse Transform: grid = (screen - pan) / zoom
     const x = Math.floor((screenX - Renderer.panX) / (Renderer.CELL_SIZE * Renderer.zoom));
     const y = Math.floor((screenY - Renderer.panY) / (Renderer.CELL_SIZE * Renderer.zoom));
 
@@ -453,32 +549,6 @@ canvas.addEventListener('click', (e) => {
         resetSelection();
     }
     renderGame();
-});
-
-// Canvas Hover
-canvas.addEventListener('mousemove', (e) => {
-    if (!localState || !Renderer.CELL_SIZE) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
-
-    const screenX = (e.clientX - rect.left) * scaleX;
-    const screenY = (e.clientY - rect.top) * scaleY;
-
-    const x = Math.floor((screenX - Renderer.panX) / (Renderer.CELL_SIZE * Renderer.zoom));
-    const y = Math.floor((screenY - Renderer.panY) / (Renderer.CELL_SIZE * Renderer.zoom));
-
-    if (x >= 0 && x < GRID_SIZE && y >= 0 && y < GRID_SIZE && localState.terrainMap) {
-        const terrain = localState.terrainMap[y][x];
-        UiManager.updateCellInfo(terrain, x, y);
-    } else {
-        UiManager.updateCellInfo(null);
-    }
-});
-
-canvas.addEventListener('mouseleave', () => {
-    UiManager.updateCellInfo(null);
 });
 
 const btnAttack = document.getElementById('btn-attack');

@@ -63,11 +63,53 @@ const Renderer = {
         this.CELL_SIZE = canvasWidth / size;
     },
 
+    // --- VIEWPORT MANIPULATION ---
+
+    // Helper: Keeps the view within bounds so users don't lose the map
+    clampPan() {
+        const canvasW = this.ctx.canvas.width;
+        const canvasH = this.ctx.canvas.height;
+
+        // The constraints ensure we don't pan past the edges of the zoomed world
+        // minPan is negative (shifting world left/up), maxPan is 0 (origin)
+        const minPanX = canvasW * (1 - this.zoom);
+        const maxPanX = 0;
+
+        const minPanY = canvasH * (1 - this.zoom);
+        const maxPanY = 0;
+
+        this.panX = Math.min(Math.max(this.panX, minPanX), maxPanX);
+        this.panY = Math.min(Math.max(this.panY, minPanY), maxPanY);
+    },
+
+    // Move the view by delta pixels (used for dragging)
+    pan(dx, dy) {
+        if (this.zoom <= 1.0) return; // Only allow panning if zoomed in
+        this.panX += dx;
+        this.panY += dy;
+        this.clampPan();
+    },
+
+    // Jump view to center on a specific normalized position (0.0 - 1.0)
+    centerOn(normalizedX, normalizedY) {
+        const canvasW = this.ctx.canvas.width;
+        const canvasH = this.ctx.canvas.height;
+
+        // Calculate world coordinates relative to unzoomed size
+        const worldX = normalizedX * canvasW;
+        const worldY = normalizedY * canvasH;
+
+        // Formula: screenCenter = worldCoord * zoom + pan
+        // pan = screenCenter - worldCoord * zoom
+        this.panX = (canvasW / 2) - (worldX * this.zoom);
+        this.panY = (canvasH / 2) - (worldY * this.zoom);
+
+        this.clampPan();
+    },
+
     // Zoom towards a specific point (screenX, screenY)
-    // If coordinates are null, zoom towards the center of the canvas
     zoomAt(delta, screenX, screenY) {
         const oldZoom = this.zoom;
-        // Limit minimum zoom to 1.0 (initial scale) instead of 0.5
         const newZoom = Math.max(1.0, Math.min(oldZoom + delta, 3.0));
 
         if (newZoom === oldZoom) return;
@@ -78,37 +120,22 @@ const Renderer = {
             screenY = this.ctx.canvas.height / 2;
         }
 
-        // Calculate the world coordinate under the mouse/center BEFORE zooming
-        // Formula: screen = world * zoom + pan
-        // Therefore: world = (screen - pan) / zoom
         const worldX = (screenX - this.panX) / oldZoom;
         const worldY = (screenY - this.panY) / oldZoom;
 
         this.zoom = newZoom;
 
-        // Calculate new Pan such that the world coordinate remains at the same screen position
         this.panX = screenX - (worldX * newZoom);
         this.panY = screenY - (worldY * newZoom);
 
-        // CLAMP PANNING to prevent seeing outside the grid
-        const canvasW = this.ctx.canvas.width;
-        const canvasH = this.ctx.canvas.height;
-
-        // The maximum constraint is 0 (cannot pan right to show left gap)
-        // The minimum constraint is canvasW * (1 - newZoom) (cannot pan left to show right gap)
-        const minPanX = canvasW * (1 - newZoom);
-        const maxPanX = 0;
-
-        const minPanY = canvasH * (1 - newZoom);
-        const maxPanY = 0;
-
-        this.panX = Math.min(Math.max(this.panX, minPanX), maxPanX);
-        this.panY = Math.min(Math.max(this.panY, minPanY), maxPanY);
+        this.clampPan();
     },
 
     getZoom() {
         return this.zoom;
     },
+
+    // --- ASSETS & HELPERS ---
 
     loadAssets() {
         return Promise.all(
@@ -146,6 +173,8 @@ const Renderer = {
 
         return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
     },
+
+    // --- MAIN DRAW ---
 
     draw(gameState, myId, selectedCell, interactionState, validMoves, validAttackTargets, cellsInAttackRange, gameConstants) {
         if (!gameState) return;
@@ -535,13 +564,6 @@ const Renderer = {
                 }
             }
         }
-
-        // Simplified border drawing for aura
-        const screenX = cx * this.CELL_SIZE;
-        const screenY = cy * this.CELL_SIZE;
-
-        // This is a simplified aura representation, exact edge drawing logic preserved if needed
-        // For brevity in this diff, relying on the fill which is most important visually.
 
         this.ctx.restore();
     }
