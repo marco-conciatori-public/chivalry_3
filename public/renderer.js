@@ -4,6 +4,9 @@ const Renderer = {
     GRID_SIZE: 10,
     CELL_SIZE: 0,
     ctx: null,
+    minimapCtx: null,
+    minimapCanvas: null,
+    zoom: 1.0,
 
     // Fallback Icons
     icons: {
@@ -37,15 +40,29 @@ const Renderer = {
         'catapult': '/images/catapult.png'
     },
 
-    init(ctx, gridSize, canvasWidth) {
+    init(ctx, gridSize, canvasWidth, minimapCanvas) {
         this.ctx = ctx;
         this.GRID_SIZE = gridSize;
         this.CELL_SIZE = canvasWidth / gridSize;
+
+        if (minimapCanvas) {
+            this.minimapCanvas = minimapCanvas;
+            this.minimapCtx = minimapCanvas.getContext('2d');
+        }
     },
 
     setGridSize(size, canvasWidth) {
         this.GRID_SIZE = size;
         this.CELL_SIZE = canvasWidth / size;
+    },
+
+    setZoom(newZoom) {
+        // Clamp zoom between 0.5 (zoomed out) and 3.0 (zoomed in)
+        this.zoom = Math.max(0.5, Math.min(newZoom, 3.0));
+    },
+
+    getZoom() {
+        return this.zoom;
     },
 
     // Asynchronously load all images defined in assetPaths
@@ -115,8 +132,6 @@ const Renderer = {
     draw(gameState, myId, selectedCell, interactionState, validMoves, validAttackTargets, cellsInAttackRange, gameConstants) {
         if (!gameState) return;
 
-        this.ctx.clearRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
-
         // Visual Configuration from Constants
         const VISUALS = gameConstants.VISUALS || {
             HEIGHT_LOW: '#66bb6a', HEIGHT_HIGH: '#8d6e63', HEIGHT_PEAK: '#ffffff',
@@ -130,6 +145,12 @@ const Renderer = {
             HEALTH_BAR_FG: "#2ecc71", TEXT_COLOR: "#000", TEXT_HEIGHT_COLOR: "rgba(0,0,0,0.2)",
             DEFAULT_OWNER: "#999"
         };
+
+        this.ctx.clearRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
+
+        // --- APPLY ZOOM ---
+        this.ctx.save();
+        this.ctx.scale(this.zoom, this.zoom);
 
         // Dynamic Font
         const fontSize = Math.floor(this.CELL_SIZE * 0.7);
@@ -361,6 +382,60 @@ const Renderer = {
                 }
             }
         }
+
+        this.ctx.restore();
+
+        // After main draw, update Minimap
+        this.drawMinimap(gameState, myId, VISUALS, maxElevation);
+    },
+
+    drawMinimap(gameState, myId, VISUALS, maxElevation) {
+        if (!this.minimapCtx || !this.minimapCanvas) return;
+
+        const ctx = this.minimapCtx;
+        const width = this.minimapCanvas.width;
+        const height = this.minimapCanvas.height;
+        const miniCellSize = width / this.GRID_SIZE;
+
+        ctx.clearRect(0, 0, width, height);
+
+        // Draw Terrain (Simplified)
+        for (let y = 0; y < this.GRID_SIZE; y++) {
+            for (let x = 0; x < this.GRID_SIZE; x++) {
+                const terrain = gameState.terrainMap[y][x];
+
+                // Simplified Elevation Color
+                if (terrain.id === 'water') {
+                    ctx.fillStyle = '#85c1e9'; // Water Blue
+                } else if (terrain.id === 'wall') {
+                    ctx.fillStyle = '#7f8c8d'; // Wall Gray
+                } else if (terrain.id === 'forest') {
+                    ctx.fillStyle = '#27ae60'; // Forest Green
+                } else {
+                    // Ground Height scaling
+                    const factor = Math.max(0, Math.min(1, terrain.height / maxElevation));
+                    // Interpolate simplified colors for speed/clarity
+                    ctx.fillStyle = this.interpolateColor('#66bb6a', '#ffffff', factor);
+                }
+                ctx.fillRect(x * miniCellSize, y * miniCellSize, miniCellSize, miniCellSize);
+
+                // Draw Units as Dots
+                const entity = gameState.grid[y][x];
+                if (entity) {
+                    const ownerData = gameState.players[entity.owner];
+                    ctx.fillStyle = ownerData ? ownerData.color : '#999';
+                    // Draw a slightly smaller rect/dot
+                    ctx.fillRect(x * miniCellSize + 1, y * miniCellSize + 1, miniCellSize - 2, miniCellSize - 2);
+                }
+            }
+        }
+
+        // Draw Viewport Rect (The area currently visible)
+        // With zoom, we assume panning is not yet implemented (centered zoom),
+        // OR if simple scaling, the viewport is always "all", but scaled.
+        // If "Zoomable Grid" means scaling the canvas, the viewport doesn't change relative to the grid content, just size.
+        // However, standard minimaps often show a camera rect.
+        // For now, since panning isn't fully implemented in logic, just the drawing.
     },
 
     // Draws the yellow perimeter around a commander's influence range

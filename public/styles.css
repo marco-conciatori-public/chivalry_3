@@ -240,14 +240,29 @@ body {
 
 .canvas-wrapper {
     position: relative;
+    /* Added to contain absolute positioned children like minimap */
+    display: inline-block;
 }
 
-canvas {
+canvas#gameCanvas {
     border: 2px solid #333;
     cursor: pointer;
     background-color: #fff;
     max-height: 80vh; /* Prevent it from being too tall */
     width: auto;
+    display: block; /* Remove bottom spacing */
+}
+
+/* Minimap Styles */
+canvas#minimap {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    border: 2px solid #444;
+    background: rgba(0, 0, 0, 0.5); /* Semi-transparent background */
+    box-shadow: 0 0 5px rgba(0,0,0,0.5);
+    z-index: 150; /* Above game canvas, below modal */
+    pointer-events: none; /* Let clicks pass through if needed, though usually we want interactions elsewhere */
 }
 
 /* Overlay Layer */

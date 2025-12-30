@@ -1,6 +1,7 @@
 // MAIN CLIENT LOGIC
 const socket = io();
 const canvas = document.getElementById('gameCanvas');
+const minimapCanvas = document.getElementById('minimap');
 const ctx = canvas.getContext('2d');
 
 // State
@@ -45,8 +46,8 @@ socket.on('init', (data) => {
     // Update Grid Config
     if (localState.grid) {
         GRID_SIZE = localState.grid.length;
-        // Re-initialize Renderer with new grid size
-        Renderer.init(ctx, GRID_SIZE, canvas.width);
+        // Re-initialize Renderer with new grid size AND minimap
+        Renderer.init(ctx, GRID_SIZE, canvas.width, minimapCanvas);
     }
 
     // Handle Setup Screen Visibility based on Game State
@@ -126,7 +127,7 @@ socket.on('combatResults', (data) => {
     if (data.events) {
         data.events.forEach(ev => {
             if (ev.type === 'damage' || ev.type === 'death') {
-                UiManager.showFloatingText(ev.x, ev.y, ev.value, ev.color || 'red', Renderer.CELL_SIZE);
+                UiManager.showFloatingText(ev.x, ev.y, ev.value, ev.color || 'red', Renderer.CELL_SIZE * Renderer.getZoom());
             }
         });
     }
@@ -337,6 +338,16 @@ function getReachableCells(start, maxDist, grid, terrainMap) {
 
 // --- INPUT LISTENERS ---
 
+// ZOOM LISTENER (Mouse Wheel)
+canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const currentZoom = Renderer.getZoom();
+    const delta = Math.sign(e.deltaY) * -0.1; // -0.1 for zoom in/out speed
+    const newZoom = currentZoom + delta;
+    Renderer.setZoom(newZoom);
+    renderGame();
+});
+
 document.getElementById('end-turn-btn').addEventListener('click', () => {
     socket.emit('endTurn');
     resetSelection();
@@ -369,8 +380,10 @@ canvas.addEventListener('click', (e) => {
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
 
-    const x = Math.floor(((e.clientX - rect.left) * scaleX) / Renderer.CELL_SIZE);
-    const y = Math.floor(((e.clientY - rect.top) * scaleY) / Renderer.CELL_SIZE);
+    // Apply Zoom to Coordinate Calculation
+    const zoom = Renderer.getZoom();
+    const x = Math.floor(((e.clientX - rect.left) * scaleX) / (Renderer.CELL_SIZE * zoom));
+    const y = Math.floor(((e.clientY - rect.top) * scaleY) / (Renderer.CELL_SIZE * zoom));
 
     if (x < 0 || x >= GRID_SIZE || y < 0 || y >= GRID_SIZE) {
         resetSelection();
@@ -425,7 +438,7 @@ canvas.addEventListener('click', (e) => {
     if (clickedEntity && selectedCell && selectedCell.x === x && selectedCell.y === y) {
         if (clickedEntity.owner === myId && localState.turn === myId) {
             if (clickedEntity.is_fleeing) return;
-            UiManager.showContextMenu(e.clientX, e.clientY, clickedEntity, selectedCell, Renderer.CELL_SIZE);
+            UiManager.showContextMenu(e.clientX, e.clientY, clickedEntity, selectedCell, Renderer.CELL_SIZE * zoom);
             interactionState = 'MENU';
         }
         renderGame();
@@ -473,8 +486,10 @@ canvas.addEventListener('mousemove', (e) => {
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
 
-    const x = Math.floor(((e.clientX - rect.left) * scaleX) / Renderer.CELL_SIZE);
-    const y = Math.floor(((e.clientY - rect.top) * scaleY) / Renderer.CELL_SIZE);
+    // Apply Zoom
+    const zoom = Renderer.getZoom();
+    const x = Math.floor(((e.clientX - rect.left) * scaleX) / (Renderer.CELL_SIZE * zoom));
+    const y = Math.floor(((e.clientY - rect.top) * scaleY) / (Renderer.CELL_SIZE * zoom));
 
     if (x >= 0 && x < GRID_SIZE && y >= 0 && y < GRID_SIZE && localState.terrainMap) {
         const terrain = localState.terrainMap[y][x];
