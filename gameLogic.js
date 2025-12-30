@@ -217,6 +217,12 @@ function performCombat(attacker, attackerPos, defender, defenderPos, isRetaliati
             doRetaliate = true;
             // Calculate damage using current state (health) before receiving damage
             retaliationDamage = calculateDamage(defender, defenderPos, attacker, attackerPos, false, gameState.terrainMap);
+
+            // Apply malus if the defender is fleeing
+            if (defender.is_fleeing) {
+                retaliationDamage -= constants.RETALIATION_MALUS_FLEEING;
+                if (retaliationDamage < 0) retaliationDamage = 0;
+            }
         }
     }
 
