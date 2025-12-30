@@ -117,6 +117,20 @@ const Renderer = {
 
         this.ctx.clearRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
 
+        // Visual Configuration from Constants
+        const VISUALS = gameConstants.VISUALS || {
+            HEIGHT_LOW: '#66bb6a', HEIGHT_HIGH: '#8d6e63', HEIGHT_PEAK: '#ffffff',
+            STREET_LOW: '#e0e0e0', STREET_HIGH: '#424242',
+            SELECTION_FILL: "rgba(255, 215, 0, 0.4)", SELECTION_STROKE: "gold",
+            ATTACK_RANGE_FILL: "rgba(255, 0, 0, 0.2)", ATTACK_TARGET_STROKE: "red",
+            MOVEMENT_FILL: "rgba(46, 204, 113, 0.4)", MOVEMENT_DOT: "rgba(255, 255, 255, 0.8)",
+            GRID_LINES: "rgba(0,0,0,0.1)", COMMANDER_AURA_FILL: "rgba(241, 196, 15, 0.1)",
+            COMMANDER_AURA_STROKE: "#f1c40f", FACING_ACTIVE: "#FFD700", FACING_INACTIVE: "#555",
+            FACING_STROKE: "#000", ROTATION_ARROW: "rgba(0, 0, 0, 0.5)", HEALTH_BAR_BG: "red",
+            HEALTH_BAR_FG: "#2ecc71", TEXT_COLOR: "#000", TEXT_HEIGHT_COLOR: "rgba(0,0,0,0.2)",
+            DEFAULT_OWNER: "#999"
+        };
+
         // Dynamic Font
         const fontSize = Math.floor(this.CELL_SIZE * 0.7);
         const maxElevation = gameConstants ? gameConstants.MAX_ELEVATION : 5;
@@ -132,25 +146,28 @@ const Renderer = {
                     if (terrain.id === 'water') {
                         // Keep base water color
                         this.ctx.fillStyle = baseColor;
+                    } else if (terrain.id === 'street') {
+                        // Street Logic: Gray scale based on height
+                        const h = terrain.height;
+                        const maxH = maxElevation;
+
+                        // Calculate factor based on height relative to max elevation
+                        const factor = Math.max(0, Math.min(1, h / maxH));
+                        this.ctx.fillStyle = this.interpolateColor(VISUALS.STREET_LOW, VISUALS.STREET_HIGH, factor);
+
                     } else {
                         // Gradient Logic: Green -> Brown -> White
                         const h = terrain.height;
-                        const maxH = maxElevation; // Should be 5
-
-                        // Colors
-                        const C_LOW = '#66bb6a';   // Green (Height 0) - Nice Grass Green
-                        const C_HIGH = '#8d6e63';  // Brown (Height Max-1) - Earthy Brown
-                        const C_PEAK = '#ffffff';  // White (Height Max)
+                        const maxH = maxElevation;
 
                         // If height >= maxElevation (including walls at 6, 7 etc), use Peak White
                         if (h >= maxH) {
-                            this.ctx.fillStyle = C_PEAK;
+                            this.ctx.fillStyle = VISUALS.HEIGHT_PEAK;
                         } else {
-                            // Interpolate between Low and High (0 to 4)
-                            // h goes from 0 to maxH - 1
+                            // Interpolate between Low and High
                             const range = Math.max(1, maxH - 1);
                             const factor = Math.max(0, Math.min(1, h / range));
-                            this.ctx.fillStyle = this.interpolateColor(C_LOW, C_HIGH, factor);
+                            this.ctx.fillStyle = this.interpolateColor(VISUALS.HEIGHT_LOW, VISUALS.HEIGHT_HIGH, factor);
                         }
                     }
 
@@ -158,7 +175,7 @@ const Renderer = {
 
                     // Draw Height Number (Subtle) for clarity
                     if (terrain.id !== 'water' && this.CELL_SIZE > 20) {
-                        this.ctx.fillStyle = "rgba(0,0,0,0.2)";
+                        this.ctx.fillStyle = VISUALS.TEXT_HEIGHT_COLOR;
                         this.ctx.font = `${Math.floor(this.CELL_SIZE * 0.25)}px Arial`;
                         this.ctx.textAlign = "right";
                         this.ctx.textBaseline = "bottom";
@@ -203,7 +220,7 @@ const Renderer = {
                 if (this.images[terrain.id]) {
                     this.ctx.drawImage(this.images[terrain.id], x * this.CELL_SIZE, y * this.CELL_SIZE, this.CELL_SIZE, this.CELL_SIZE);
                 } else if (terrain.symbol) {
-                    this.drawTerrainSymbol(terrain.symbol, x, y, fontSize);
+                    this.drawTerrainSymbol(terrain.symbol, x, y, fontSize, 1, VISUALS);
                 }
             }
         }
@@ -216,7 +233,7 @@ const Renderer = {
             // Check if unit exists and is a commander (friendly or enemy)
             if (unit && unit.is_commander) {
                 const range = gameConstants.COMMANDER_INFLUENCE_RANGE || 4;
-                this.drawCommanderAura(selectedCell.x, selectedCell.y, range);
+                this.drawCommanderAura(selectedCell.x, selectedCell.y, range, VISUALS);
             }
         }
 
@@ -225,9 +242,9 @@ const Renderer = {
 
                 // 1. Selection Highlight
                 if (selectedCell && selectedCell.x === x && selectedCell.y === y) {
-                    this.ctx.fillStyle = "rgba(255, 215, 0, 0.4)";
+                    this.ctx.fillStyle = VISUALS.SELECTION_FILL;
                     this.ctx.fillRect(x * this.CELL_SIZE, y * this.CELL_SIZE, this.CELL_SIZE, this.CELL_SIZE);
-                    this.ctx.strokeStyle = "gold";
+                    this.ctx.strokeStyle = VISUALS.SELECTION_STROKE;
                     this.ctx.lineWidth = 3;
                     this.ctx.strokeRect(x * this.CELL_SIZE, y * this.CELL_SIZE, this.CELL_SIZE, this.CELL_SIZE);
                     this.ctx.lineWidth = 1;
@@ -238,18 +255,18 @@ const Renderer = {
                     const dx = x - selectedCell.x;
                     const dy = y - selectedCell.y;
                     if (Math.abs(dx) + Math.abs(dy) === 1) {
-                        this.drawRotationArrow(x, y, dx, dy);
+                        this.drawRotationArrow(x, y, dx, dy, VISUALS);
                     }
                 }
                 else if (interactionState === 'ATTACK_TARGETING') {
                     const isInRange = cellsInAttackRange.some(c => c.x === x && c.y === y);
                     if (isInRange) {
-                        this.ctx.fillStyle = "rgba(255, 0, 0, 0.2)";
+                        this.ctx.fillStyle = VISUALS.ATTACK_RANGE_FILL;
                         this.ctx.fillRect(x * this.CELL_SIZE, y * this.CELL_SIZE, this.CELL_SIZE, this.CELL_SIZE);
                     }
                     const isTarget = validAttackTargets.some(t => t.x === x && t.y === y);
                     if (isTarget) {
-                        this.ctx.strokeStyle = "red";
+                        this.ctx.strokeStyle = VISUALS.ATTACK_TARGET_STROKE;
                         this.ctx.lineWidth = 3;
                         this.ctx.setLineDash([5, 5]);
                         this.ctx.strokeRect(x * this.CELL_SIZE + 2, y * this.CELL_SIZE + 2, this.CELL_SIZE - 4, this.CELL_SIZE - 4);
@@ -261,35 +278,31 @@ const Renderer = {
                     const isReachable = validMoves.some(m => m.x === x && m.y === y);
                     const entityAtCell = gameState.grid[y][x];
 
-                    // Check for Ranged Unit Attack Range Display
                     let showAttackRange = false;
                     if (selectedCell) {
                         const selectedUnit = gameState.grid[selectedCell.y][selectedCell.x];
-                        // If it's a ranged unit, check the range
-                        // Note: We rely on cellsInAttackRange being populated correctly in game.js
-                        // based on whether we are commanding or inspecting the unit.
                         if (selectedUnit && selectedUnit.is_ranged) {
                             showAttackRange = cellsInAttackRange.some(c => c.x === x && c.y === y);
                         }
                     }
 
-                    // Priority: Movement (Green) > Attack Range (Red)
+                    // Priority: Movement > Attack Range
                     if (selectedCell && isReachable && !entityAtCell) {
-                        this.ctx.fillStyle = "rgba(46, 204, 113, 0.4)";
+                        this.ctx.fillStyle = VISUALS.MOVEMENT_FILL;
                         this.ctx.fillRect(x * this.CELL_SIZE, y * this.CELL_SIZE, this.CELL_SIZE, this.CELL_SIZE);
                         this.ctx.beginPath();
                         this.ctx.arc(x * this.CELL_SIZE + this.CELL_SIZE/2, y * this.CELL_SIZE + this.CELL_SIZE/2, 4, 0, Math.PI * 2);
-                        this.ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
+                        this.ctx.fillStyle = VISUALS.MOVEMENT_DOT;
                         this.ctx.fill();
                     } else if (showAttackRange) {
                         // Draw Attack Range
-                        this.ctx.fillStyle = "rgba(255, 0, 0, 0.2)";
+                        this.ctx.fillStyle = VISUALS.ATTACK_RANGE_FILL;
                         this.ctx.fillRect(x * this.CELL_SIZE, y * this.CELL_SIZE, this.CELL_SIZE, this.CELL_SIZE);
                     }
                 }
 
                 // Grid Lines
-                this.ctx.strokeStyle = "rgba(0,0,0,0.1)";
+                this.ctx.strokeStyle = VISUALS.GRID_LINES;
                 this.ctx.strokeRect(x * this.CELL_SIZE, y * this.CELL_SIZE, this.CELL_SIZE, this.CELL_SIZE);
             }
         }
@@ -301,7 +314,7 @@ const Renderer = {
 
                 if (entity) {
                     const ownerData = gameState.players[entity.owner];
-                    const color = ownerData ? ownerData.color : '#999';
+                    const color = ownerData ? ownerData.color : VISUALS.DEFAULT_OWNER;
 
                     // Unit Background
                     this.ctx.globalAlpha = 0.4;
@@ -318,7 +331,7 @@ const Renderer = {
                         this.ctx.drawImage(this.images[entity.type], x * this.CELL_SIZE + 2, y * this.CELL_SIZE + 2, this.CELL_SIZE - 4, this.CELL_SIZE - 4);
                     } else {
                         // Fallback to text icon
-                        this.ctx.fillStyle = "#000";
+                        this.ctx.fillStyle = VISUALS.TEXT_COLOR;
                         this.ctx.font = `${fontSize + 2}px Arial`;
                         this.ctx.textAlign = "center";
                         this.ctx.textBaseline = "middle";
@@ -341,8 +354,8 @@ const Renderer = {
                         this.ctx.fillText("🏳️", centerX + (fontSize * 0.5), centerY - (fontSize * 0.5));
                     }
 
-                    this.drawFacingIndicator(x, y, entity.facing_direction, entity.remainingMovement > 0);
-                    this.drawHealthBar(x, y, entity.current_health, entity.max_health);
+                    this.drawFacingIndicator(x, y, entity.facing_direction, entity.remainingMovement > 0, VISUALS);
+                    this.drawHealthBar(x, y, entity.current_health, entity.max_health, VISUALS);
 
                     this.ctx.globalAlpha = 1.0;
                 }
@@ -351,9 +364,9 @@ const Renderer = {
     },
 
     // Draws the yellow perimeter around a commander's influence range
-    drawCommanderAura(cx, cy, range) {
+    drawCommanderAura(cx, cy, range, visuals) {
         this.ctx.save();
-        this.ctx.strokeStyle = "#f1c40f"; // Yellow
+        this.ctx.strokeStyle = visuals.COMMANDER_AURA_STROKE;
         this.ctx.lineWidth = 3;
         this.ctx.lineCap = "round";
 
@@ -363,7 +376,7 @@ const Renderer = {
         const maxY = Math.min(this.GRID_SIZE - 1, cy + range);
 
         // First pass: Draw faint fill
-        this.ctx.fillStyle = "rgba(241, 196, 15, 0.1)";
+        this.ctx.fillStyle = visuals.COMMANDER_AURA_FILL;
         for (let y = minY; y <= maxY; y++) {
             for (let x = minX; x <= maxX; x++) {
                 if (Math.abs(x - cx) + Math.abs(y - cy) <= range) {
@@ -434,13 +447,13 @@ const Renderer = {
         return true;
     },
 
-    drawTerrainSymbol(symbol, x, y, fontSize, size = 1) {
+    drawTerrainSymbol(symbol, x, y, fontSize, size = 1, visuals) {
         this.ctx.save();
         this.ctx.globalAlpha = 0.4;
         this.ctx.font = `${fontSize}px Arial`;
         this.ctx.textAlign = "center";
         this.ctx.textBaseline = "middle";
-        this.ctx.fillStyle = "#000";
+        this.ctx.fillStyle = visuals.TEXT_COLOR;
         // Calculate center based on size (1 cell or multiple cells)
         const centerX = x * this.CELL_SIZE + (this.CELL_SIZE * size) / 2;
         const centerY = y * this.CELL_SIZE + (this.CELL_SIZE * size) / 2;
@@ -448,7 +461,7 @@ const Renderer = {
         this.ctx.restore();
     },
 
-    drawFacingIndicator(gridX, gridY, direction, isActive) {
+    drawFacingIndicator(gridX, gridY, direction, isActive, visuals) {
         const cx = gridX * this.CELL_SIZE + (this.CELL_SIZE / 2);
         const cy = gridY * this.CELL_SIZE + (this.CELL_SIZE / 2);
         const radius = this.CELL_SIZE / 2.2;
@@ -468,15 +481,15 @@ const Renderer = {
         this.ctx.lineTo(radius - 8, -6);
         this.ctx.lineTo(radius - 8, 6);
         this.ctx.closePath();
-        this.ctx.fillStyle = isActive ? "#FFD700" : "#555";
+        this.ctx.fillStyle = isActive ? visuals.FACING_ACTIVE : visuals.FACING_INACTIVE;
         this.ctx.fill();
-        this.ctx.strokeStyle = "#000";
+        this.ctx.strokeStyle = visuals.FACING_STROKE;
         this.ctx.lineWidth = 2;
         this.ctx.stroke();
         this.ctx.restore();
     },
 
-    drawRotationArrow(gridX, gridY, dx, dy) {
+    drawRotationArrow(gridX, gridY, dx, dy, visuals) {
         const cx = gridX * this.CELL_SIZE + (this.CELL_SIZE / 2);
         const cy = gridY * this.CELL_SIZE + (this.CELL_SIZE / 2);
 
@@ -490,7 +503,7 @@ const Renderer = {
         if (dy === -1) rotation = -Math.PI/2;
 
         this.ctx.rotate(rotation);
-        this.ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+        this.ctx.fillStyle = visuals.ROTATION_ARROW;
         this.ctx.beginPath();
         this.ctx.moveTo(10, 0);
         this.ctx.lineTo(-5, 7);
@@ -499,15 +512,15 @@ const Renderer = {
         this.ctx.restore();
     },
 
-    drawHealthBar(gridX, gridY, current, max) {
+    drawHealthBar(gridX, gridY, current, max, visuals) {
         const barWidth = this.CELL_SIZE - 4;
         const barHeight = 2;
         const x = gridX * this.CELL_SIZE + 2;
         const y = gridY * this.CELL_SIZE + this.CELL_SIZE - 4;
         const pct = Math.max(0, current / max);
-        this.ctx.fillStyle = "red";
+        this.ctx.fillStyle = visuals.HEALTH_BAR_BG;
         this.ctx.fillRect(x, y, barWidth, barHeight);
-        this.ctx.fillStyle = "#2ecc71";
+        this.ctx.fillStyle = visuals.HEALTH_BAR_FG;
         this.ctx.fillRect(x, y, barWidth * pct, barHeight);
     }
 };

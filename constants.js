@@ -38,6 +38,42 @@ module.exports = {
     HEIGHT_DIFFERENCE_LIMIT: 1,      // Max height difference allowed for movement
     MOVEMENT_COST_HEIGHT_PENALTY: 1, // Extra cost per height level when moving UP
 
+    // Visual / Renderer Configuration
+    VISUALS: {
+        HEIGHT_LOW: '#66bb6a',   // Green
+        HEIGHT_HIGH: '#8d6e63',  // Brown
+        HEIGHT_PEAK: '#ffffff',  // White
+        STREET_LOW: '#e0e0e0',   // Light Gray
+        STREET_HIGH: '#424242',  // Dark Gray
+
+        SELECTION_FILL: "rgba(255, 215, 0, 0.4)",
+        SELECTION_STROKE: "gold",
+
+        ATTACK_RANGE_FILL: "rgba(255, 0, 0, 0.2)",
+        ATTACK_TARGET_STROKE: "red",
+
+        MOVEMENT_FILL: "rgba(46, 204, 113, 0.4)",
+        MOVEMENT_DOT: "rgba(255, 255, 255, 0.8)",
+
+        GRID_LINES: "rgba(0,0,0,0.1)",
+        DEFAULT_OWNER: "#999",
+
+        COMMANDER_AURA_FILL: "rgba(241, 196, 15, 0.1)",
+        COMMANDER_AURA_STROKE: "#f1c40f",
+
+        FACING_ACTIVE: "#FFD700",
+        FACING_INACTIVE: "#555",
+        FACING_STROKE: "#000",
+
+        ROTATION_ARROW: "rgba(0, 0, 0, 0.5)",
+
+        HEALTH_BAR_BG: "red",
+        HEALTH_BAR_FG: "#2ecc71",
+
+        TEXT_COLOR: "#000",
+        TEXT_HEIGHT_COLOR: "rgba(0,0,0,0.2)"
+    },
+
     // Map Generation Configuration
     MAP_GEN: {
         SPAWN_ZONE_HEIGHT: 2,      // Top/Bottom rows reserved for spawning
