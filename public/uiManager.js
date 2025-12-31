@@ -57,6 +57,21 @@ const UiManager = {
                 }
             });
         }
+
+        // Initialize Collapsible Panels
+        this.initCollapsibles();
+    },
+
+    initCollapsibles() {
+        document.querySelectorAll('.panel-header').forEach(header => {
+            header.addEventListener('click', () => {
+                const content = header.nextElementSibling;
+                if (content && content.classList.contains('panel-content')) {
+                    content.classList.toggle('hidden');
+                    header.classList.toggle('collapsed');
+                }
+            });
+        });
     },
 
     setConstants(constants) {

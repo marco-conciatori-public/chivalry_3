@@ -50,8 +50,16 @@
 
         <div id="connection-status" class="connection-status">Connecting...</div>
 
-        <h3>Players</h3>
-        <ul id="player-list"></ul>
+        <!-- Collapsible Player List -->
+        <div class="panel-section">
+            <div class="panel-header">
+                <h3>Players</h3>
+                <span class="toggle-icon">▼</span>
+            </div>
+            <div class="panel-content">
+                <ul id="player-list"></ul>
+            </div>
+        </div>
 
         <div id="log-panel">
             <h3 class="log-header">Battle Log</h3>
@@ -61,8 +69,6 @@
 
     <!-- CENTER: Game Board -->
     <div id="game-area">
-        <!-- Status removed from here -->
-
         <!-- Floating Text Overlay -->
         <div id="overlay-layer" class="overlay-layer"></div>
 
@@ -80,8 +86,6 @@
             </div>
         </div>
 
-        <!-- Toolbar removed from here and moved to right panel -->
-
         <p class="instructions">
             Click to Move/Select. Right-click or Menu to Attack/Rotate.<br>
             Scroll to Zoom. Spawn units during your turn in your base.
@@ -90,26 +94,40 @@
 
     <!-- RIGHT: Recruitment & Stats -->
     <div id="right-panel">
-        <h3>Recruitment</h3>
-        <div id="toolbar">
-            <!-- New Units Templates -->
-            <div class="template" data-type="light_infantry">Light Inf</div>
-            <div class="template" data-type="heavy_infantry">Heavy Inf</div>
-            <div class="template" data-type="archer">Archer</div>
-            <div class="template" data-type="light_cavalry">Light Cav</div>
-            <div class="template" data-type="heavy_cavalry">Heavy Cav</div>
-            <div class="template" data-type="spearman">Spearman</div>
-            <div class="template" data-type="catapult">Catapult</div>
+
+        <!-- Collapsible Recruitment -->
+        <div class="panel-section">
+            <div class="panel-header">
+                <h3>Recruitment</h3>
+                <span class="toggle-icon">▼</span>
+            </div>
+            <div class="panel-content">
+                <div id="toolbar">
+                    <!-- New Units Templates -->
+                    <div class="template" data-type="light_infantry">Light Inf</div>
+                    <div class="template" data-type="heavy_infantry">Heavy Inf</div>
+                    <div class="template" data-type="archer">Archer</div>
+                    <div class="template" data-type="light_cavalry">Light Cav</div>
+                    <div class="template" data-type="heavy_cavalry">Heavy Cav</div>
+                    <div class="template" data-type="spearman">Spearman</div>
+                    <div class="template" data-type="catapult">Catapult</div>
+                </div>
+            </div>
         </div>
 
-        <div class="spacer"></div>
-
-        <h3>Troop stats</h3>
-        <div id="unit-info-panel" class="info-panel">
-            <div id="unit-info-content"><em>Click a unit to see details</em></div>
+        <!-- Collapsible Troop Stats -->
+        <div class="panel-section">
+            <div class="panel-header">
+                <h3>Troop Stats</h3>
+                <span class="toggle-icon">▼</span>
+            </div>
+            <div class="panel-content">
+                <div id="unit-info-panel" class="info-panel">
+                    <div id="unit-info-content"><em>Click a unit to see details</em></div>
+                </div>
+            </div>
         </div>
 
-        <!-- Terrain Info Panel Removed -->
     </div>
 </div>
 

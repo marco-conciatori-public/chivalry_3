@@ -141,10 +141,65 @@ body {
     flex-shrink: 0;
 }
 
+/* --- NEW FOLDABLE PANEL STYLES --- */
+.panel-section {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    margin-bottom: 15px;
+    overflow: hidden; /* Ensures content clips when folded if using max-height animation, or just for rounded corners */
+}
+
+.panel-header {
+    background: #f1f2f6;
+    padding: 10px 15px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    user-select: none;
+    border-bottom: 1px solid #ddd;
+    transition: background 0.2s;
+}
+
+.panel-header:hover {
+    background: #e1e2e6;
+}
+
+.panel-header h3 {
+    margin: 0;
+    font-size: 1em;
+    color: #333;
+    font-weight: 600;
+}
+
+.toggle-icon {
+    font-size: 0.8em;
+    color: #666;
+    transition: transform 0.3s;
+}
+
+/* Rotate icon when content is hidden (header has 'collapsed' class) */
+.panel-header.collapsed .toggle-icon {
+    transform: rotate(-90deg);
+}
+
+.panel-header.collapsed {
+    border-bottom: none; /* Remove border when closed */
+}
+
+.panel-content {
+    padding: 10px;
+}
+
+.panel-content.hidden {
+    display: none;
+}
+
 #player-list {
     list-style: none;
     padding: 0;
-    margin: 10px 0;
+    margin: 0;
 }
 
 .player-item {
@@ -154,6 +209,9 @@ body {
     padding: 8px;
     border-radius: 6px;
     background: #f8f9fa;
+}
+.player-item:last-child {
+    margin-bottom: 0;
 }
 
 .player-color-box {
@@ -179,11 +237,9 @@ body {
 
 /* Info Panels (Unit & Cell) */
 .info-panel {
-    padding: 10px;
-    background: #f9f9f9;
-    border: 1px solid #eee;
-    border-radius: 6px;
-    margin-bottom: 15px;
+    /* Removed padding/bg here as it's now inside panel-content */
+    background: transparent;
+    border: none;
     min-height: 100px;
     font-size: 0.9em;
 }
@@ -192,19 +248,15 @@ body {
     min-height: 150px;
 }
 
-#cell-info-panel {
-    min-height: 100px;
-}
-
 /* Log Panel */
 #log-panel {
     border: 1px solid #ddd;
     border-radius: 6px;
     display: flex;
     flex-direction: column;
-    height: 400px; /* Reduced from 600px to fit with players list */
+    flex-grow: 1; /* Take remaining space */
+    min-height: 200px;
     background: #f9f9f9;
-    margin-top: 10px;
 }
 
 .log-header {
@@ -339,7 +391,7 @@ canvas#minimap {
     display: flex;
     flex-direction: column; /* Vertical stack for side panel */
     gap: 8px;
-    margin-bottom: 20px;
+    /* Margin removed as it's handled by panel padding */
 }
 
 .template {
