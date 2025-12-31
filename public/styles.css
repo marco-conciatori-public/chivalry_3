@@ -104,17 +104,17 @@ body {
 /* Hidden state for modal */
 .hidden { display: none !important; }
 
-/* Left Panel */
+/* Left Panel (Now wider for Battle Log) */
 #left-panel {
-    width: 220px;
+    width: 280px; /* Increased from 220px */
     display: flex;
     flex-direction: column;
     flex-shrink: 0;
 }
 
-/* Right Panel */
+/* Right Panel (Now narrower for Stats) */
 #right-panel {
-    width: 280px;
+    width: 240px; /* Decreased from 280px */
     display: flex;
     flex-direction: column;
     flex-shrink: 0;
@@ -179,11 +179,11 @@ body {
 #log-panel {
     border: 1px solid #ddd;
     border-radius: 6px;
-    flex-grow: 1;
     display: flex;
     flex-direction: column;
-    height: 600px; /* Fixed height to match canvas roughly */
+    height: 400px; /* Reduced from 600px to fit with players list */
     background: #f9f9f9;
+    margin-top: 10px;
 }
 
 .log-header {

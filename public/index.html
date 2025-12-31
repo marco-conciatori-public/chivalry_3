@@ -37,7 +37,7 @@
 </div>
 
 <div id="app-container">
-    <!-- LEFT: Players & Stats -->
+    <!-- LEFT: Players & Battle Log -->
     <div id="left-panel">
         <h2>Chivalry 3</h2>
         <button id="btn-new-game-trigger" class="small-btn">New Game</button>
@@ -46,14 +46,10 @@
         <h3>Players</h3>
         <ul id="player-list"></ul>
 
-        <h3>Troop stats</h3>
-        <div id="unit-info-panel" class="info-panel">
-            <div id="unit-info-content"><em>Click a unit to see details</em></div>
-        </div>
-
-        <h3>Terrain modifiers</h3>
-        <div id="cell-info-panel" class="info-panel">
-            <div id="cell-info-content"><em>Hover over a cell</em></div>
+        <!-- MOVED: Battle Log is now here -->
+        <div id="log-panel">
+            <h3 class="log-header">Battle Log</h3>
+            <div id="log-content"></div>
         </div>
     </div>
 
@@ -97,11 +93,17 @@
         </p>
     </div>
 
-    <!-- RIGHT: Battle Log -->
+    <!-- RIGHT: Stats & Terrain -->
     <div id="right-panel">
-        <div id="log-panel">
-            <h3 class="log-header">Battle Log</h3>
-            <div id="log-content"></div>
+        <!-- MOVED: Info panels are now here -->
+        <h3>Troop stats</h3>
+        <div id="unit-info-panel" class="info-panel">
+            <div id="unit-info-content"><em>Click a unit to see details</em></div>
+        </div>
+
+        <h3>Terrain modifiers</h3>
+        <div id="cell-info-panel" class="info-panel">
+            <div id="cell-info-content"><em>Hover over a cell</em></div>
         </div>
     </div>
 </div>
