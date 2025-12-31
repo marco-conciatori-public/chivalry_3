@@ -41,13 +41,12 @@
     <div id="left-panel">
         <h2>Chivalry 3</h2>
 
-        <!-- MOVED: Status Indicator -->
+        <!-- Status Indicator -->
         <h3 id="status" class="game-status">Waiting for players...</h3>
 
-        <button id="btn-new-game-trigger" class="small-btn">New Game</button>
-
-        <!-- MOVED: End Turn Button -->
-        <button id="end-turn-btn" class="action-btn">END TURN</button>
+        <!-- Standardized Buttons -->
+        <button id="btn-new-game-trigger" class="panel-main-btn btn-blue">New Game</button>
+        <button id="end-turn-btn" class="panel-main-btn btn-red">END TURN</button>
 
         <div id="connection-status" class="connection-status">Connecting...</div>
 
@@ -81,6 +80,17 @@
             </div>
         </div>
 
+        <!-- Toolbar removed from here and moved to right panel -->
+
+        <p class="instructions">
+            Click to Move/Select. Right-click or Menu to Attack/Rotate.<br>
+            Scroll to Zoom. Spawn units during your turn in your base.
+        </p>
+    </div>
+
+    <!-- RIGHT: Recruitment & Stats -->
+    <div id="right-panel">
+        <h3>Recruitment</h3>
         <div id="toolbar">
             <!-- New Units Templates -->
             <div class="template" data-type="light_infantry">Light Inf</div>
@@ -90,18 +100,10 @@
             <div class="template" data-type="heavy_cavalry">Heavy Cav</div>
             <div class="template" data-type="spearman">Spearman</div>
             <div class="template" data-type="catapult">Catapult</div>
-
-            <!-- End Turn Button removed from here -->
         </div>
 
-        <p class="instructions">
-            Click to Move/Select. Right-click or Menu to Attack/Rotate.<br>
-            Scroll to Zoom. Spawn units during your turn in your base.
-        </p>
-    </div>
+        <div class="spacer"></div>
 
-    <!-- RIGHT: Stats & Terrain -->
-    <div id="right-panel">
         <h3>Troop stats</h3>
         <div id="unit-info-panel" class="info-panel">
             <div id="unit-info-content"><em>Click a unit to see details</em></div>
