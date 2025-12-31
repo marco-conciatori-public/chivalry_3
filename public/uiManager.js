@@ -4,7 +4,6 @@ const UiManager = {
         playerList: document.getElementById('player-list'),
         connectionStatus: document.getElementById('connection-status'),
         unitInfoContent: document.getElementById('unit-info-content'),
-        cellInfoContent: document.getElementById('cell-info-content'),
         logContent: document.getElementById('log-content'),
         endTurnBtn: document.getElementById('end-turn-btn'),
         contextMenu: document.getElementById('context-menu'),
@@ -22,7 +21,13 @@ const UiManager = {
     currentAttackBreakdown: null,
     currentDefenseBreakdown: null,
     tooltipEl: null,
+    cellTooltipEl: null, // New Tooltip for Cells
     gameConstants: null,
+
+    // Timer state for Cell Tooltip
+    cellHoverTimer: null,
+    lastHoveredCell: { x: -1, y: -1 },
+    lastMousePos: { x: 0, y: 0 },
 
     // Definitions for Ability Tooltips
     abilityDescriptions: {
@@ -32,11 +37,17 @@ const UiManager = {
     },
 
     init() {
-        // Create Tooltip
+        // Create General Tooltip (Morale, Abilities)
         this.tooltipEl = document.createElement('div');
         this.tooltipEl.id = 'morale-tooltip';
         this.tooltipEl.style.display = 'none';
         document.body.appendChild(this.tooltipEl);
+
+        // Create Cell Info Tooltip
+        this.cellTooltipEl = document.createElement('div');
+        this.cellTooltipEl.id = 'cell-tooltip';
+        this.cellTooltipEl.style.display = 'none';
+        document.body.appendChild(this.cellTooltipEl);
 
         // Setup Screen listeners are wired in game.js, but we provide methods here
         if (this.elements.btnNewGameTrigger) {
@@ -197,7 +208,7 @@ const UiManager = {
                 if (myPlayer.gold < stats.cost) el.classList.add('disabled');
                 else el.classList.remove('disabled');
 
-                // UPDATED: Icons for new units
+                // Icons for new units
                 let icon = '❓';
                 if (type === 'light_infantry') icon = '⚔️';
                 else if (type === 'heavy_infantry') icon = '🛡️';
@@ -210,42 +221,80 @@ const UiManager = {
                 // Format Name
                 const name = type.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 
-                el.innerHTML = `${icon} ${name} <span style="font-size:0.8em; color:#666;">(${stats.cost}g)</span>`;
+                el.innerHTML = `<div>${icon} ${name}</div> <span style="font-size:0.8em; color:#666;">${stats.cost}g</span>`;
             }
         });
     },
 
-    updateCellInfo(terrain, x, y) {
+    // --- CELL TOOLTIP LOGIC ---
+
+    hideCellTooltip() {
+        if (this.cellHoverTimer) {
+            clearTimeout(this.cellHoverTimer);
+            this.cellHoverTimer = null;
+        }
+        this.cellTooltipEl.style.display = 'none';
+        this.lastHoveredCell = { x: -1, y: -1 };
+    },
+
+    updateCellInfo(terrain, x, y, pageX, pageY) {
+        // If mouse left the canvas (terrain is null)
         if (!terrain) {
-            this.elements.cellInfoContent.innerHTML = '<em>Hover over a cell</em>';
+            this.hideCellTooltip();
             return;
         }
 
-        const formatStat = (label, value) => `<div class="stat-row"><span>${label}:</span> <strong>${value}</strong></div>`;
+        // Check if we are hovering the same cell as before
+        if (this.lastHoveredCell.x === x && this.lastHoveredCell.y === y) {
+            // We are moving within the same cell.
+            // Update the last known mouse position so the tooltip pops up at the current location.
+            this.lastMousePos = { x: pageX, y: pageY };
+            return;
+        }
+
+        // New Cell: Reset everything
+        this.hideCellTooltip();
+        this.lastHoveredCell = { x, y };
+        this.lastMousePos = { x: pageX, y: pageY };
+
+        // Start Delay Timer
+        this.cellHoverTimer = setTimeout(() => {
+            this.showCellTooltip(terrain, x, y);
+        }, 1000); // 1 Second Delay
+    },
+
+    showCellTooltip(terrain, x, y) {
+        if (!terrain) return;
+
+        const formatStat = (label, value) => `<div class="tooltip-row"><span>${label}:</span> <span style="font-weight:bold">${value}</span></div>`;
 
         let effects = [];
         if (terrain.blocksLos) effects.push(`Blocks Sight`);
-        if (terrain.cover > 0) effects.push(`Cover (+${terrain.cover}% vs Ranged)`);
+        if (terrain.cover > 0) effects.push(`Cover (+${terrain.cover}%)`);
 
-        let effectsHtml = effects.length > 0 ? effects.join(', ') : '';
-
-        // Only show footer if there are effects
-        let footerHtml = '';
+        let effectsHtml = '';
         if (effects.length > 0) {
-            footerHtml = `
-            <hr style="border: 0; border-top: 1px solid #eee; margin: 8px 0;">
-            <div style="font-size: 0.9em; color: #555;">${effectsHtml}</div>
+            effectsHtml = `
+            <div style="margin-top:5px; padding-top:5px; border-top:1px solid #555; font-size: 0.9em; color: #ddd;">
+                ${effects.join(', ')}
+            </div>
             `;
         }
 
-        this.elements.cellInfoContent.innerHTML = `
-            <div style="font-size: 1.1em; font-weight: bold; margin-bottom: 5px;">${terrain.id.toUpperCase()} <span style="font-size:0.8em">(${x},${y})</span></div>
+        this.cellTooltipEl.innerHTML = `
+            <div style="font-weight: bold; margin-bottom: 5px; color:#f1c40f;">${terrain.id.toUpperCase()} <span style="font-size:0.8em; color:#ccc;">(${x},${y})</span></div>
             ${formatStat('Height', terrain.height)}
-            ${formatStat('Move Cost (Base)', terrain.cost)}
-            ${formatStat('Defense Bonus', terrain.defense + '%')}
-            ${footerHtml}
+            ${formatStat('Move Cost', terrain.cost)}
+            ${formatStat('Defense', '+' + terrain.defense + '%')}
+            ${effectsHtml}
         `;
+
+        this.cellTooltipEl.style.display = 'block';
+        this.cellTooltipEl.style.left = `${this.lastMousePos.x + 15}px`;
+        this.cellTooltipEl.style.top = `${this.lastMousePos.y + 15}px`;
     },
+
+    // --- UNIT INFO PANEL ---
 
     updateUnitInfo(entity, isTemplate, selectedTemplate, gameState, selectedCell) {
         this.currentMoraleBreakdown = null;
@@ -263,10 +312,9 @@ const UiManager = {
         let isFleeRisk = false;
 
         if (!isTemplate && entity.morale_breakdown) {
-            // Copy breakdown to avoid mutating the original reference if it's shared (though it should be fresh)
+            // Copy breakdown to avoid mutating the original reference
             this.currentMoraleBreakdown = [...entity.morale_breakdown];
 
-            // --- ADDED: Flee Probability Calculation ---
             if (this.gameConstants && entity.current_morale < this.gameConstants.MORALE_THRESHOLD) {
                 const prob = 1 - (entity.current_morale / this.gameConstants.MORALE_THRESHOLD);
                 const probPct = Math.max(0, Math.min(100, Math.floor(prob * 100)));
@@ -317,8 +365,6 @@ const UiManager = {
         let shieldBonus = entity.shield_bonus || 0;
 
         let dynamicAttackDisplay = attackValue;
-
-        // --- DEFENSE DISPLAY LOGIC ---
         let dynamicDefenseDisplay = defenseValue;
         let terrainDefense = 0;
 
@@ -332,10 +378,6 @@ const UiManager = {
         if (!isTemplate && gameState && gameState.terrainMap && selectedCell) {
             const terrain = gameState.terrainMap[selectedCell.y][selectedCell.x];
             if (terrain) {
-                // NOTE: High Ground Attack bonus is relative to target, so we can't show it as a static bonus here anymore.
-                // We could conceptually show it if we have a target selected, but this function is just for the unit info panel.
-
-                // Defense Bonus (Terrain + Shield)
                 terrainDefense = terrain.defense || 0;
                 const terrainCover = terrain.cover || 0;
 
@@ -343,19 +385,12 @@ const UiManager = {
                 if (terrainDefense > 0) this.currentDefenseBreakdown.push({ label: "Terrain", value: terrainDefense });
                 if (terrainCover > 0) this.currentDefenseBreakdown.push({ label: "Cover (vs Ranged)", value: terrainCover });
             }
-        } else if (shieldBonus > 0 && isTemplate) {
-            // For templates, we acknowledge shield exists in breakdown (not strictly needed as no tooltip for templates, but good logic)
         }
 
-        // --- CALCULATE DISPLAY VALUES ---
-        // Value without bracket: Base + Terrain (everything EXCEPT shield)
         const defenseNoShield = defenseValue + terrainDefense;
-
-        // Value with bracket: Base + Terrain + Shield (everything)
         const totalDefense = defenseValue + terrainDefense + shieldBonus;
 
         if (shieldBonus > 0) {
-            // If shield exists, show: Non-Shielded (Total)
             dynamicDefenseDisplay = `${defenseNoShield} <span style="color:#555; font-size: 0.9em;">(${totalDefense})</span>`;
         } else {
             dynamicDefenseDisplay = `${defenseNoShield}`;
@@ -383,12 +418,10 @@ const UiManager = {
             chargeRow = formatStat('Charge Bonus', entity.charge_bonus);
         }
 
-        // Properly Format Abilities (Hidden if empty) with Tooltip capability on EACH item
         let abilitiesRow = '';
         if (entity.special_abilities && entity.special_abilities.length > 0) {
             const abilitiesHtml = entity.special_abilities.map(ability => {
                 const name = ability.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-                // Use a class to identify these for event binding
                 return `<span class="ability-tag" style="${interactiveStyle} margin-right: 5px;" data-ability="${ability}">${name}</span>`;
             }).join(', ');
 
@@ -418,7 +451,6 @@ const UiManager = {
             ${abilitiesRow}
         `;
 
-        // Attach listeners for INDIVIDUAL ability tooltips
         const abilityTags = this.elements.unitInfoContent.querySelectorAll('.ability-tag');
         abilityTags.forEach(tag => {
             tag.addEventListener('mouseenter', (e) => this.showAbilityTooltip(e, tag.dataset.ability));
@@ -458,17 +490,14 @@ const UiManager = {
         const div = document.createElement('div');
         div.className = 'log-entry';
 
-        // Parse {p:PLAYER_ID} and store ID in data attribute for dynamic updates
         let formattedMsg = msg
             .replace(/{p:([^}]+)}/g, (match, playerId) => {
                 const p = gameState.players[playerId];
                 const name = p ? p.name : 'Unknown';
-                // Store ID for future updates
                 return `<span class="log-player" data-id="${playerId}">${name}</span>`;
             })
             .replace(/{u:([^:]+):(\d+):(\d+):([^}]+)}/g, (match, type, x, y, ownerId) => {
                 const color = gameState.players[ownerId] ? gameState.players[ownerId].color : '#3498db';
-                // Clean up type name for log
                 const cleanType = type.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
                 return `<span class="log-unit" style="color: ${color}" data-x="${x}" data-y="${y}">${cleanType}</span>`;
             });
@@ -491,7 +520,6 @@ const UiManager = {
         const canvas = document.getElementById('gameCanvas');
         if (!canvas) return internalCellSize;
         const rect = canvas.getBoundingClientRect();
-        // Calculate scale factor (Display Width / Internal Width)
         const scale = rect.width / canvas.width;
         return internalCellSize * scale;
     },
@@ -502,12 +530,9 @@ const UiManager = {
         el.innerText = text;
         el.style.color = color;
 
-        // Calculate Visual Scale
         const visualCellSize = this.getVisualCellSize(internalCellSize);
-
         const jitterX = (Math.random() * 20) - 10;
         const jitterY = (Math.random() * 20) - 10;
-
         const left = (gridX * visualCellSize) + (visualCellSize / 2) + jitterX;
         const top = (gridY * visualCellSize) + (visualCellSize / 2) + jitterY;
 
@@ -527,16 +552,12 @@ const UiManager = {
         const gameAreaRect = this.elements.gameArea.getBoundingClientRect();
 
         if (selectedCell) {
-            // Calculate Visual Scale
             const visualCellSize = this.getVisualCellSize(internalCellSize);
-
-            // Position relative to the cell
             const menuLeft = (selectedCell.x * visualCellSize) + visualCellSize + 5;
             const menuTop = (selectedCell.y * visualCellSize);
             this.elements.contextMenu.style.left = `${menuLeft}px`;
             this.elements.contextMenu.style.top = `${menuTop}px`;
         } else {
-            // Position at mouse click (already screen coords)
             this.elements.contextMenu.style.left = `${clientX - gameAreaRect.left}px`;
             this.elements.contextMenu.style.top = `${clientY - gameAreaRect.top}px`;
         }

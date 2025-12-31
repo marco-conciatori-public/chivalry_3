@@ -374,7 +374,8 @@ canvas.addEventListener('mousemove', (e) => {
 
     if (x >= 0 && x < GRID_SIZE && y >= 0 && y < GRID_SIZE && localState.terrainMap) {
         const terrain = localState.terrainMap[y][x];
-        UiManager.updateCellInfo(terrain, x, y);
+        // Pass pageX/pageY for tooltip positioning
+        UiManager.updateCellInfo(terrain, x, y, e.pageX, e.pageY);
     } else {
         UiManager.updateCellInfo(null);
     }

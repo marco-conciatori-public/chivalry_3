@@ -409,7 +409,7 @@ h3 { margin-bottom: 5px; font-size: 1.1em; color: #444; }
 }
 
 /* Tooltips */
-#morale-tooltip {
+#morale-tooltip, #cell-tooltip {
     position: absolute;
     background: rgba(0, 0, 0, 0.9);
     color: white;
