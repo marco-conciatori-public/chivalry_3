@@ -66,9 +66,16 @@ const UiManager = {
         document.querySelectorAll('.panel-header').forEach(header => {
             header.addEventListener('click', () => {
                 const content = header.nextElementSibling;
+                const section = header.parentElement;
+
                 if (content && content.classList.contains('panel-content')) {
                     content.classList.toggle('hidden');
                     header.classList.toggle('collapsed');
+
+                    // Also toggle class on the parent section for layout adjustments (like flex-grow)
+                    if (section && section.classList.contains('panel-section')) {
+                        section.classList.toggle('collapsed-section');
+                    }
                 }
             });
         });

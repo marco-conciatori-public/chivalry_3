@@ -25,7 +25,6 @@ body {
     position: fixed;
     top: 0; left: 0;
     width: 100%; height: 100%;
-    /* UPDATED: Solid background to block view of the game grid */
     background: #f0f2f5;
     display: flex;
     justify-content: center;
@@ -141,13 +140,15 @@ body {
     flex-shrink: 0;
 }
 
-/* --- NEW FOLDABLE PANEL STYLES --- */
+/* --- FOLDABLE PANEL STYLES --- */
 .panel-section {
     background: #fff;
     border: 1px solid #ddd;
     border-radius: 6px;
     margin-bottom: 15px;
-    overflow: hidden; /* Ensures content clips when folded if using max-height animation, or just for rounded corners */
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
 }
 
 .panel-header {
@@ -160,6 +161,7 @@ body {
     user-select: none;
     border-bottom: 1px solid #ddd;
     transition: background 0.2s;
+    flex-shrink: 0; /* Header should not shrink */
 }
 
 .panel-header:hover {
@@ -179,21 +181,41 @@ body {
     transition: transform 0.3s;
 }
 
-/* Rotate icon when content is hidden (header has 'collapsed' class) */
 .panel-header.collapsed .toggle-icon {
     transform: rotate(-90deg);
 }
 
 .panel-header.collapsed {
-    border-bottom: none; /* Remove border when closed */
+    border-bottom: none;
 }
 
 .panel-content {
     padding: 10px;
+    /* Allow resizing logic to happen here */
 }
 
 .panel-content.hidden {
-    display: none;
+    display: none !important;
+}
+
+/* Special Logic for Log Panel to fill space */
+#log-panel-container {
+    flex-grow: 1; /* By default, fill remaining space in left column */
+    min-height: 200px;
+}
+
+/* When collapsed, stop growing and reset min-height */
+#log-panel-container.collapsed-section {
+    flex-grow: 0;
+    min-height: 0;
+}
+
+#log-panel-container .panel-content {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 0; /* No padding for log container */
+    overflow: hidden;
 }
 
 #player-list {
@@ -237,7 +259,6 @@ body {
 
 /* Info Panels (Unit & Cell) */
 .info-panel {
-    /* Removed padding/bg here as it's now inside panel-content */
     background: transparent;
     border: none;
     min-height: 100px;
@@ -248,26 +269,7 @@ body {
     min-height: 150px;
 }
 
-/* Log Panel */
-#log-panel {
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    display: flex;
-    flex-direction: column;
-    flex-grow: 1; /* Take remaining space */
-    min-height: 200px;
-    background: #f9f9f9;
-}
-
-.log-header {
-    margin: 0;
-    padding: 10px;
-    font-size: 1em;
-    background: #eee;
-    border-bottom: 1px solid #ddd;
-    border-radius: 6px 6px 0 0;
-}
-
+/* Log Panel Content */
 #log-content {
     flex-grow: 1;
     overflow-y: auto;
@@ -275,7 +277,24 @@ body {
     padding: 10px;
     color: #333;
     background: #fff;
-    border-radius: 0 0 6px 6px;
+    /* Scrollbar styling for Webkit */
+    scrollbar-width: thin;
+    scrollbar-color: #ccc #f1f1f1;
+}
+
+/* Custom scrollbar for log */
+#log-content::-webkit-scrollbar {
+    width: 8px;
+}
+#log-content::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+#log-content::-webkit-scrollbar-thumb {
+    background: #ccc;
+    border-radius: 4px;
+}
+#log-content::-webkit-scrollbar-thumb:hover {
+    background: #bbb;
 }
 
 .log-entry {
@@ -313,7 +332,6 @@ body {
 
 .canvas-wrapper {
     position: relative;
-    /* Added to contain absolute positioned children like minimap */
     display: inline-block;
 }
 
@@ -321,9 +339,9 @@ canvas#gameCanvas {
     border: 2px solid #333;
     cursor: pointer;
     background-color: #fff;
-    max-height: 80vh; /* Prevent it from being too tall */
+    max-height: 80vh;
     width: auto;
-    display: block; /* Remove bottom spacing */
+    display: block;
 }
 
 /* Minimap Styles */
@@ -332,10 +350,10 @@ canvas#minimap {
     bottom: 10px;
     left: 10px;
     border: 2px solid #444;
-    background: rgba(0, 0, 0, 0.5); /* Semi-transparent background */
+    background: rgba(0, 0, 0, 0.5);
     box-shadow: 0 0 5px rgba(0,0,0,0.5);
-    z-index: 150; /* Above game canvas, below modal */
-    pointer-events: auto; /* UPDATED: Changed from none to auto to allow clicks */
+    z-index: 150;
+    pointer-events: auto;
     cursor: crosshair;
 }
 
@@ -386,12 +404,11 @@ canvas#minimap {
     color: #e74c3c;
 }
 
-/* Recruitment Toolbar - Now in Right Panel */
+/* Recruitment Toolbar */
 #toolbar {
     display: flex;
-    flex-direction: column; /* Vertical stack for side panel */
+    flex-direction: column;
     gap: 8px;
-    /* Margin removed as it's handled by panel padding */
 }
 
 .template {
@@ -411,7 +428,7 @@ canvas#minimap {
 .selected-template {
     background: #e3f2fd !important;
     border-color: #2196f3 !important;
-    transform: translateX(4px); /* Shift right slightly on select */
+    transform: translateX(4px);
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
