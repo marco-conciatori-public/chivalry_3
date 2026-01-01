@@ -32,7 +32,6 @@ const UiManager = {
     // Definitions for Ability Tooltips
     abilityDescriptions: {
         'anti_cavalry': 'Deals significant bonus damage against Cavalry units.',
-        'charge': 'Deals bonus damage if the unit moves before attacking.',
         'commander_will': 'Provides a morale bonus to himself and all allies within range.',
         'commander_presence': 'Receives a morale bonus from the nearby Commander.'
     },
