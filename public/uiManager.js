@@ -95,10 +95,13 @@ const UiManager = {
             if (!typeSelect) return;
 
             // 1. Difficulty Toggle
+            const diffGroup = diffSelect?.closest('.slot-diff-group');
+            const target = diffGroup || diffSelect;
+
             if (typeSelect.value === 'ai') {
-                diffSelect?.classList.remove('hidden');
+                target?.classList.remove('hidden');
             } else {
-                diffSelect?.classList.add('hidden');
+                target?.classList.add('hidden');
             }
 
             // 2. Gold Toggle

@@ -34,11 +34,14 @@
                     <label>Gold:</label>
                     <input type="number" class="slot-gold" id="slot-0-gold" value="2000" step="100">
                 </div>
-                <select class="slot-diff hidden" id="slot-0-diff">
-                    <option value="easy">Easy</option>
-                    <option value="normal" selected>Normal</option>
-                    <option value="hard">Hard</option>
-                </select>
+                <div class="slot-diff-group hidden">
+                    <label>Difficulty:</label>
+                    <select class="slot-diff" id="slot-0-diff">
+                        <option value="easy">Easy</option>
+                        <option value="normal" selected>Normal</option>
+                        <option value="hard">Hard</option>
+                    </select>
+                </div>
             </div>
 
             <!-- Slot 2 -->
@@ -54,11 +57,14 @@
                     <label>Gold:</label>
                     <input type="number" class="slot-gold" id="slot-1-gold" value="2000" step="100">
                 </div>
-                <select class="slot-diff" id="slot-1-diff"> <!-- Visible by default since AI is selected -->
-                    <option value="easy">Easy</option>
-                    <option value="normal" selected>Normal</option>
-                    <option value="hard">Hard</option>
-                </select>
+                <div class="slot-diff-group">
+                    <label>Difficulty:</label>
+                    <select class="slot-diff" id="slot-1-diff"> <!-- Visible by default since AI is selected -->
+                        <option value="easy">Easy</option>
+                        <option value="normal" selected>Normal</option>
+                        <option value="hard">Hard</option>
+                    </select>
+                </div>
             </div>
 
             <!-- Slot 3 -->
@@ -70,15 +76,18 @@
                     <option value="open">Open (Human)</option>
                     <option value="closed" selected>Closed</option>
                 </select>
-                <div class="slot-gold-group">
+                <div class="slot-gold-group hidden">
                     <label>Gold:</label>
                     <input type="number" class="slot-gold" id="slot-2-gold" value="2000" step="100">
                 </div>
-                <select class="slot-diff hidden" id="slot-2-diff">
-                    <option value="easy">Easy</option>
-                    <option value="normal" selected>Normal</option>
-                    <option value="hard">Hard</option>
-                </select>
+                <div class="slot-diff-group hidden">
+                    <label>Difficulty:</label>
+                    <select class="slot-diff" id="slot-2-diff">
+                        <option value="easy">Easy</option>
+                        <option value="normal" selected>Normal</option>
+                        <option value="hard">Hard</option>
+                    </select>
+                </div>
             </div>
 
             <!-- Slot 4 -->
@@ -90,15 +99,18 @@
                     <option value="open">Open (Human)</option>
                     <option value="closed" selected>Closed</option>
                 </select>
-                <div class="slot-gold-group">
+                <div class="slot-gold-group hidden">
                     <label>Gold:</label>
                     <input type="number" class="slot-gold" id="slot-3-gold" value="2000" step="100">
                 </div>
-                <select class="slot-diff hidden" id="slot-3-diff">
-                    <option value="easy">Easy</option>
-                    <option value="normal" selected>Normal</option>
-                    <option value="hard">Hard</option>
-                </select>
+                <div class="slot-diff-group hidden">
+                    <label>Difficulty:</label>
+                    <select class="slot-diff" id="slot-3-diff">
+                        <option value="easy">Easy</option>
+                        <option value="normal" selected>Normal</option>
+                        <option value="hard">Hard</option>
+                    </select>
+                </div>
             </div>
         </div>
 

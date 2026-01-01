@@ -103,14 +103,15 @@
     border-radius: 4px;
 }
 
-.slot-gold-group {
+.slot-gold-group, .slot-diff-group {
     display: flex;
     align-items: center;
     gap: 10px;
 }
-.slot-gold-group label {
+.slot-gold-group label, .slot-diff-group label {
     font-size: 0.9em;
     color: #666;
+    white-space: nowrap; /* Prevent label wrapping */
 }
 .slot-gold {
     flex-grow: 1;
