@@ -236,9 +236,6 @@ io.on('connection', (socket) => {
     // Try to join existing game
     addPlayerToGame(socket.id);
 
-    // If this is the first player AND game is not active, maybe they should be host?
-    // We handle that in 'startGame'.
-
     socket.emit('init', {
         state: gameState,
         myId: socket.id,
@@ -279,13 +276,6 @@ io.on('connection', (socket) => {
         }
 
         const terrain = gameState.terrainMap[y][x];
-
-        // Prevent spawning on obstacles or water (Height != 0)
-        // Plains, Forest, Street are 0. Mountains/Walls are 2. Water is -2.
-        // UPDATE: Check valid height or specific terrain types.
-        // Water is height -2. Walls are height > 2 maybe.
-        // We probably just want to ban spawning on Water.
-        // And maybe Walls?
 
         if (terrain.id === 'water' || terrain.id === 'wall') return;
 
