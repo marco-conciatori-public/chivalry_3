@@ -318,7 +318,7 @@ io.on('connection', (socket) => {
                 morale_breakdown: []
             };
 
-            // UPDATED: Send player.id instead of player.name so client can update dynamic names
+            // Send player.id instead of player.name so client can update dynamic names
             let msg = `{p:${player.id}} recruited a {u:${type}:${x}:${y}:${player.id}}`;
             if (isCommander) msg += " as their Commander!";
             else msg += ".";

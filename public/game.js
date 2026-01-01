@@ -592,7 +592,6 @@ canvas.addEventListener('click', (e) => {
         if (isValid && selectedUnit && selectedUnit.owner === myId && localState.turn === myId) {
             socket.emit('moveEntity', { from: selectedCell, to: { x, y } });
 
-            // --- UPDATED LOGIC ---
             // Optimistically update selection to destination
             selectedCell = { x, y };
             interactionState = 'SELECTED';

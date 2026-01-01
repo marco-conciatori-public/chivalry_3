@@ -79,9 +79,6 @@ module.exports = {
     MAP_GEN: {
         SPAWN_ZONE_HEIGHT: 2,      // Top/Bottom rows reserved for spawning
         BASE_AREA: 100,            // Reference area (10x10) for scaling calculations
-        IMPASSABLE_THRESHOLD: 10,  // KEEPING FOR LEGACY/MAP GEN SAFETY (though logic is now height-based)
-
-        // Note: Mountains config removed as specific terrain type is gone
 
         STREETS: {
             BASE_MIN: 0,

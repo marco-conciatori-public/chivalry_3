@@ -218,17 +218,17 @@
 /* Hidden state */
 .hidden { display: none !important; }
 
-/* Left Panel (Now wider for Battle Log) */
+/* Left Panel */
 #left-panel {
-    width: 280px; /* Increased from 220px */
+    width: 280px;
     display: flex;
     flex-direction: column;
     flex-shrink: 0;
 }
 
-/* Right Panel (Now narrower for Stats) */
+/* Right Panel */
 #right-panel {
-    width: 240px; /* Decreased from 280px */
+    width: 240px;
     display: flex;
     flex-direction: column;
     flex-shrink: 0;

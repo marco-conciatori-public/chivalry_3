@@ -117,7 +117,7 @@ function generateMap(gameState) {
     }
 
     // --- WALLS ---
-    // Walls now sit ON TOP of the terrain height
+    // Walls sit on top of the terrain height
     const baseWalls = Math.floor(Math.random() * CFG.WALLS.BASE_VAR) + CFG.WALLS.BASE_MIN;
     const numWalls = Math.floor(baseWalls * areaScale * CFG.WALLS.DENSITY);
 
