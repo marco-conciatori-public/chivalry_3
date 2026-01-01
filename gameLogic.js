@@ -246,7 +246,7 @@ function performCombat(attacker, attackerPos, defender, defenderPos, isRetaliati
         const defenderKilled = applyDamage(defender, defenderPos, damageToDefender, gameState.grid);
 
         if (defenderKilled) {
-            combatResults.events.push({ x: defenderPos.x, y: defenderPos.y, type: 'death', value: '💀' });
+            combatResults.events.push({ x: defenderPos.x, y: defenderPos.y, type: 'death', value: '逐' });
             combatResults.logs.push(`-- {u:${defender.type}:${defenderPos.x}:${defenderPos.y}:${defender.owner}} was destroyed!`);
             applyDeathMoraleEffects(defenderPos, defender.owner, gameState.grid);
         }
@@ -272,7 +272,7 @@ function performCombat(attacker, attackerPos, defender, defenderPos, isRetaliati
 
                     const splashKilled = applyDamage(neighborUnit, pos, splashDamage, gameState.grid);
                     if (splashKilled) {
-                        combatResults.events.push({ x: pos.x, y: pos.y, type: 'death', value: '💀' });
+                        combatResults.events.push({ x: pos.x, y: pos.y, type: 'death', value: '逐' });
                         applyDeathMoraleEffects(pos, neighborUnit.owner, gameState.grid);
                     }
                 }
@@ -300,7 +300,7 @@ function performCombat(attacker, attackerPos, defender, defenderPos, isRetaliati
 
         const attackerKilled = applyDamage(attacker, attackerPos, retaliationDamage, gameState.grid);
         if (attackerKilled) {
-            combatResults.events.push({ x: attackerPos.x, y: attackerPos.y, type: 'death', value: '💀' });
+            combatResults.events.push({ x: attackerPos.x, y: attackerPos.y, type: 'death', value: '逐' });
             combatResults.logs.push(`-- {u:${attacker.type}:${attackerPos.x}:${attackerPos.y}:${attacker.owner}} was destroyed!`);
             applyDeathMoraleEffects(attackerPos, attacker.owner, gameState.grid);
         }
@@ -323,6 +323,16 @@ function applyDeathMoraleEffects(pos, ownerId, grid) {
 }
 
 function calculateCurrentMorale(unit, x, y, grid) {
+    // 0. Sanitize Temporary Abilities
+    // We must reset these every time, or they will duplicate/persist even if the Commander moves away.
+    if (unit.special_abilities) {
+        unit.special_abilities = unit.special_abilities.filter(ab =>
+            ab !== 'commander_will' && ab !== 'commander_presence'
+        );
+    } else {
+        unit.special_abilities = [];
+    }
+
     let breakdown = [];
     if (unit.raw_morale > constants.MAX_MORALE) unit.raw_morale = constants.MAX_MORALE;
     let morale = unit.raw_morale;
@@ -376,13 +386,23 @@ function calculateCurrentMorale(unit, x, y, grid) {
         breakdown.push({ label: "Rear Att.", value: val });
     }
 
+    // --- COMMANDER LOGIC ---
+
+    // Ability: Commander's Will (Self)
     if (unit.is_commander) {
         morale += constants.MORALE_BONUS_COMMANDER_SELF;
         breakdown.push({ label: "Commander", value: constants.MORALE_BONUS_COMMANDER_SELF });
+
+        // Add Ability Tag for UI
+        if (!unit.special_abilities.includes('commander_will')) {
+            unit.special_abilities.push('commander_will');
+        }
     }
 
+    // Ability: Commander's Presence (Allies)
     if (!unit.is_commander) {
         let commanderNearby = false;
+        // Search for friendly commander in range
         for(let cy=0; cy<constants.GRID_SIZE; cy++) {
             for(let cx=0; cx<constants.GRID_SIZE; cx++) {
                 const cUnit = grid[cy][cx];
@@ -397,8 +417,14 @@ function calculateCurrentMorale(unit, x, y, grid) {
         if (commanderNearby) {
             morale += constants.MORALE_BONUS_COMMANDER_AURA;
             breakdown.push({ label: "Commander presence", value: constants.MORALE_BONUS_COMMANDER_AURA });
+
+            // Add Ability Tag for UI
+            if (!unit.special_abilities.includes('commander_presence')) {
+                unit.special_abilities.push('commander_presence');
+            }
         }
     }
+
     if (morale > constants.MAX_MORALE) morale = constants.MAX_MORALE;
     unit.current_morale = morale;
     unit.morale_breakdown = breakdown;
@@ -520,7 +546,7 @@ function handleFleeingMovement(entity, startX, startY, gameState, io) {
         if (finalPos.x === 0 || finalPos.x === constants.GRID_SIZE - 1 ||
             finalPos.y === 0 || finalPos.y === constants.GRID_SIZE - 1) {
             io.emit('combatResults', {
-                events: [{ x: finalPos.x, y: finalPos.y, type: 'death', value: '💨' }],
+                events: [{ x: finalPos.x, y: finalPos.y, type: 'death', value: '暢' }],
                 logs: [`-- {u:${entity.type}:${startX}:${startY}:${entity.owner}} fled the battlefield!`]
             });
         } else {

@@ -297,6 +297,9 @@ io.on('connection', (socket) => {
                 remainingMovement: 0,
                 hasAttacked: true,
                 ...baseStats,
+                // CRITICAL: Create a fresh copy of the array so this unit has its own abilities list.
+                // Otherwise, adding "Commander's Will" to this unit would add it to ALL units of this type.
+                special_abilities: [...(baseStats.special_abilities || [])],
                 current_health: baseStats.max_health,
                 raw_morale: baseStats.initial_morale,
                 current_morale: baseStats.initial_morale,
