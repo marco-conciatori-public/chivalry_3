@@ -119,6 +119,21 @@ const UiManager = {
             // Initialize UI state based on default values
             updateSlotUI(i);
 
+            // Sync Gold Input and Slider
+            const goldInput = document.getElementById(`slot-${i}-gold`);
+            const goldSlider = document.getElementById(`slot-${i}-gold-slider`);
+
+            if (goldInput && goldSlider) {
+                // When slider changes, update input
+                goldSlider.addEventListener('input', () => {
+                    goldInput.value = goldSlider.value;
+                });
+                // When input changes, update slider
+                goldInput.addEventListener('input', () => {
+                    goldSlider.value = goldInput.value;
+                });
+            }
+
             if (typeSelect) {
                 typeSelect.addEventListener('change', () => {
                     updateSlotUI(i);

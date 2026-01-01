@@ -113,12 +113,30 @@
     color: #666;
     white-space: nowrap; /* Prevent label wrapping */
 }
+
+/* Modified Gold Input Styles */
 .slot-gold {
-    flex-grow: 1;
+    width: 60px; /* Fixed shorter width */
     padding: 5px;
     border: 1px solid #ccc;
     border-radius: 4px;
-    width: 80px;
+    text-align: center;
+}
+
+/* Remove Arrows/Spinners */
+.slot-gold::-webkit-outer-spin-button,
+.slot-gold::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+.slot-gold {
+    -moz-appearance: textfield;
+}
+
+/* Slider Style */
+.slot-gold-slider {
+    flex-grow: 1; /* Take up remaining space */
+    cursor: pointer;
 }
 
 /* Form Styles */
