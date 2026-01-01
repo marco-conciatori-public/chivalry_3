@@ -92,16 +92,20 @@ function startNewGame(settings, hostId) {
             if (availableSocket) {
                 createPlayer(availableSocket, slot.index, slot.gold, false, null);
                 usedSockets.push(availableSocket);
-            } else {
-                // No player available yet? Leave it empty.
-                // It will be filled by `addPlayerToGame` when someone connects.
             }
         }
         // 'closed' slots are simply ignored, so no player is created at that index.
     });
 
+    // Pass 3: Assign remaining connected sockets as Observers
+    connectedSockets.forEach(sid => {
+        if (!usedSockets.includes(sid)) {
+            createObserver(sid);
+        }
+    });
+
     // 5. Set Turn
-    const allIds = Object.keys(gameState.players);
+    const allIds = Object.keys(gameState.players).filter(id => !gameState.players[id].isObserver);
     gameState.turn = allIds.length > 0 ? allIds[0] : null;
     gameState.turnCount = 1;
 
@@ -119,12 +123,8 @@ function startNewGame(settings, hostId) {
     io.emit('gameLog', { message: "--- NEW GAME STARTED ---" });
 }
 
-// Helper to determine ID (mostly for avoiding collisions logic)
+// Helper to determine ID
 function getPlayerIdForIndex(index, hostId) {
-    // This is tricky because human IDs are sockets.
-    // We just check if *any* player in gameState has this baseArea index?
-    // Actually, `createPlayer` uses socketId as key.
-    // So we iterate `gameState.players` to see if anyone has this index.
     const pIds = Object.keys(gameState.players);
     for(let id of pIds) {
         if (gameState.players[id].slotIndex === index) return id;
@@ -147,7 +147,21 @@ function createPlayer(id, index, gold, isAI, difficulty) {
         baseArea: baseArea,
         isAI: isAI,
         difficulty: difficulty || 'normal',
-        slotIndex: index // Track which slot they occupy
+        slotIndex: index, // Track which slot they occupy
+        isObserver: false
+    };
+}
+
+function createObserver(id) {
+    const observerCount = Object.values(gameState.players).filter(p => p.isObserver).length;
+    gameState.players[id] = {
+        id: id,
+        name: `Observer ${observerCount + 1}`,
+        color: '#95a5a6', // Grey
+        isObserver: true,
+        gold: 0,
+        isAI: false
+        // No baseArea, no slotIndex
     };
 }
 
@@ -192,13 +206,8 @@ function addPlayerToGame(socketId) {
     if (targetSlot) {
         createPlayer(socketId, targetSlot.index, targetSlot.gold, false, null);
     } else {
-        // No open slots? Spectator (or just no base)
-        // Currently, we just don't add them to `gameState.players`?
-        // Or we add them as a spectator?
-        // Logic requires players to exist in `gameState.players` to receive updates usually?
-        // Actually, everyone receives `io.emit('update')`.
-        // If not in `gameState.players`, they have no gold/name/color, so they are spectators.
-        console.log(`Player ${socketId} connected but no open slots available.`);
+        // No open slots? Add as Observer
+        createObserver(socketId);
     }
 }
 
@@ -235,9 +244,9 @@ io.on('connection', (socket) => {
     });
 
     socket.on('spawnEntity', ({ x, y, type }) => {
-        if (socket.id !== gameState.turn) return;
         const player = gameState.players[socket.id];
-        if (!player) return;
+        if (!player || player.isObserver) return; // Observers cannot spawn
+        if (socket.id !== gameState.turn) return;
 
         // Check if spawn is within player's base area
         if (player.baseArea) {
@@ -247,7 +256,6 @@ io.on('connection', (socket) => {
                 return;
             }
         } else {
-            // No base assigned (spectator or >4 players), cannot spawn
             return;
         }
 
@@ -433,18 +441,28 @@ io.on('connection', (socket) => {
     });
 
     function endTurn() {
+        // Find current player in the rotation
+        const activeIds = Object.keys(gameState.players).filter(id => !gameState.players[id].isObserver);
+        // Note: activeIds order might not match slot order if object keys are unordered,
+        // but generally V8 keeps insertion order for strings.
+        // For robustness, sort by slotIndex
+        activeIds.sort((a,b) => gameState.players[a].slotIndex - gameState.players[b].slotIndex);
+
+        const currentIndex = activeIds.indexOf(gameState.turn);
+
+        // Reset current player units
         modifyUnitsForPlayer(gameState.turn, (u) => { u.remainingMovement = 0; u.hasAttacked = true; });
-        const ids = Object.keys(gameState.players);
-        const currentIndex = ids.indexOf(gameState.turn);
-        const nextIndex = (currentIndex + 1) % ids.length;
-        gameState.turn = ids[nextIndex];
+
+        // Calculate next index
+        const nextIndex = (currentIndex + 1) % activeIds.length;
+        gameState.turn = activeIds[nextIndex];
 
         // Increment global turn counter only when the cycle wraps around to the first player
         if (nextIndex === 0) {
             gameState.turnCount++;
         }
 
-        const nextPlayer = gameState.players[gameState.turn];
+        // Reset next player units
         modifyUnitsForPlayer(gameState.turn, (u) => { u.remainingMovement = u.speed; u.hasAttacked = false; });
 
         io.emit('gameLog', { message: `Turn changed to {p:${gameState.turn}}.` });
@@ -465,12 +483,20 @@ io.on('connection', (socket) => {
     }
 
     socket.on('disconnect', () => {
+        const player = gameState.players[socket.id];
         delete gameState.players[socket.id];
-        if (gameState.turn === socket.id) {
-            const ids = Object.keys(gameState.players);
-            gameState.turn = ids.length > 0 ? ids[0] : null;
-            if(gameState.turn) {
+
+        // If it was the current turn player, pass turn
+        if (player && !player.isObserver && gameState.turn === socket.id) {
+            const activeIds = Object.keys(gameState.players).filter(id => !gameState.players[id].isObserver);
+            if (activeIds.length > 0) {
+                // Simple logic: pick the first one available
+                // A more robust logic would try to find the "next" slot, but since the array changed, 0 is safe.
+                gameState.turn = activeIds[0];
                 modifyUnitsForPlayer(gameState.turn, (u) => { u.remainingMovement = u.speed; u.hasAttacked = false; });
+                io.emit('gameLog', { message: `Player disconnected. Turn passed to {p:${gameState.turn}}.` });
+            } else {
+                gameState.turn = null;
             }
         }
         io.emit('update', gameState);

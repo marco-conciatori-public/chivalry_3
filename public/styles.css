@@ -1,11 +1,19 @@
-body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    min-height: 100vh;
-    margin: 0;
-    background-color: #f0f2f5;
+/* Observer Separator in Player List */
+.observer-separator {
+    border-top: 1px solid #ddd;
+    margin: 10px 0 5px 0;
+    padding-top: 8px;
+    font-size: 0.85em;
+    color: #999;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: bold;
+    text-align: center;
+}
+
+.observer-item {
+    opacity: 0.7;
+    background: #fdfdfd !important;
 }
 
 /* Main container */

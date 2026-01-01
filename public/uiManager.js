@@ -85,21 +85,39 @@ const UiManager = {
     },
 
     initSetupForm() {
-        // Toggle Difficulty Dropdown based on Type
-        for (let i = 0; i < 4; i++) {
+        const slots = [0, 1, 2, 3];
+
+        slots.forEach(i => {
             const typeSelect = document.getElementById(`slot-${i}-type`);
             const diffSelect = document.getElementById(`slot-${i}-diff`);
 
-            if (typeSelect && diffSelect) {
+            if (typeSelect) {
                 typeSelect.addEventListener('change', () => {
+                    // 1. Difficulty Toggle
                     if (typeSelect.value === 'ai') {
-                        diffSelect.classList.remove('hidden');
+                        diffSelect?.classList.remove('hidden');
                     } else {
-                        diffSelect.classList.add('hidden');
+                        diffSelect?.classList.add('hidden');
+                    }
+
+                    // 2. Single "Me" Enforcement
+                    if (typeSelect.value === 'me') {
+                        slots.forEach(otherI => {
+                            if (otherI !== i) {
+                                const otherSelect = document.getElementById(`slot-${otherI}-type`);
+                                if (otherSelect && otherSelect.value === 'me') {
+                                    otherSelect.value = 'open'; // Switch conflicting "Me" to "Open"
+
+                                    // Update difficulty visibility for the changed slot (hide it)
+                                    const otherDiff = document.getElementById(`slot-${otherI}-diff`);
+                                    otherDiff?.classList.add('hidden');
+                                }
+                            }
+                        });
                     }
                 });
             }
-        }
+        });
     },
 
     setConstants(constants) {
@@ -167,10 +185,26 @@ const UiManager = {
         this.updateLogNames(gameState);
 
         this.elements.playerList.innerHTML = '';
-        Object.keys(gameState.players).forEach(id => {
-            const p = gameState.players[id];
-            const isMe = id === myId;
-            const isTurn = gameState.turn === id;
+
+        // Categorize players
+        const activePlayers = [];
+        const observers = [];
+
+        Object.values(gameState.players).forEach(p => {
+            if (p.isObserver) {
+                observers.push(p);
+            } else {
+                activePlayers.push(p);
+            }
+        });
+
+        // Sort active players by slot index
+        activePlayers.sort((a,b) => (a.slotIndex || 0) - (b.slotIndex || 0));
+
+        // Render Active Players
+        activePlayers.forEach(p => {
+            const isMe = p.id === myId;
+            const isTurn = gameState.turn === p.id;
             const li = document.createElement('li');
             li.className = 'player-item';
 
@@ -236,6 +270,52 @@ const UiManager = {
 
             this.elements.playerList.appendChild(li);
         });
+
+        // Render Observers
+        if (observers.length > 0) {
+            const separator = document.createElement('li');
+            separator.className = 'observer-separator';
+            separator.innerText = 'Observers';
+            this.elements.playerList.appendChild(separator);
+
+            observers.forEach(p => {
+                const li = document.createElement('li');
+                li.className = 'player-item observer-item';
+
+                const nameSpan = document.createElement('span');
+                let displayName = p.name;
+                if (p.id === myId) displayName += " (You)";
+                nameSpan.innerText = displayName;
+                nameSpan.style.color = '#7f8c8d';
+                nameSpan.style.fontStyle = 'italic';
+
+                // Allow rename for observers too
+                if (p.id === myId) {
+                    nameSpan.style.cursor = 'pointer';
+                    nameSpan.ondblclick = (e) => {
+                        e.stopPropagation();
+                        const input = document.createElement('input');
+                        input.type = 'text';
+                        input.value = p.name;
+                        input.style.maxWidth = '100px';
+                        input.style.padding = '2px';
+                        input.style.border = '1px solid #aaa';
+                        const save = () => {
+                            const newName = input.value.trim();
+                            if (newName && newName !== p.name) onRename(newName);
+                            else this.updateLegend(gameState, myId, onRename);
+                        };
+                        input.onblur = save;
+                        input.onkeydown = (e) => { if (e.key === 'Enter') save(); };
+                        li.replaceChild(input, nameSpan);
+                        input.focus();
+                    };
+                }
+
+                li.appendChild(nameSpan);
+                this.elements.playerList.appendChild(li);
+            });
+        }
     },
 
     // NEW: Updates all player name spans in the log based on current game state
@@ -255,6 +335,15 @@ const UiManager = {
     updateControls(gameState, myId, clientUnitStats) {
         const isMyTurn = gameState.turn === myId;
         const myPlayer = gameState.players[myId];
+
+        // Observers don't get controls
+        if (myPlayer && myPlayer.isObserver) {
+            this.elements.endTurnBtn.disabled = true;
+            this.elements.toolbar.style.opacity = '0.5';
+            this.elements.toolbar.style.pointerEvents = 'none';
+            return;
+        }
+
         this.elements.endTurnBtn.disabled = !isMyTurn;
         this.elements.toolbar.style.opacity = isMyTurn ? '1' : '0.5';
         this.elements.toolbar.style.pointerEvents = isMyTurn ? 'auto' : 'none';
