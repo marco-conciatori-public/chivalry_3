@@ -49,7 +49,7 @@ const UiManager = {
         this.cellTooltipEl.style.display = 'none';
         document.body.appendChild(this.cellTooltipEl);
 
-        // Setup Screen listeners are wired in game.js, but we provide methods here
+        // Setup Screen listeners
         if (this.elements.btnNewGameTrigger) {
             this.elements.btnNewGameTrigger.addEventListener('click', () => {
                 if (confirm("Are you sure you want to start a new game? Current progress will be lost.")) {
@@ -60,6 +60,9 @@ const UiManager = {
 
         // Initialize Collapsible Panels
         this.initCollapsibles();
+
+        // Initialize Setup Form dynamic toggles
+        this.initSetupForm();
     },
 
     initCollapsibles() {
@@ -81,6 +84,24 @@ const UiManager = {
         });
     },
 
+    initSetupForm() {
+        // Toggle Difficulty Dropdown based on Type
+        for (let i = 0; i < 4; i++) {
+            const typeSelect = document.getElementById(`slot-${i}-type`);
+            const diffSelect = document.getElementById(`slot-${i}-diff`);
+
+            if (typeSelect && diffSelect) {
+                typeSelect.addEventListener('change', () => {
+                    if (typeSelect.value === 'ai') {
+                        diffSelect.classList.remove('hidden');
+                    } else {
+                        diffSelect.classList.add('hidden');
+                    }
+                });
+            }
+        }
+    },
+
     setConstants(constants) {
         this.gameConstants = constants;
         // Update descriptions with actual values if available
@@ -98,12 +119,27 @@ const UiManager = {
     },
 
     getSetupSettings() {
-        return {
+        // Scrape global settings
+        const settings = {
             gridSize: document.getElementById('cfg-grid-size').value,
-            startingGold: document.getElementById('cfg-gold').value,
-            aiCount: document.getElementById('cfg-ai-count').value,
-            aiDifficulty: document.getElementById('cfg-ai-difficulty').value
+            slots: []
         };
+
+        // Scrape 4 slots
+        for(let i=0; i<4; i++) {
+            const type = document.getElementById(`slot-${i}-type`).value;
+            const gold = parseInt(document.getElementById(`slot-${i}-gold`).value) || 2000;
+            const difficulty = document.getElementById(`slot-${i}-diff`).value;
+
+            settings.slots.push({
+                index: i,
+                type: type,
+                gold: gold,
+                difficulty: difficulty
+            });
+        }
+
+        return settings;
     },
 
     updateConnectionStatus(id) {

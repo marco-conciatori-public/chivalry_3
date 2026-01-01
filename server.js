@@ -21,28 +21,35 @@ let gameState = {
     players: {},
     turn: null,
     turnCount: 1, // Global turn counter
-    isGameActive: false // Track if the game is in Lobby or Playing state
+    isGameActive: false, // Track if the game is in Lobby or Playing state
+    matchSettings: null // Store slot config to handle late joins
 };
 
 // Start initial game with defaults but keep it inactive (Lobby mode)
 startNewGame({
     gridSize: constants.GRID_SIZE,
-    startingGold: constants.STARTING_GOLD,
-    aiCount: 0
-});
-// Force inactive state after initial setup so players see the setup screen first
+    slots: [
+        { index: 0, type: 'open', gold: 2000 }, // Default Host Slot
+        { index: 1, type: 'ai', gold: 2000, difficulty: 'normal' },
+        { index: 2, type: 'closed', gold: 2000 },
+        { index: 3, type: 'closed', gold: 2000 }
+    ]
+}, null);
+
+// Force inactive state after initial setup
 gameState.isGameActive = false;
 
-function startNewGame(settings) {
+function startNewGame(settings, hostId) {
     // 1. Update Constants (Runtime Override)
-    constants.GRID_SIZE = parseInt(settings.gridSize);
-    constants.STARTING_GOLD = parseInt(settings.startingGold);
+    if(settings.gridSize) constants.GRID_SIZE = parseInt(settings.gridSize);
+
+    // Store settings for later use (Open slot filling)
+    gameState.matchSettings = settings;
 
     // 2. Reset Grid & Terrain
     gameState.grid = Array(constants.GRID_SIZE).fill(null).map(() => Array(constants.GRID_SIZE).fill(null));
 
-    // CRITICAL: Initialize with COPIES of the object, not the same reference,
-    // to allow mapGenerator to set unique heights per cell.
+    // CRITICAL: Initialize with COPIES of the object, not the same reference
     gameState.terrainMap = Array(constants.GRID_SIZE).fill(null).map(() =>
         Array(constants.GRID_SIZE).fill(null).map(() => ({...constants.TERRAIN.PLAINS}))
     );
@@ -50,39 +57,48 @@ function startNewGame(settings) {
     // 3. Regenerate Map
     mapGenerator.generateMap(gameState);
 
-    // 4. Handle Players (Reset Existing, Add AI)
-    // We keep existing human connections but reset their state
-    const currentSocketIds = Object.keys(gameState.players).filter(id => !gameState.players[id].isAI);
-    gameState.players = {}; // Clear all
+    // 4. Handle Players (Complete Reset based on Slots)
+    // Gather all currently connected sockets
+    let connectedSockets = Object.keys(gameState.players).filter(id => !gameState.players[id].isAI);
+    // If this is a restart, ensure the hostId (if provided) is in the list
+    if(hostId && !connectedSockets.includes(hostId)) connectedSockets.push(hostId);
 
-    // Re-add humans
-    currentSocketIds.forEach((socketId, index) => {
-        addPlayerToGame(socketId, index);
+    gameState.players = {}; // Clear all previous player state
+
+    const slots = settings.slots || [];
+    let usedSockets = []; // Track sockets assigned to specific 'me' slots
+
+    // Pass 1: Assign 'Me' slots
+    slots.forEach(slot => {
+        if(slot.type === 'me' && hostId) {
+            createPlayer(hostId, slot.index, slot.gold, false, null);
+            usedSockets.push(hostId);
+        }
     });
 
-    // Add AI Players
-    const aiCount = parseInt(settings.aiCount || 0);
-    const humanCount = currentSocketIds.length;
+    // Pass 2: Assign AI and Open slots
+    slots.forEach(slot => {
+        // Skip if already assigned (e.g., 'me' slot)
+        if (gameState.players[getPlayerIdForIndex(slot.index, hostId)]) return;
 
-    for(let i=0; i<aiCount; i++) {
-        const aiId = `ai_${i+1}`;
-        const totalIndex = humanCount + i;
-        if(totalIndex < 4) { // Max 4 players supported by base logic
-            const playerColor = constants.PLAYER_COLORS[totalIndex % constants.PLAYER_COLORS.length];
-            const baseArea = getBaseArea(totalIndex);
-
-            gameState.players[aiId] = {
-                symbol: 'A',
-                color: playerColor,
-                id: aiId,
-                name: `Bot ${i+1}`,
-                gold: constants.STARTING_GOLD,
-                baseArea: baseArea,
-                isAI: true,
-                difficulty: settings.aiDifficulty || 'normal'
-            };
+        if (slot.type === 'ai') {
+            const aiId = `ai_${slot.index}`;
+            createPlayer(aiId, slot.index, slot.gold, true, slot.difficulty);
         }
-    }
+        else if (slot.type === 'open') {
+            // Find a connected human who hasn't been assigned yet
+            const availableSocket = connectedSockets.find(sid => !usedSockets.includes(sid));
+
+            if (availableSocket) {
+                createPlayer(availableSocket, slot.index, slot.gold, false, null);
+                usedSockets.push(availableSocket);
+            } else {
+                // No player available yet? Leave it empty.
+                // It will be filled by `addPlayerToGame` when someone connects.
+            }
+        }
+        // 'closed' slots are simply ignored, so no player is created at that index.
+    });
 
     // 5. Set Turn
     const allIds = Object.keys(gameState.players);
@@ -97,10 +113,42 @@ function startNewGame(settings) {
         state: gameState,
         myId: null, // Client ignores this in general update, but init handler needs structure
         unitStats: unitStats,
-        gameConstants: constants // Send constants to client
+        gameConstants: constants
     });
 
     io.emit('gameLog', { message: "--- NEW GAME STARTED ---" });
+}
+
+// Helper to determine ID (mostly for avoiding collisions logic)
+function getPlayerIdForIndex(index, hostId) {
+    // This is tricky because human IDs are sockets.
+    // We just check if *any* player in gameState has this baseArea index?
+    // Actually, `createPlayer` uses socketId as key.
+    // So we iterate `gameState.players` to see if anyone has this index.
+    const pIds = Object.keys(gameState.players);
+    for(let id of pIds) {
+        if (gameState.players[id].slotIndex === index) return id;
+    }
+    return null;
+}
+
+function createPlayer(id, index, gold, isAI, difficulty) {
+    const playerColor = constants.PLAYER_COLORS[index % constants.PLAYER_COLORS.length];
+    const playerSymbol = index === 0 ? 'X' : (index === 1 ? 'O' : (index === 2 ? 'Y' : 'Z'));
+    const baseArea = getBaseArea(index);
+    const defaultName = isAI ? `Bot ${index+1}` : `Player ${index+1}`;
+
+    gameState.players[id] = {
+        symbol: playerSymbol,
+        color: playerColor,
+        id: id,
+        name: defaultName,
+        gold: gold,
+        baseArea: baseArea,
+        isAI: isAI,
+        difficulty: difficulty || 'normal',
+        slotIndex: index // Track which slot they occupy
+    };
 }
 
 function getBaseArea(playerIndex) {
@@ -116,48 +164,65 @@ function getBaseArea(playerIndex) {
     return null;
 }
 
-function addPlayerToGame(socketId, indexOverride = null) {
-    const existingPlayers = Object.keys(gameState.players);
-    // If indexOverride is provided (during reset), use it. Otherwise append.
-    const playerIndex = indexOverride !== null ? indexOverride : existingPlayers.length;
+function addPlayerToGame(socketId) {
+    // Used when a NEW player connects.
+    // Check match settings to see if there is an 'open' slot that is currently empty.
 
-    const playerSymbol = playerIndex === 0 ? 'X' : 'O';
-    const playerColor = constants.PLAYER_COLORS[playerIndex % constants.PLAYER_COLORS.length];
-    const defaultName = `Player${playerIndex + 1}`;
-    const baseArea = getBaseArea(playerIndex);
+    if (!gameState.matchSettings || !gameState.matchSettings.slots) {
+        // Fallback for initial load
+        return;
+    }
 
-    gameState.players[socketId] = {
-        symbol: playerSymbol,
-        color: playerColor,
-        id: socketId,
-        name: defaultName,
-        gold: constants.STARTING_GOLD,
-        baseArea: baseArea,
-        isAI: false
-    };
+    const slots = gameState.matchSettings.slots;
+
+    // Find first 'open' slot that doesn't have a player in `gameState.players`
+    let targetSlot = null;
+
+    for(let slot of slots) {
+        if (slot.type === 'open') {
+            // Check if occupied
+            const isOccupied = Object.values(gameState.players).some(p => p.slotIndex === slot.index);
+            if (!isOccupied) {
+                targetSlot = slot;
+                break;
+            }
+        }
+    }
+
+    if (targetSlot) {
+        createPlayer(socketId, targetSlot.index, targetSlot.gold, false, null);
+    } else {
+        // No open slots? Spectator (or just no base)
+        // Currently, we just don't add them to `gameState.players`?
+        // Or we add them as a spectator?
+        // Logic requires players to exist in `gameState.players` to receive updates usually?
+        // Actually, everyone receives `io.emit('update')`.
+        // If not in `gameState.players`, they have no gold/name/color, so they are spectators.
+        console.log(`Player ${socketId} connected but no open slots available.`);
+    }
 }
 
 io.on('connection', (socket) => {
     console.log('A player connected:', socket.id);
 
-    // Add new player to current game
+    // Try to join existing game
     addPlayerToGame(socket.id);
 
-    // If this is the first player, ensure turn is set
-    if (!gameState.turn) gameState.turn = socket.id;
+    // If this is the first player AND game is not active, maybe they should be host?
+    // We handle that in 'startGame'.
 
     socket.emit('init', {
         state: gameState,
         myId: socket.id,
         unitStats: unitStats,
-        gameConstants: constants // Send constants to client
+        gameConstants: constants
     });
 
     io.emit('update', gameState);
 
     socket.on('startGame', (settings) => {
         console.log("Starting new game with settings:", settings);
-        startNewGame(settings);
+        startNewGame(settings, socket.id); // Pass socket.id as Host ID
     });
 
     socket.on('changeName', (newName) => {

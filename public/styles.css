@@ -39,13 +39,80 @@ body {
     width: 400px;
     box-shadow: 0 10px 25px rgba(0,0,0,0.2);
     text-align: center;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+/* Larger Modal for Setup */
+.modal-content.large-modal {
+    width: 700px;
+    max-width: 95vw;
 }
 
 .modal-content h1 {
     margin-top: 0;
     color: #2c3e50;
+    margin-bottom: 20px;
 }
 
+.global-settings {
+    margin-bottom: 20px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    justify-content: center;
+}
+
+/* Slots Grid */
+.slots-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.player-slot {
+    background: #f9f9f9;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 15px;
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.slot-header {
+    font-weight: bold;
+    margin-bottom: 5px;
+    color: #444;
+}
+
+.slot-type, .slot-diff {
+    width: 100%;
+    padding: 6px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+.slot-gold-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.slot-gold-group label {
+    font-size: 0.9em;
+    color: #666;
+}
+.slot-gold {
+    flex-grow: 1;
+    padding: 5px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    width: 80px;
+}
+
+/* Form Styles */
 .form-group {
     margin-bottom: 15px;
     text-align: left;
@@ -121,7 +188,7 @@ body {
     margin-top: 15px;
 }
 
-/* Hidden state for modal */
+/* Hidden state */
 .hidden { display: none !important; }
 
 /* Left Panel (Now wider for Battle Log) */

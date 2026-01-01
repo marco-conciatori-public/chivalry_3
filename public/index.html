@@ -9,30 +9,101 @@
 
 <!-- SETUP SCREEN OVERLAY -->
 <div id="setup-screen" class="modal-overlay">
-    <div class="modal-content">
+    <div class="modal-content large-modal">
         <h1>Create New Game</h1>
-        <div class="form-group">
-            <label for="cfg-grid-size">Grid Size (20-100):</label>
-            <input type="number" id="cfg-grid-size" value="50" min="20" max="100">
+
+        <div class="global-settings">
+            <div class="form-group">
+                <label for="cfg-grid-size">Map Size (Grid):</label>
+                <input type="number" id="cfg-grid-size" value="50" min="20" max="100">
+            </div>
         </div>
-        <div class="form-group">
-            <label for="cfg-gold">Starting Gold:</label>
-            <input type="number" id="cfg-gold" value="2000" min="500" step="100">
+
+        <h3>Player Slots</h3>
+        <div class="slots-container">
+            <!-- Slot 1 -->
+            <div class="player-slot" style="border-left: 5px solid #e74c3c;"> <!-- Red -->
+                <div class="slot-header">Top (Red)</div>
+                <select class="slot-type" id="slot-0-type">
+                    <option value="me" selected>Me (Host)</option>
+                    <option value="ai">AI Bot</option>
+                    <option value="open">Open (Human)</option>
+                    <option value="closed">Closed</option>
+                </select>
+                <div class="slot-gold-group">
+                    <label>Gold:</label>
+                    <input type="number" class="slot-gold" id="slot-0-gold" value="2000" step="100">
+                </div>
+                <select class="slot-diff hidden" id="slot-0-diff">
+                    <option value="easy">Easy</option>
+                    <option value="normal" selected>Normal</option>
+                    <option value="hard">Hard</option>
+                </select>
+            </div>
+
+            <!-- Slot 2 -->
+            <div class="player-slot" style="border-left: 5px solid #3498db;"> <!-- Blue -->
+                <div class="slot-header">Bottom (Blue)</div>
+                <select class="slot-type" id="slot-1-type">
+                    <option value="me">Me (Host)</option>
+                    <option value="ai" selected>AI Bot</option>
+                    <option value="open">Open (Human)</option>
+                    <option value="closed">Closed</option>
+                </select>
+                <div class="slot-gold-group">
+                    <label>Gold:</label>
+                    <input type="number" class="slot-gold" id="slot-1-gold" value="2000" step="100">
+                </div>
+                <select class="slot-diff" id="slot-1-diff"> <!-- Visible by default since AI is selected -->
+                    <option value="easy">Easy</option>
+                    <option value="normal" selected>Normal</option>
+                    <option value="hard">Hard</option>
+                </select>
+            </div>
+
+            <!-- Slot 3 -->
+            <div class="player-slot" style="border-left: 5px solid #2ecc71;"> <!-- Green -->
+                <div class="slot-header">Left (Green)</div>
+                <select class="slot-type" id="slot-2-type">
+                    <option value="me">Me (Host)</option>
+                    <option value="ai">AI Bot</option>
+                    <option value="open">Open (Human)</option>
+                    <option value="closed" selected>Closed</option>
+                </select>
+                <div class="slot-gold-group">
+                    <label>Gold:</label>
+                    <input type="number" class="slot-gold" id="slot-2-gold" value="2000" step="100">
+                </div>
+                <select class="slot-diff hidden" id="slot-2-diff">
+                    <option value="easy">Easy</option>
+                    <option value="normal" selected>Normal</option>
+                    <option value="hard">Hard</option>
+                </select>
+            </div>
+
+            <!-- Slot 4 -->
+            <div class="player-slot" style="border-left: 5px solid #f1c40f;"> <!-- Yellow -->
+                <div class="slot-header">Right (Yellow)</div>
+                <select class="slot-type" id="slot-3-type">
+                    <option value="me">Me (Host)</option>
+                    <option value="ai">AI Bot</option>
+                    <option value="open">Open (Human)</option>
+                    <option value="closed" selected>Closed</option>
+                </select>
+                <div class="slot-gold-group">
+                    <label>Gold:</label>
+                    <input type="number" class="slot-gold" id="slot-3-gold" value="2000" step="100">
+                </div>
+                <select class="slot-diff hidden" id="slot-3-diff">
+                    <option value="easy">Easy</option>
+                    <option value="normal" selected>Normal</option>
+                    <option value="hard">Hard</option>
+                </select>
+            </div>
         </div>
-        <div class="form-group">
-            <label for="cfg-ai-count">AI Players (0-3):</label>
-            <input type="number" id="cfg-ai-count" value="0" min="0" max="3">
-        </div>
-        <div class="form-group">
-            <label for="cfg-ai-difficulty">AI Difficulty:</label>
-            <select id="cfg-ai-difficulty">
-                <option value="easy">Easy (Rookie)</option>
-                <option value="normal" selected>Normal (Tactician)</option>
-                <option value="hard">Hard (Strategist)</option>
-            </select>
-        </div>
+
         <button id="btn-start-game" class="primary-btn">Start Game</button>
-        <p class="modal-note">Starting a new game will reset the board for everyone.</p>
+        <p class="modal-note">Warning: Starting a game resets the current board.</p>
     </div>
 </div>
 
