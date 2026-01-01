@@ -449,6 +449,53 @@ document.querySelectorAll('.template').forEach(el => {
     });
 });
 
+// Right-click (Context Menu) Logic
+canvas.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+
+    // Prevent action if we were dragging/panning
+    if (hasDragged) {
+        hasDragged = false;
+        return;
+    }
+
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+
+    const screenX = (e.clientX - rect.left) * scaleX;
+    const screenY = (e.clientY - rect.top) * scaleY;
+
+    const x = Math.floor((screenX - Renderer.panX) / (Renderer.CELL_SIZE * Renderer.zoom));
+    const y = Math.floor((screenY - Renderer.panY) / (Renderer.CELL_SIZE * Renderer.zoom));
+
+    if (x < 0 || x >= GRID_SIZE || y < 0 || y >= GRID_SIZE) return;
+    if (!localState) return;
+
+    const clickedEntity = localState.grid[y][x];
+
+    if (clickedEntity) {
+        // 1. Select the unit (Clears previous selection first)
+        resetSelection();
+        selectedCell = { x, y };
+        interactionState = 'SELECTED';
+
+        UiManager.updateUnitInfo(clickedEntity, false, null, localState, selectedCell);
+
+        if (!clickedEntity.is_fleeing) {
+            recalculateOptions(clickedEntity);
+        }
+
+        // 2. Open Menu immediately if it's my unit and my turn
+        if (clickedEntity.owner === myId && localState.turn === myId && !clickedEntity.is_fleeing) {
+            UiManager.showContextMenu(e.clientX, e.clientY, clickedEntity, selectedCell, Renderer.CELL_SIZE * Renderer.zoom);
+            interactionState = 'MENU';
+        }
+
+        renderGame();
+    }
+});
+
 // Canvas Click
 canvas.addEventListener('click', (e) => {
     // Abort if this was a drag operation
