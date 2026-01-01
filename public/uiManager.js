@@ -33,7 +33,9 @@ const UiManager = {
     abilityDescriptions: {
         'anti_cavalry': 'Deals significant bonus damage against Cavalry units.',
         'charge': 'Deals bonus damage if the unit moves before attacking.',
-        'shield_wall': 'Increases defense when adjacent to other shield units.'
+        'shield_wall': 'Increases defense when adjacent to other shield units.',
+        'commander_will': 'Provides a morale bonus to himself and all allies within range.',
+        'commander_presence': 'Receives a morale bonus from the nearby Commander.'
     },
 
     init() {
