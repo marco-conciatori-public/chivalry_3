@@ -22,7 +22,8 @@ let gameState = {
     turn: null,
     turnCount: 1, // Global turn counter
     isGameActive: false, // Track if the game is in Lobby or Playing state
-    matchSettings: null // Store slot config to handle late joins
+    matchSettings: null, // Store slot config to handle late joins
+    slotData: {} // Store data for disconnected slots (gold, etc.)
 };
 
 // Start initial game with defaults but keep it inactive (Lobby mode)
@@ -45,6 +46,7 @@ function startNewGame(settings, hostId) {
 
     // Store settings for later use (Open slot filling)
     gameState.matchSettings = settings;
+    gameState.slotData = {}; // Reset slot data on new game
 
     // 2. Reset Grid & Terrain
     gameState.grid = Array(constants.GRID_SIZE).fill(null).map(() => Array(constants.GRID_SIZE).fill(null));
@@ -138,12 +140,29 @@ function createPlayer(id, index, gold, isAI, difficulty) {
     const baseArea = getBaseArea(index);
     const defaultName = isAI ? `Bot ${index+1}` : `Player ${index+1}`;
 
+    // CHECK FOR PREVIOUS STATE (RECONNECTION)
+    let finalGold = gold;
+    if (gameState.slotData && gameState.slotData[index]) {
+        finalGold = gameState.slotData[index].gold;
+        // Reclaim units
+        const placeholderOwner = `disconnected_slot_${index}`;
+        for(let r=0; r<constants.GRID_SIZE; r++) {
+            for(let c=0; c<constants.GRID_SIZE; c++) {
+                if(gameState.grid[r][c] && gameState.grid[r][c].owner === placeholderOwner) {
+                    gameState.grid[r][c].owner = id;
+                }
+            }
+        }
+        // Clear slot data after claiming (optional, but good for cleanliness)
+        delete gameState.slotData[index];
+    }
+
     gameState.players[id] = {
         symbol: playerSymbol,
         color: playerColor,
         id: id,
         name: defaultName,
-        gold: gold,
+        gold: finalGold,
         baseArea: baseArea,
         isAI: isAI,
         difficulty: difficulty || 'normal',
@@ -487,6 +506,25 @@ io.on('connection', (socket) => {
 
     socket.on('disconnect', () => {
         const player = gameState.players[socket.id];
+
+        // SAVE STATE before deleting
+        if (player && !player.isObserver) {
+            gameState.slotData[player.slotIndex] = {
+                gold: player.gold,
+                // We could save name/color if we wanted to enforce it, but new player usually wants their own identity
+            };
+
+            // Mark units on grid as belonging to this slot (placeholder owner)
+            const placeholderOwner = `disconnected_slot_${player.slotIndex}`;
+            for (let y = 0; y < constants.GRID_SIZE; y++) {
+                for (let x = 0; x < constants.GRID_SIZE; x++) {
+                    if(gameState.grid[y][x] && gameState.grid[y][x].owner === socket.id){
+                        gameState.grid[y][x].owner = placeholderOwner;
+                    }
+                }
+            }
+        }
+
         delete gameState.players[socket.id];
 
         // If it was the current turn player, pass turn
