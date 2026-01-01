@@ -591,7 +591,17 @@ canvas.addEventListener('click', (e) => {
         const selectedUnit = localState.grid[selectedCell.y][selectedCell.x];
         if (isValid && selectedUnit && selectedUnit.owner === myId && localState.turn === myId) {
             socket.emit('moveEntity', { from: selectedCell, to: { x, y } });
+
+            // --- UPDATED LOGIC ---
+            // Optimistically update selection to destination
+            selectedCell = { x, y };
             interactionState = 'SELECTED';
+            // Clear valid moves until server update arrives to prevent race conditions
+            validMoves = [];
+            validAttackTargets = [];
+            cellsInAttackRange = [];
+            // ---------------------
+
         } else {
             resetSelection();
         }
