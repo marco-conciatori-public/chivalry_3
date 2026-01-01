@@ -87,30 +87,47 @@ const UiManager = {
     initSetupForm() {
         const slots = [0, 1, 2, 3];
 
-        slots.forEach(i => {
+        const updateSlotUI = (i) => {
             const typeSelect = document.getElementById(`slot-${i}-type`);
             const diffSelect = document.getElementById(`slot-${i}-diff`);
+            const goldInput = document.getElementById(`slot-${i}-gold`);
+
+            if (!typeSelect) return;
+
+            // 1. Difficulty Toggle
+            if (typeSelect.value === 'ai') {
+                diffSelect?.classList.remove('hidden');
+            } else {
+                diffSelect?.classList.add('hidden');
+            }
+
+            // 2. Gold Toggle
+            const goldGroup = goldInput?.closest('.slot-gold-group');
+            if (typeSelect.value === 'closed') {
+                goldGroup?.classList.add('hidden');
+            } else {
+                goldGroup?.classList.remove('hidden');
+            }
+        };
+
+        slots.forEach(i => {
+            const typeSelect = document.getElementById(`slot-${i}-type`);
+
+            // Initialize UI state based on default values
+            updateSlotUI(i);
 
             if (typeSelect) {
                 typeSelect.addEventListener('change', () => {
-                    // 1. Difficulty Toggle
-                    if (typeSelect.value === 'ai') {
-                        diffSelect?.classList.remove('hidden');
-                    } else {
-                        diffSelect?.classList.add('hidden');
-                    }
+                    updateSlotUI(i);
 
-                    // 2. Single "Me" Enforcement
+                    // 3. Single "Me" Enforcement
                     if (typeSelect.value === 'me') {
                         slots.forEach(otherI => {
                             if (otherI !== i) {
                                 const otherSelect = document.getElementById(`slot-${otherI}-type`);
                                 if (otherSelect && otherSelect.value === 'me') {
                                     otherSelect.value = 'open'; // Switch conflicting "Me" to "Open"
-
-                                    // Update difficulty visibility for the changed slot (hide it)
-                                    const otherDiff = document.getElementById(`slot-${otherI}-diff`);
-                                    otherDiff?.classList.add('hidden');
+                                    updateSlotUI(otherI); // Update UI for the changed slot
                                 }
                             }
                         });
