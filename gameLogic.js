@@ -326,7 +326,7 @@ function calculateCurrentMorale(unit, x, y, grid) {
     let breakdown = [];
     if (unit.raw_morale > constants.MAX_MORALE) unit.raw_morale = constants.MAX_MORALE;
     let morale = unit.raw_morale;
-    breakdown.push({ label: "Base Stats", value: unit.initial_morale });
+    breakdown.push({ label: "Base Morale", value: unit.initial_morale });
 
     const eventDiff = unit.raw_morale - unit.initial_morale;
     if (eventDiff !== 0) breakdown.push({ label: "Battle Events", value: eventDiff });

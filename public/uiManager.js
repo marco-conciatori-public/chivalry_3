@@ -417,7 +417,7 @@ const UiManager = {
 
         let effects = [];
         if (terrain.blocksLos) effects.push(`Blocks Sight`);
-        if (terrain.cover > 0) effects.push(`Cover (+${terrain.cover}%)`);
+        if (terrain.cover > 0) effects.push(`Cover (+${terrain.cover})`);
 
         let effectsHtml = '';
         if (effects.length > 0) {
@@ -432,7 +432,7 @@ const UiManager = {
             <div style="font-weight: bold; margin-bottom: 5px; color:#f1c40f;">${terrain.id.toUpperCase()} <span style="font-size:0.8em; color:#ccc;">(${x},${y})</span></div>
             ${formatStat('Height', terrain.height)}
             ${formatStat('Move Cost', terrain.cost)}
-            ${formatStat('Defense', '+' + terrain.defense + '%')}
+            ${formatStat('Defense', '+' + terrain.defense)}
             ${effectsHtml}
         `;
 
