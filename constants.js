@@ -22,7 +22,7 @@ module.exports = {
     // Morale Mechanics
     MORALE_THRESHOLD: 30,
     MAX_MORALE: 100,
-    COMMANDER_INFLUENCE_RANGE: 4,
+    COMMANDER_INFLUENCE_RANGE: 8,
 
     // Morale Events/Modifiers
     MORALE_PENALTY_WITNESS_DEATH: 10,
