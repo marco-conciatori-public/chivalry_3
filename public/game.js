@@ -103,6 +103,9 @@ socket.on('update', (state) => {
     UiManager.updateStatus(localState, myId);
     UiManager.updateLegend(localState, myId, (name) => socket.emit('changeName', name));
     UiManager.updateControls(localState, myId, clientUnitStats);
+
+    // Auto End Turn Check
+    checkForAutoEndTurn();
 });
 
 socket.on('gameLog', (data) => {
@@ -351,6 +354,87 @@ function getReachableCells(start, maxDist, grid, terrainMap) {
         }
     }
     return reachable;
+}
+
+// --- AUTO END TURN LOGIC ---
+
+document.getElementById('chk-auto-end-turn').addEventListener('change', () => {
+    // If enabled, check immediately
+    checkForAutoEndTurn();
+});
+
+function checkForAutoEndTurn() {
+    const autoEndCheckbox = document.getElementById('chk-auto-end-turn');
+    if (!autoEndCheckbox || !autoEndCheckbox.checked) return;
+    if (!localState || localState.turn !== myId) return;
+
+    // Iterate through all player's units to see if ANY valid action exists
+    for (let y = 0; y < GRID_SIZE; y++) {
+        for (let x = 0; x < GRID_SIZE; x++) {
+            const unit = localState.grid[y][x];
+            if (unit && unit.owner === myId && !unit.is_fleeing) {
+
+                // 1. Check for valid MOVE
+                // Only if unit has movement points left
+                if (unit.remainingMovement > 0) {
+                    const moves = getReachableCells({x,y}, unit.remainingMovement, localState.grid, localState.terrainMap);
+                    if (moves.length > 0) return; // Found a unit that can move -> Don't end turn
+                }
+
+                // 2. Check for valid ATTACK
+                // Only if unit hasn't attacked yet
+                if (!unit.hasAttacked) {
+                    if (canUnitAttackAnyEnemy(unit, {x,y})) return; // Found a unit that can attack -> Don't end turn
+                }
+            }
+        }
+    }
+
+    // If loop completes, no actions found.
+    console.log("Auto-Ending Turn (No valid actions remaining)");
+    socket.emit('endTurn');
+    resetSelection();
+}
+
+function canUnitAttackAnyEnemy(unit, pos) {
+    let range = unit.range;
+    const myTerrain = localState.terrainMap[pos.y][pos.x];
+    const rangeBonus = gameConstants ? gameConstants.BONUS_HIGH_GROUND_RANGE : 1;
+
+    // Iterate grid to find valid targets
+    // Optimization: Could limit bounds based on max range, but Grid iteration is simpler and fast enough for <100x100
+    for (let y = 0; y < GRID_SIZE; y++) {
+        for (let x = 0; x < GRID_SIZE; x++) {
+            const dist = Math.abs(pos.x - x) + Math.abs(pos.y - y);
+            if (dist === 0) continue;
+
+            let effectiveRange = range;
+            if (unit.is_ranged && myTerrain.height > localState.terrainMap[y][x].height) {
+                effectiveRange += rangeBonus;
+            }
+
+            if (dist > effectiveRange) continue;
+
+            const targetEntity = localState.grid[y][x];
+
+            // Auto-End should only care about attacks against ENEMIES.
+            // Attacking empty ground (ranged) is usually not a reason to hold the turn open.
+            if (targetEntity && targetEntity.owner !== unit.owner) {
+
+                // Check LoS
+                let hasLoS = true;
+                if (unit.is_ranged) {
+                    hasLoS = clientHasLineOfSight(pos, {x, y});
+                }
+                if (!hasLoS) continue;
+
+                // Check Angle
+                const isValidAngle = clientIsValidAttackDirection(unit, pos, {x, y});
+                if (isValidAngle) return true; // Found a valid target
+            }
+        }
+    }
+    return false;
 }
 
 // --- INPUT LISTENERS ---
