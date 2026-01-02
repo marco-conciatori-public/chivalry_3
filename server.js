@@ -268,7 +268,7 @@ io.on('connection', (socket) => {
 
     socket.on('loadGame', (data) => {
         console.log("Loading game request from:", socket.id);
-        if (!data || !data.grid || !data.players) return;
+        if (!data || !data.grid || !data.players || !data.terrainMap) return;
 
         // 1. Restore Main State Structure
         gameState.grid = data.grid;
@@ -277,6 +277,11 @@ io.on('connection', (socket) => {
         gameState.isGameActive = true;
         gameState.matchSettings = data.matchSettings || { slots: [] };
         gameState.slotData = {};
+
+        // FIX: Update global constants based on loaded data so base calculations are correct
+        if (gameState.grid.length) {
+            constants.GRID_SIZE = gameState.grid.length;
+        }
 
         // 2. Map Old Player IDs to New Connected IDs
         const savedPlayers = data.players;
