@@ -41,25 +41,32 @@ startNewGame({
 gameState.isGameActive = false;
 
 function startNewGame(settings, hostId) {
-    // 1. Update Constants (Runtime Override)
-    if(settings.gridSize) constants.GRID_SIZE = parseInt(settings.gridSize);
+    // 1. Determine Grid Size & Map Source
+    if (settings.mapData && settings.mapData.gridSize) {
+        // Option A: Use Custom Map Data
+        constants.GRID_SIZE = parseInt(settings.mapData.gridSize);
+        // Reset Grid
+        gameState.grid = Array(constants.GRID_SIZE).fill(null).map(() => Array(constants.GRID_SIZE).fill(null));
+        // Use Loaded Terrain
+        gameState.terrainMap = settings.mapData.terrainMap;
+    } else {
+        // Option B: Random Generation
+        if(settings.gridSize) constants.GRID_SIZE = parseInt(settings.gridSize);
+        // Reset Grid
+        gameState.grid = Array(constants.GRID_SIZE).fill(null).map(() => Array(constants.GRID_SIZE).fill(null));
+        // Initialize Terrain with copies (Plains)
+        gameState.terrainMap = Array(constants.GRID_SIZE).fill(null).map(() =>
+            Array(constants.GRID_SIZE).fill(null).map(() => ({...constants.TERRAIN.PLAINS}))
+        );
+        // Generate Map
+        mapGenerator.generateMap(gameState);
+    }
 
     // Store settings for later use (Open slot filling)
     gameState.matchSettings = settings;
     gameState.slotData = {}; // Reset slot data on new game
 
-    // 2. Reset Grid & Terrain
-    gameState.grid = Array(constants.GRID_SIZE).fill(null).map(() => Array(constants.GRID_SIZE).fill(null));
-
-    // CRITICAL: Initialize with COPIES of the object, not the same reference
-    gameState.terrainMap = Array(constants.GRID_SIZE).fill(null).map(() =>
-        Array(constants.GRID_SIZE).fill(null).map(() => ({...constants.TERRAIN.PLAINS}))
-    );
-
-    // 3. Regenerate Map
-    mapGenerator.generateMap(gameState);
-
-    // 4. Handle Players (Complete Reset based on Slots)
+    // 2. Handle Players (Complete Reset based on Slots)
     // Gather all currently connected sockets
     let connectedSockets = Object.keys(gameState.players).filter(id => !gameState.players[id].isAI);
     // If this is a restart, ensure the hostId (if provided) is in the list
@@ -379,6 +386,8 @@ io.on('connection', (socket) => {
         socket.emit('saveMapData', mapData);
     });
 
+    // Keep this listener for "Load Map" in case we want hot-swapping later,
+    // though the Setup Screen now handles new game creation.
     socket.on('loadMap', (mapData) => {
         if (!mapData || !mapData.terrainMap) return;
 

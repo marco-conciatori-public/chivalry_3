@@ -10,6 +10,7 @@ let localState = null;
 let clientUnitStats = {};
 let gameConstants = null;
 let GRID_SIZE = 50;
+let pendingMapData = null; // Store map data loaded from file in Setup Screen
 
 // Game Interaction State
 let selectedCell = null;
@@ -147,6 +148,24 @@ socket.on('saveMapData', (data) => {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
     UiManager.addLogEntry("Map terrain saved.", localState, () => {});
+});
+
+// --- UI LOGIC (Setup Screen Toggles) ---
+
+const mapSourceRadios = document.getElementsByName('map-source');
+const mapOptRandom = document.getElementById('map-opt-random');
+const mapOptFile = document.getElementById('map-opt-file');
+
+mapSourceRadios.forEach(radio => {
+    radio.addEventListener('change', (e) => {
+        if (e.target.value === 'random') {
+            mapOptRandom.classList.remove('hidden');
+            mapOptFile.classList.add('hidden');
+        } else {
+            mapOptRandom.classList.add('hidden');
+            mapOptFile.classList.remove('hidden');
+        }
+    });
 });
 
 // --- RENDER LOOP ---
@@ -458,8 +477,21 @@ document.getElementById('end-turn-btn').addEventListener('click', () => {
     resetSelection();
 });
 
+// Start Game Handler with Custom Map Support
 document.getElementById('btn-start-game').addEventListener('click', () => {
     const settings = UiManager.getSetupSettings();
+
+    // Check Map Source
+    const mapSource = document.querySelector('input[name="map-source"]:checked').value;
+
+    if (mapSource === 'file') {
+        if (!pendingMapData) {
+            alert("Please select a valid map file first.");
+            return;
+        }
+        settings.mapData = pendingMapData;
+    }
+
     socket.emit('startGame', settings);
 });
 
@@ -526,10 +558,16 @@ document.getElementById('btn-save-map').addEventListener('click', () => {
     socket.emit('requestSaveMap');
 });
 
+// Map File Input Handling for Setup Screen
 const fileInputMap = document.getElementById('file-input-map');
-document.getElementById('btn-load-map').addEventListener('click', () => {
-    fileInputMap.click();
-});
+const btnSelectMapFile = document.getElementById('btn-select-map-file');
+const mapFileNameDisplay = document.getElementById('map-file-name');
+
+if (btnSelectMapFile) {
+    btnSelectMapFile.addEventListener('click', () => {
+        fileInputMap.click();
+    });
+}
 
 fileInputMap.addEventListener('change', (e) => {
     const file = e.target.files[0];
@@ -539,11 +577,18 @@ fileInputMap.addEventListener('change', (e) => {
     reader.onload = (e) => {
         try {
             const data = JSON.parse(e.target.result);
-            if (confirm("Loading a map will clear all current units. Continue?")) {
-                socket.emit('loadMap', data);
+            if (data.terrainMap && data.gridSize) {
+                pendingMapData = data;
+                mapFileNameDisplay.textContent = file.name;
+                mapFileNameDisplay.classList.add('loaded');
+            } else {
+                alert("Invalid map file format (missing terrainMap or gridSize).");
+                pendingMapData = null;
+                mapFileNameDisplay.textContent = "Invalid File";
+                mapFileNameDisplay.classList.remove('loaded');
             }
         } catch (err) {
-            alert("Invalid map file format.");
+            alert("Invalid JSON file.");
         }
     };
     reader.readAsText(file);
