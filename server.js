@@ -44,14 +44,23 @@ function startNewGame(settings, hostId) {
     // 1. Determine Grid Size & Map Source
     if (settings.mapData && settings.mapData.gridSize) {
         // Option A: Use Custom Map Data
-        constants.GRID_SIZE = parseInt(settings.mapData.gridSize);
+        let size = parseInt(settings.mapData.gridSize);
+        // Clamp grid size from loaded map
+        size = Math.max(constants.MIN_GRID_SIZE, Math.min(constants.MAX_GRID_SIZE, size));
+        constants.GRID_SIZE = size;
+
         // Reset Grid
         gameState.grid = Array(constants.GRID_SIZE).fill(null).map(() => Array(constants.GRID_SIZE).fill(null));
         // Use Loaded Terrain
         gameState.terrainMap = settings.mapData.terrainMap;
     } else {
         // Option B: Random Generation
-        if(settings.gridSize) constants.GRID_SIZE = parseInt(settings.gridSize);
+        if(settings.gridSize) {
+            let size = parseInt(settings.gridSize);
+            // Clamp grid size from input
+            size = Math.max(constants.MIN_GRID_SIZE, Math.min(constants.MAX_GRID_SIZE, size));
+            constants.GRID_SIZE = size;
+        }
         // Reset Grid
         gameState.grid = Array(constants.GRID_SIZE).fill(null).map(() => Array(constants.GRID_SIZE).fill(null));
         // Initialize Terrain with copies (Plains)
@@ -79,27 +88,35 @@ function startNewGame(settings, hostId) {
 
     // Pass 1: Assign 'Me' slots
     slots.forEach(slot => {
+        // Validate Gold
+        let validatedGold = slot.gold;
+        validatedGold = Math.max(constants.MIN_GOLD, Math.min(constants.MAX_GOLD, validatedGold));
+
         if(slot.type === 'me' && hostId) {
-            createPlayer(hostId, slot.index, slot.gold, false, null);
+            createPlayer(hostId, slot.index, validatedGold, false, null);
             usedSockets.push(hostId);
         }
     });
 
     // Pass 2: Assign AI and Open slots
     slots.forEach(slot => {
+        // Validate Gold
+        let validatedGold = slot.gold;
+        validatedGold = Math.max(constants.MIN_GOLD, Math.min(constants.MAX_GOLD, validatedGold));
+
         // Skip if already assigned (e.g., 'me' slot)
         if (gameState.players[getPlayerIdForIndex(slot.index, hostId)]) return;
 
         if (slot.type === 'ai') {
             const aiId = `ai_${slot.index}`;
-            createPlayer(aiId, slot.index, slot.gold, true, slot.difficulty);
+            createPlayer(aiId, slot.index, validatedGold, true, slot.difficulty);
         }
         else if (slot.type === 'open') {
             // Find a connected human who hasn't been assigned yet
             const availableSocket = connectedSockets.find(sid => !usedSockets.includes(sid));
 
             if (availableSocket) {
-                createPlayer(availableSocket, slot.index, slot.gold, false, null);
+                createPlayer(availableSocket, slot.index, validatedGold, false, null);
                 usedSockets.push(availableSocket);
             }
         }

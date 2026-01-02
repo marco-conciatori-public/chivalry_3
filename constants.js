@@ -2,6 +2,12 @@ module.exports = {
     // Game Grid
     GRID_SIZE: 40,
 
+    // Validation Constants
+    MIN_GOLD: 0,
+    MAX_GOLD: 5000,
+    MIN_GRID_SIZE: 20,
+    MAX_GRID_SIZE: 200,
+
     // Player Configuration
     PLAYER_COLORS: ['#3498db', '#e74c3c', '#2ecc71', '#f1c40f', '#9b59b6'],
     STARTING_GOLD: 1200,
