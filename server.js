@@ -259,6 +259,113 @@ io.on('connection', (socket) => {
         }
     });
 
+    // --- SAVE / LOAD HANDLERS ---
+
+    socket.on('requestSave', () => {
+        // Send current state to requester
+        socket.emit('saveGameData', gameState);
+    });
+
+    socket.on('loadGame', (data) => {
+        console.log("Loading game request from:", socket.id);
+        if (!data || !data.grid || !data.players) return;
+
+        // 1. Restore Main State Structure
+        gameState.grid = data.grid;
+        gameState.terrainMap = data.terrainMap;
+        gameState.turnCount = data.turnCount;
+        gameState.isGameActive = true;
+        gameState.matchSettings = data.matchSettings || { slots: [] };
+        gameState.slotData = {};
+
+        // 2. Map Old Player IDs to New Connected IDs
+        const savedPlayers = data.players;
+        const currentSockets = Array.from(io.sockets.sockets.keys());
+
+        // Prioritize the loader for the first slot
+        const otherSockets = currentSockets.filter(id => id !== socket.id);
+        const sortedSockets = [socket.id, ...otherSockets];
+
+        gameState.players = {}; // Clear current players
+        let socketIdx = 0;
+
+        const oldIdToNewId = {};
+
+        // Helper to find saved player data by slot index
+        const getSavedPlayerBySlot = (idx) => {
+            return Object.values(savedPlayers).find(p => p.slotIndex === idx);
+        };
+
+        // 3. Recreate Players based on Match Settings (Slots)
+        if (gameState.matchSettings.slots) {
+            gameState.matchSettings.slots.forEach(slot => {
+                const oldP = getSavedPlayerBySlot(slot.index);
+                // Use saved gold if player existed, otherwise default
+                const currentGold = oldP ? oldP.gold : slot.gold;
+
+                let newOwnerId = null;
+                let oldOwnerId = oldP ? oldP.id : null;
+
+                if (slot.type === 'ai') {
+                    newOwnerId = `ai_${slot.index}`;
+                    createPlayer(newOwnerId, slot.index, currentGold, true, slot.difficulty);
+                } else if (slot.type === 'me' || slot.type === 'open') {
+                    if (socketIdx < sortedSockets.length) {
+                        newOwnerId = sortedSockets[socketIdx];
+                        createPlayer(newOwnerId, slot.index, currentGold, false, null);
+                        // Optional: restore name if available
+                        if (oldP && gameState.players[newOwnerId]) {
+                            gameState.players[newOwnerId].name = oldP.name;
+                        }
+                        socketIdx++;
+                    }
+                } else if (slot.type === 'closed') {
+                    // Do nothing for closed slots
+                }
+
+                if (oldOwnerId && newOwnerId) {
+                    oldIdToNewId[oldOwnerId] = newOwnerId;
+                }
+            });
+        }
+
+        // Assign remaining connected users as Observers
+        while(socketIdx < sortedSockets.length) {
+            createObserver(sortedSockets[socketIdx]);
+            socketIdx++;
+        }
+
+        // 4. Update Unit Ownership on the Grid
+        for(let y=0; y<constants.GRID_SIZE; y++) {
+            for(let x=0; x<constants.GRID_SIZE; x++) {
+                const u = gameState.grid[y][x];
+                if (u && oldIdToNewId[u.owner]) {
+                    u.owner = oldIdToNewId[u.owner];
+                }
+            }
+        }
+
+        // 5. Restore Turn
+        if (data.turn && oldIdToNewId[data.turn]) {
+            gameState.turn = oldIdToNewId[data.turn];
+        } else {
+            // Fallback if turn player didn't map (e.g. AI or dropped)
+            const active = Object.keys(gameState.players).filter(id => !gameState.players[id].isObserver);
+            if(active.length > 0) gameState.turn = active[0];
+        }
+
+        // 6. Broadcast Reset
+        io.emit('init', {
+            state: gameState,
+            myId: null, // Client will ignore
+            unitStats: unitStats,
+            gameConstants: constants
+        });
+        io.emit('gameLog', { message: "--- GAME LOADED ---" });
+    });
+
+    // --------------------------------
+
     socket.on('spawnEntity', ({ x, y, type }) => {
         const player = gameState.players[socket.id];
         if (!player || player.isObserver) return; // Observers cannot spawn

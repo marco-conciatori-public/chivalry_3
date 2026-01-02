@@ -198,6 +198,13 @@
     background: #2980b9;
 }
 
+.btn-green {
+    background: #27ae60;
+}
+.btn-green:hover {
+    background: #219150;
+}
+
 .btn-red {
     background-color: #e74c3c;
 }

@@ -121,6 +121,19 @@ socket.on('combatResults', (data) => {
     }
 });
 
+socket.on('saveGameData', (data) => {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `chivalry_save_${new Date().toISOString().slice(0,19).replace(/:/g,"-")}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    UiManager.addLogEntry("Game saved successfully.", localState, () => {});
+});
+
 // --- RENDER LOOP ---
 function renderGame() {
     Renderer.draw(localState, myId, selectedCell, interactionState, validMoves, validAttackTargets, cellsInAttackRange, gameConstants);
@@ -448,6 +461,42 @@ document.querySelectorAll('.template').forEach(el => {
         renderGame();
     });
 });
+
+// --- SAVE / LOAD BUTTONS ---
+
+document.getElementById('btn-save-game').addEventListener('click', () => {
+    if (!localState || !localState.isGameActive) {
+        alert("Game not active. Start a game to save.");
+        return;
+    }
+    socket.emit('requestSave');
+});
+
+const fileInput = document.getElementById('file-input-load');
+document.getElementById('btn-load-game').addEventListener('click', () => {
+    fileInput.click();
+});
+
+fileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const data = JSON.parse(e.target.result);
+            if (confirm("Loading a game will overwrite the current session. Continue?")) {
+                socket.emit('loadGame', data);
+            }
+        } catch (err) {
+            alert("Invalid save file format.");
+        }
+    };
+    reader.readAsText(file);
+    fileInput.value = ''; // Reset input so same file can be selected again
+});
+
+// ---------------------------
 
 // Right-click (Context Menu) Logic
 canvas.addEventListener('contextmenu', (e) => {
