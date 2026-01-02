@@ -119,6 +119,19 @@
         </div>
 
         <button id="btn-start-game" class="primary-btn">Start Game</button>
+
+        <!-- Load Section in Modal -->
+        <div style="margin-top: 25px; border-top: 1px solid #eee; padding-top: 15px;">
+            <h3 style="margin-top: 0; margin-bottom: 10px; font-size: 1em; color: #7f8c8d;">Saved Games & Maps</h3>
+            <div style="display: flex; gap: 10px;">
+                <button id="btn-load-game" class="panel-main-btn btn-green" style="margin: 0; width: 50%;">Load Game</button>
+                <button id="btn-load-map" class="panel-main-btn" style="background-color: #8e44ad; color: white; margin: 0; width: 50%;">Load Map</button>
+            </div>
+        </div>
+
+        <!-- Hidden input for file loading (Moved here for structure, though they are invisible) -->
+        <input type="file" id="file-input-load" style="display: none;" accept=".json">
+        <input type="file" id="file-input-map" style="display: none;" accept=".json">
     </div>
 </div>
 
@@ -133,15 +146,10 @@
         <!-- Standardized Buttons -->
         <button id="btn-new-game-trigger" class="panel-main-btn btn-blue">New Game</button>
 
-        <button id="btn-save-game" class="panel-main-btn btn-green">Save Game</button>
-        <button id="btn-load-game" class="panel-main-btn btn-green">Load Game</button>
-
-        <button id="btn-save-map" class="panel-main-btn" style="background-color: #8e44ad; color: white;">Save Map</button>
-        <button id="btn-load-map" class="panel-main-btn" style="background-color: #8e44ad; color: white;">Load Map</button>
-
-        <!-- Hidden input for file loading -->
-        <input type="file" id="file-input-load" style="display: none;" accept=".json">
-        <input type="file" id="file-input-map" style="display: none;" accept=".json">
+        <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+            <button id="btn-save-game" class="panel-main-btn btn-green" style="margin: 0; font-size: 0.9em;">Save Game</button>
+            <button id="btn-save-map" class="panel-main-btn" style="background-color: #8e44ad; color: white; margin: 0; font-size: 0.9em;">Save Map</button>
+        </div>
 
         <button id="end-turn-btn" class="panel-main-btn btn-red">END TURN</button>
 

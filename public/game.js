@@ -463,6 +463,11 @@ document.getElementById('btn-start-game').addEventListener('click', () => {
     socket.emit('startGame', settings);
 });
 
+// Added Listener for New Game Button to re-open setup screen
+document.getElementById('btn-new-game-trigger').addEventListener('click', () => {
+    UiManager.showSetupScreen();
+});
+
 document.querySelectorAll('.template').forEach(el => {
     el.addEventListener('click', () => {
         if (localState.turn !== myId) return;
