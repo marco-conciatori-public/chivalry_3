@@ -24,7 +24,7 @@ let cellsInAttackRange = [];
 let isDragging = false;
 let dragStartX = 0;
 let dragStartY = 0;
-let hasDragged = false; // Flag to prevent click event if user was dragging
+let hasDragged = false;
 
 UiManager.init();
 
@@ -49,9 +49,16 @@ socket.on('init', (data) => {
         Renderer.init(ctx, GRID_SIZE, canvas.width, minimapCanvas);
     }
 
+    // New: If we are an observer, setup screen might still be relevant if we are host setting up
+    // But mostly we just show game. The role selection handles the flow now.
+    // If state is inactive (setup phase), show Setup IF we are host... wait, logic changed.
+    // We only show setup screen if explicitly triggered or if game hasn't started and we are the "Host" role.
+
     if (localState.isGameActive) {
         UiManager.hideSetupScreen();
     } else {
+        // Only show setup screen if we aren't seeing role selection
+        // Actually, role selection modal sits on top.
         UiManager.showSetupScreen();
     }
 
@@ -104,7 +111,6 @@ socket.on('update', (state) => {
     UiManager.updateLegend(localState, myId, (name) => socket.emit('changeName', name));
     UiManager.updateControls(localState, myId, clientUnitStats);
 
-    // Auto End Turn Check
     checkForAutoEndTurn();
 });
 
@@ -123,6 +129,13 @@ socket.on('combatResults', (data) => {
             }
         });
     }
+});
+
+// --- NEW ROLE SELECTION ---
+socket.on('roleSelection', (slots) => {
+    UiManager.showRoleSelectionModal(slots, (index) => {
+        socket.emit('chooseSlot', index);
+    });
 });
 
 // --- SAVE / LOAD EVENTS ---
@@ -375,22 +388,19 @@ function checkForAutoEndTurn() {
             if (unit && unit.owner === myId && !unit.is_fleeing) {
 
                 // 1. Check for valid MOVE
-                // Only if unit has movement points left
                 if (unit.remainingMovement > 0) {
                     const moves = getReachableCells({x,y}, unit.remainingMovement, localState.grid, localState.terrainMap);
-                    if (moves.length > 0) return; // Found a unit that can move -> Don't end turn
+                    if (moves.length > 0) return;
                 }
 
                 // 2. Check for valid ATTACK
-                // Only if unit hasn't attacked yet
                 if (!unit.hasAttacked) {
-                    if (canUnitAttackAnyEnemy(unit, {x,y})) return; // Found a unit that can attack -> Don't end turn
+                    if (canUnitAttackAnyEnemy(unit, {x,y})) return;
                 }
             }
         }
     }
 
-    // If loop completes, no actions found.
     console.log("Auto-Ending Turn (No valid actions remaining)");
     socket.emit('endTurn');
     resetSelection();
@@ -401,8 +411,6 @@ function canUnitAttackAnyEnemy(unit, pos) {
     const myTerrain = localState.terrainMap[pos.y][pos.x];
     const rangeBonus = gameConstants ? gameConstants.BONUS_HIGH_GROUND_RANGE : 1;
 
-    // Iterate grid to find valid targets
-    // Optimization: Could limit bounds based on max range, but Grid iteration is simpler and fast enough for <100x100
     for (let y = 0; y < GRID_SIZE; y++) {
         for (let x = 0; x < GRID_SIZE; x++) {
             const dist = Math.abs(pos.x - x) + Math.abs(pos.y - y);
@@ -417,20 +425,15 @@ function canUnitAttackAnyEnemy(unit, pos) {
 
             const targetEntity = localState.grid[y][x];
 
-            // Auto-End should only care about attacks against ENEMIES.
-            // Attacking empty ground (ranged) is usually not a reason to hold the turn open.
             if (targetEntity && targetEntity.owner !== unit.owner) {
-
-                // Check LoS
                 let hasLoS = true;
                 if (unit.is_ranged) {
                     hasLoS = clientHasLineOfSight(pos, {x, y});
                 }
                 if (!hasLoS) continue;
 
-                // Check Angle
                 const isValidAngle = clientIsValidAttackDirection(unit, pos, {x, y});
-                if (isValidAngle) return true; // Found a valid target
+                if (isValidAngle) return true;
             }
         }
     }
@@ -439,7 +442,6 @@ function canUnitAttackAnyEnemy(unit, pos) {
 
 // --- INPUT LISTENERS ---
 
-// ZOOM LISTENER (Mouse Wheel)
 canvas.addEventListener('wheel', (e) => {
     e.preventDefault();
     const rect = canvas.getBoundingClientRect();
@@ -460,9 +462,7 @@ canvas.addEventListener('wheel', (e) => {
     renderGame();
 });
 
-// DRAGGING LOGIC (Mouse Down/Move/Up on Canvas)
 canvas.addEventListener('mousedown', (e) => {
-    // Only drag if zoomed in
     if (Renderer.getZoom() > 1.0) {
         isDragging = true;
         hasDragged = false;
@@ -474,19 +474,15 @@ canvas.addEventListener('mousedown', (e) => {
 canvas.addEventListener('mousemove', (e) => {
     if (!localState || !Renderer.CELL_SIZE) return;
 
-    // Handle Hover Info
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
     const screenX = (e.clientX - rect.left) * scaleX;
     const screenY = (e.clientY - rect.top) * scaleY;
 
-    // Handle Dragging
     if (isDragging) {
         const dx = (e.clientX - dragStartX) * scaleX;
         const dy = (e.clientY - dragStartY) * scaleY;
-
-        // Threshold to distinguish click from drag
         if (Math.abs(dx) > 5 || Math.abs(dy) > 5) hasDragged = true;
 
         if (hasDragged) {
@@ -494,18 +490,15 @@ canvas.addEventListener('mousemove', (e) => {
             dragStartX = e.clientX;
             dragStartY = e.clientY;
             renderGame();
-            // Don't update cell info while dragging for performance/clarity
             return;
         }
     }
 
-    // Normal Hover
     const x = Math.floor((screenX - Renderer.panX) / (Renderer.CELL_SIZE * Renderer.zoom));
     const y = Math.floor((screenY - Renderer.panY) / (Renderer.CELL_SIZE * Renderer.zoom));
 
     if (x >= 0 && x < GRID_SIZE && y >= 0 && y < GRID_SIZE && localState.terrainMap) {
         const terrain = localState.terrainMap[y][x];
-        // Pass pageX/pageY for tooltip positioning
         UiManager.updateCellInfo(terrain, x, y, e.pageX, e.pageY);
     } else {
         UiManager.updateCellInfo(null);
@@ -521,37 +514,20 @@ canvas.addEventListener('mouseleave', () => {
     UiManager.updateCellInfo(null);
 });
 
-// MINIMAP NAVIGATION
 function handleMinimapInput(e) {
-    // Stop propagation so we don't click the canvas underneath
     e.stopPropagation();
-
     const rect = minimapCanvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
-
-    // Normalize 0-1
     const nX = x / minimapCanvas.width;
     const nY = y / minimapCanvas.height;
-
     Renderer.centerOn(nX, nY);
     renderGame();
 }
 
-// Support clicking and dragging on minimap
 let isMinimapDragging = false;
-
-minimapCanvas.addEventListener('mousedown', (e) => {
-    isMinimapDragging = true;
-    handleMinimapInput(e);
-});
-
-minimapCanvas.addEventListener('mousemove', (e) => {
-    if (isMinimapDragging) {
-        handleMinimapInput(e);
-    }
-});
-
+minimapCanvas.addEventListener('mousedown', (e) => { isMinimapDragging = true; handleMinimapInput(e); });
+minimapCanvas.addEventListener('mousemove', (e) => { if (isMinimapDragging) handleMinimapInput(e); });
 minimapCanvas.addEventListener('mouseup', () => isMinimapDragging = false);
 minimapCanvas.addEventListener('mouseleave', () => isMinimapDragging = false);
 
@@ -561,11 +537,8 @@ document.getElementById('end-turn-btn').addEventListener('click', () => {
     resetSelection();
 });
 
-// Start Game Handler with Custom Map Support
 document.getElementById('btn-start-game').addEventListener('click', () => {
     const settings = UiManager.getSetupSettings();
-
-    // Check Map Source
     const mapSource = document.querySelector('input[name="map-source"]:checked').value;
 
     if (mapSource === 'file') {
@@ -579,7 +552,6 @@ document.getElementById('btn-start-game').addEventListener('click', () => {
     socket.emit('startGame', settings);
 });
 
-// Added Listener for New Game Button to re-open setup screen
 document.getElementById('btn-new-game-trigger').addEventListener('click', () => {
     UiManager.showSetupScreen();
 });
@@ -597,8 +569,6 @@ document.querySelectorAll('.template').forEach(el => {
         renderGame();
     });
 });
-
-// --- SAVE / LOAD BUTTONS ---
 
 document.getElementById('btn-save-game').addEventListener('click', () => {
     if (!localState || !localState.isGameActive) {
@@ -629,10 +599,8 @@ fileInput.addEventListener('change', (e) => {
         }
     };
     reader.readAsText(file);
-    fileInput.value = ''; // Reset input so same file can be selected again
+    fileInput.value = '';
 });
-
-// --- SAVE / LOAD MAP ONLY ---
 
 document.getElementById('btn-save-map').addEventListener('click', () => {
     if (!localState || !localState.isGameActive) {
@@ -642,7 +610,6 @@ document.getElementById('btn-save-map').addEventListener('click', () => {
     socket.emit('requestSaveMap');
 });
 
-// Map File Input Handling for Setup Screen
 const fileInputMap = document.getElementById('file-input-map');
 const btnSelectMapFile = document.getElementById('btn-select-map-file');
 const mapFileNameDisplay = document.getElementById('map-file-name');
@@ -679,13 +646,9 @@ fileInputMap.addEventListener('change', (e) => {
     fileInputMap.value = '';
 });
 
-// ---------------------------
-
-// Right-click (Context Menu) Logic
 canvas.addEventListener('contextmenu', (e) => {
     e.preventDefault();
 
-    // Prevent action if we were dragging/panning
     if (hasDragged) {
         hasDragged = false;
         return;
@@ -707,7 +670,6 @@ canvas.addEventListener('contextmenu', (e) => {
     const clickedEntity = localState.grid[y][x];
 
     if (clickedEntity) {
-        // 1. Select the unit (Clears previous selection first)
         resetSelection();
         selectedCell = { x, y };
         interactionState = 'SELECTED';
@@ -718,7 +680,6 @@ canvas.addEventListener('contextmenu', (e) => {
             recalculateOptions(clickedEntity);
         }
 
-        // 2. Open Menu immediately if it's my unit and my turn
         if (clickedEntity.owner === myId && localState.turn === myId && !clickedEntity.is_fleeing) {
             UiManager.showContextMenu(e.clientX, e.clientY, clickedEntity, selectedCell, Renderer.CELL_SIZE * Renderer.zoom);
             interactionState = 'MENU';
@@ -728,9 +689,7 @@ canvas.addEventListener('contextmenu', (e) => {
     }
 });
 
-// Canvas Click
 canvas.addEventListener('click', (e) => {
-    // Abort if this was a drag operation
     if (hasDragged) {
         hasDragged = false;
         return;
@@ -823,15 +782,11 @@ canvas.addEventListener('click', (e) => {
         const selectedUnit = localState.grid[selectedCell.y][selectedCell.x];
         if (isValid && selectedUnit && selectedUnit.owner === myId && localState.turn === myId) {
             socket.emit('moveEntity', { from: selectedCell, to: { x, y } });
-
-            // Optimistically update selection to destination
             selectedCell = { x, y };
             interactionState = 'SELECTED';
-            // Clear valid moves until server update arrives to prevent race conditions
             validMoves = [];
             validAttackTargets = [];
             cellsInAttackRange = [];
-            // ---------------------
 
         } else {
             resetSelection();

@@ -13,6 +13,9 @@ const UiManager = {
         btnRotate: document.getElementById('btn-rotate'),
         btnAttack: document.getElementById('btn-attack'),
         setupScreen: document.getElementById('setup-screen'),
+        roleSelectionModal: document.getElementById('role-selection-modal'),
+        roleList: document.getElementById('role-list'),
+        btnJoinObserver: document.getElementById('btn-join-observer'),
         btnStartGame: document.getElementById('btn-start-game'),
         btnNewGameTrigger: document.getElementById('btn-new-game-trigger')
     },
@@ -21,7 +24,7 @@ const UiManager = {
     currentAttackBreakdown: null,
     currentDefenseBreakdown: null,
     tooltipEl: null,
-    cellTooltipEl: null, // New Tooltip for Cells
+    cellTooltipEl: null,
     gameConstants: null,
 
     // Timer state for Cell Tooltip
@@ -29,7 +32,6 @@ const UiManager = {
     lastHoveredCell: { x: -1, y: -1 },
     lastMousePos: { x: 0, y: 0 },
 
-    // Definitions for Ability Tooltips
     abilityDescriptions: {
         'anti_cavalry': 'Deals significant bonus damage against Cavalry units.',
         'commander_will': 'Provides a morale bonus to himself and all allies within range.',
@@ -37,19 +39,16 @@ const UiManager = {
     },
 
     init() {
-        // Create General Tooltip (Morale, Abilities)
         this.tooltipEl = document.createElement('div');
         this.tooltipEl.id = 'morale-tooltip';
         this.tooltipEl.style.display = 'none';
         document.body.appendChild(this.tooltipEl);
 
-        // Create Cell Info Tooltip
         this.cellTooltipEl = document.createElement('div');
         this.cellTooltipEl.id = 'cell-tooltip';
         this.cellTooltipEl.style.display = 'none';
         document.body.appendChild(this.cellTooltipEl);
 
-        // Setup Screen listeners
         if (this.elements.btnNewGameTrigger) {
             this.elements.btnNewGameTrigger.addEventListener('click', () => {
                 if (confirm("Are you sure you want to start a new game? Current progress will be lost.")) {
@@ -58,10 +57,14 @@ const UiManager = {
             });
         }
 
-        // Initialize Collapsible Panels
-        this.initCollapsibles();
+        // Role Selection Observer Button
+        if (this.elements.btnJoinObserver) {
+            this.elements.btnJoinObserver.addEventListener('click', () => {
+                this.elements.roleSelectionModal.classList.add('hidden');
+            });
+        }
 
-        // Initialize Setup Form dynamic toggles
+        this.initCollapsibles();
         this.initSetupForm();
     },
 
@@ -74,8 +77,6 @@ const UiManager = {
                 if (content && content.classList.contains('panel-content')) {
                     content.classList.toggle('hidden');
                     header.classList.toggle('collapsed');
-
-                    // Also toggle class on the parent section for layout adjustments (like flex-grow)
                     if (section && section.classList.contains('panel-section')) {
                         section.classList.toggle('collapsed-section');
                     }
@@ -93,59 +94,39 @@ const UiManager = {
             const goldInput = document.getElementById(`slot-${i}-gold`);
 
             if (!typeSelect) return;
-
-            // 1. Difficulty Toggle
             const diffGroup = diffSelect?.closest('.slot-diff-group');
             const target = diffGroup || diffSelect;
 
-            if (typeSelect.value === 'ai') {
-                target?.classList.remove('hidden');
-            } else {
-                target?.classList.add('hidden');
-            }
+            if (typeSelect.value === 'ai') target?.classList.remove('hidden');
+            else target?.classList.add('hidden');
 
-            // 2. Gold Toggle
             const goldGroup = goldInput?.closest('.slot-gold-group');
-            if (typeSelect.value === 'closed') {
-                goldGroup?.classList.add('hidden');
-            } else {
-                goldGroup?.classList.remove('hidden');
-            }
+            if (typeSelect.value === 'closed') goldGroup?.classList.add('hidden');
+            else goldGroup?.classList.remove('hidden');
         };
 
         slots.forEach(i => {
             const typeSelect = document.getElementById(`slot-${i}-type`);
-
-            // Initialize UI state based on default values
             updateSlotUI(i);
 
-            // Sync Gold Input and Slider
             const goldInput = document.getElementById(`slot-${i}-gold`);
             const goldSlider = document.getElementById(`slot-${i}-gold-slider`);
 
             if (goldInput && goldSlider) {
-                // When slider changes, update input
-                goldSlider.addEventListener('input', () => {
-                    goldInput.value = goldSlider.value;
-                });
-                // When input changes, update slider
-                goldInput.addEventListener('input', () => {
-                    goldSlider.value = goldInput.value;
-                });
+                goldSlider.addEventListener('input', () => { goldInput.value = goldSlider.value; });
+                goldInput.addEventListener('input', () => { goldSlider.value = goldInput.value; });
             }
 
             if (typeSelect) {
                 typeSelect.addEventListener('change', () => {
                     updateSlotUI(i);
-
-                    // 3. Single "Me" Enforcement
                     if (typeSelect.value === 'me') {
                         slots.forEach(otherI => {
                             if (otherI !== i) {
                                 const otherSelect = document.getElementById(`slot-${otherI}-type`);
                                 if (otherSelect && otherSelect.value === 'me') {
-                                    otherSelect.value = 'open'; // Switch conflicting "Me" to "Open"
-                                    updateSlotUI(otherI); // Update UI for the changed slot
+                                    otherSelect.value = 'open';
+                                    updateSlotUI(otherI);
                                 }
                             }
                         });
@@ -157,7 +138,6 @@ const UiManager = {
 
     setConstants(constants) {
         this.gameConstants = constants;
-        // Update descriptions with actual values if available
         if (constants) {
             this.abilityDescriptions['anti_cavalry'] = `Deals +${constants.BONUS_ANTI_CAVALRY} bonus damage against Cavalry units.`;
         }
@@ -171,14 +151,45 @@ const UiManager = {
         this.elements.setupScreen.classList.add('hidden');
     },
 
+    showRoleSelectionModal(slots, onSelect) {
+        this.elements.roleList.innerHTML = '';
+
+        slots.forEach(slot => {
+            const btn = document.createElement('div');
+            btn.className = 'role-option-btn';
+
+            // Text color based on status
+            const statusColor = slot.isReconnect ? '#e67e22' : '#27ae60';
+            const statusText = slot.isReconnect ? 'Reconnect' : 'Join Game';
+
+            btn.innerHTML = `
+                <div class="role-color" style="background-color: ${slot.color}"></div>
+                <div class="role-info">
+                    <span class="role-name">${slot.name}</span>
+                    <span class="role-status" style="color: ${statusColor}">${statusText}</span>
+                </div>
+                <div style="font-size: 1.2em; color: #aaa;">➜</div>
+            `;
+
+            btn.onclick = () => {
+                onSelect(slot.index);
+                this.elements.roleSelectionModal.classList.add('hidden');
+                // Ensure setup screen is hidden if we join
+                this.hideSetupScreen();
+            };
+
+            this.elements.roleList.appendChild(btn);
+        });
+
+        this.elements.roleSelectionModal.classList.remove('hidden');
+    },
+
     getSetupSettings() {
-        // Scrape global settings
         const settings = {
             gridSize: document.getElementById('cfg-grid-size').value,
             slots: []
         };
 
-        // Scrape 4 slots
         for(let i=0; i<4; i++) {
             const type = document.getElementById(`slot-${i}-type`).value;
             const gold = parseInt(document.getElementById(`slot-${i}-gold`).value) || 2000;
@@ -191,7 +202,6 @@ const UiManager = {
                 difficulty: difficulty
             });
         }
-
         return settings;
     },
 
@@ -200,7 +210,6 @@ const UiManager = {
     },
 
     updateStatus(gameState, myId) {
-        // Default to Turn 1 if undefined (backward compatibility/safety)
         const turnCount = gameState.turnCount || 1;
 
         if (gameState.turn === myId) {
@@ -221,7 +230,6 @@ const UiManager = {
 
         this.elements.playerList.innerHTML = '';
 
-        // Categorize players
         const activePlayers = [];
         const observers = [];
 
@@ -233,17 +241,14 @@ const UiManager = {
             }
         });
 
-        // Sort active players by slot index
         activePlayers.sort((a,b) => (a.slotIndex || 0) - (b.slotIndex || 0));
 
-        // Render Active Players
         activePlayers.forEach(p => {
             const isMe = p.id === myId;
             const isTurn = gameState.turn === p.id;
             const li = document.createElement('li');
             li.className = 'player-item';
 
-            // Flex layout for positioning
             li.style.display = 'flex';
             li.style.alignItems = 'center';
 
@@ -255,7 +260,7 @@ const UiManager = {
             const colorBox = document.createElement('div');
             colorBox.className = 'player-color-box';
             colorBox.style.backgroundColor = p.color;
-            colorBox.style.marginRight = '8px'; // Add spacing
+            colorBox.style.marginRight = '8px';
 
             const nameSpan = document.createElement('span');
 
@@ -292,10 +297,9 @@ const UiManager = {
                 };
             }
 
-            // Gold on the right
             const goldSpan = document.createElement('span');
             goldSpan.innerText = p.gold !== undefined ? `${p.gold}g` : '';
-            goldSpan.style.marginLeft = 'auto'; // Push to right
+            goldSpan.style.marginLeft = 'auto';
             goldSpan.style.fontWeight = 'bold';
             goldSpan.style.color = '#b7950b';
 
@@ -306,7 +310,6 @@ const UiManager = {
             this.elements.playerList.appendChild(li);
         });
 
-        // Render Observers
         if (observers.length > 0) {
             const separator = document.createElement('li');
             separator.className = 'observer-separator';
@@ -324,7 +327,6 @@ const UiManager = {
                 nameSpan.style.color = '#7f8c8d';
                 nameSpan.style.fontStyle = 'italic';
 
-                // Allow rename for observers too
                 if (p.id === myId) {
                     nameSpan.style.cursor = 'pointer';
                     nameSpan.ondblclick = (e) => {
@@ -353,7 +355,6 @@ const UiManager = {
         }
     },
 
-    // NEW: Updates all player name spans in the log based on current game state
     updateLogNames(gameState) {
         const playerSpans = this.elements.logContent.querySelectorAll('.log-player');
         playerSpans.forEach(span => {
@@ -371,7 +372,6 @@ const UiManager = {
         const isMyTurn = gameState.turn === myId;
         const myPlayer = gameState.players[myId];
 
-        // Observers don't get controls
         if (myPlayer && myPlayer.isObserver) {
             this.elements.endTurnBtn.disabled = true;
             this.elements.toolbar.style.opacity = '0.5';
@@ -390,7 +390,6 @@ const UiManager = {
                 if (myPlayer.gold < stats.cost) el.classList.add('disabled');
                 else el.classList.remove('disabled');
 
-                // Icons for new units
                 let icon = '❓';
                 if (type === 'light_infantry') icon = '⚔️';
                 else if (type === 'heavy_infantry') icon = '🛡️';
@@ -400,15 +399,12 @@ const UiManager = {
                 else if (type === 'spearman') icon = '🔱';
                 else if (type === 'catapult') icon = '☄️';
 
-                // Format Name
                 const name = type.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 
                 el.innerHTML = `<div>${icon} ${name}</div> <span style="font-size:0.8em; color:#666;">${stats.cost}g</span>`;
             }
         });
     },
-
-    // --- CELL TOOLTIP LOGIC ---
 
     hideCellTooltip() {
         if (this.cellHoverTimer) {
@@ -420,29 +416,23 @@ const UiManager = {
     },
 
     updateCellInfo(terrain, x, y, pageX, pageY) {
-        // If mouse left the canvas (terrain is null)
         if (!terrain) {
             this.hideCellTooltip();
             return;
         }
 
-        // Check if we are hovering the same cell as before
         if (this.lastHoveredCell.x === x && this.lastHoveredCell.y === y) {
-            // We are moving within the same cell.
-            // Update the last known mouse position so the tooltip pops up at the current location.
             this.lastMousePos = { x: pageX, y: pageY };
             return;
         }
 
-        // New Cell: Reset everything
         this.hideCellTooltip();
         this.lastHoveredCell = { x, y };
         this.lastMousePos = { x: pageX, y: pageY };
 
-        // Start Delay Timer
         this.cellHoverTimer = setTimeout(() => {
             this.showCellTooltip(terrain, x, y);
-        }, 1000); // 1 Second Delay
+        }, 1000);
     },
 
     showCellTooltip(terrain, x, y) {
@@ -476,8 +466,6 @@ const UiManager = {
         this.cellTooltipEl.style.top = `${this.lastMousePos.y + 15}px`;
     },
 
-    // --- UNIT INFO PANEL ---
-
     updateUnitInfo(entity, isTemplate, selectedTemplate, gameState, selectedCell) {
         this.currentMoraleBreakdown = null;
         this.currentAttackBreakdown = null;
@@ -488,13 +476,11 @@ const UiManager = {
             return;
         }
 
-        // Helper style for interactive tooltips (dotted underline)
         const interactiveStyle = 'border-bottom: 1px dotted #888; cursor: help; display: inline-block; line-height: 1.2;';
 
         let isFleeRisk = false;
 
         if (!isTemplate && entity.morale_breakdown) {
-            // Copy breakdown to avoid mutating the original reference
             this.currentMoraleBreakdown = [...entity.morale_breakdown];
 
             if (this.gameConstants && entity.current_morale < this.gameConstants.MORALE_THRESHOLD) {
@@ -509,7 +495,7 @@ const UiManager = {
                     label: "Flee Chance",
                     value: `${probPct}%`,
                     isText: true,
-                    color: '#e74c3c' // Red
+                    color: '#e74c3c'
                 });
             }
         }
@@ -517,7 +503,6 @@ const UiManager = {
         const formatStat = (label, value) => `<div class="stat-row"><span>${label}:</span> <strong>${value}</strong></div>`;
 
         let typeName = isTemplate ? selectedTemplate : entity.type;
-        // Format Name (replace _ with space and capitalize)
         let typeDisplay = typeName.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 
         if (!isTemplate && entity.is_commander) typeDisplay += ' 👑';
@@ -535,13 +520,12 @@ const UiManager = {
 
         let moraleRow = '';
         if (!isTemplate) {
-            const moraleColor = isFleeRisk ? 'color: #e74c3c;' : ''; // Red if fleeing risk
+            const moraleColor = isFleeRisk ? 'color: #e74c3c;' : '';
             moraleRow = `<div class="stat-row"><span id="morale-stat-label" class="interactive-label" style="${interactiveStyle}">Morale:</span> <strong style="${moraleColor}">${moraleDisplay}</strong></div>`;
         } else {
             moraleRow = formatStat('Morale', moraleDisplay);
         }
 
-        // Conditional Stats & Dynamic Calculations
         let attackValue = entity.attack;
         let defenseValue = entity.defence;
         let shieldBonus = entity.shield_bonus || 0;
@@ -550,13 +534,11 @@ const UiManager = {
         let dynamicDefenseDisplay = defenseValue;
         let terrainDefense = 0;
 
-        // Initialize breakdowns if unit is on grid
         if (!isTemplate) {
             this.currentAttackBreakdown = [{ label: "Base Attack", value: attackValue }];
             this.currentDefenseBreakdown = [{ label: "Base Defense", value: defenseValue }];
         }
 
-        // Calculate dynamic bonuses for units on the grid
         if (!isTemplate && gameState && gameState.terrainMap && selectedCell) {
             const terrain = gameState.terrainMap[selectedCell.y][selectedCell.x];
             if (terrain) {

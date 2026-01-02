@@ -7,8 +7,24 @@
 </head>
 <body>
 
+<!-- ROLE SELECTION SCREEN OVERLAY -->
+<div id="role-selection-modal" class="modal-overlay hidden">
+    <div class="modal-content">
+        <h1>Join Game</h1>
+        <p>Choose a slot to join the battle, or watch as an observer.</p>
+
+        <div id="role-list" class="role-list">
+            <!-- Dynamic Content -->
+        </div>
+
+        <div class="observer-option">
+            <button id="btn-join-observer" class="secondary-btn">Spectate as Observer</button>
+        </div>
+    </div>
+</div>
+
 <!-- SETUP SCREEN OVERLAY -->
-<div id="setup-screen" class="modal-overlay">
+<div id="setup-screen" class="modal-overlay hidden">
     <div class="modal-content large-modal">
         <h1>Create New Game</h1>
 
