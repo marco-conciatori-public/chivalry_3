@@ -121,6 +121,8 @@ socket.on('combatResults', (data) => {
     }
 });
 
+// --- SAVE / LOAD EVENTS ---
+
 socket.on('saveGameData', (data) => {
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -132,6 +134,19 @@ socket.on('saveGameData', (data) => {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
     UiManager.addLogEntry("Game saved successfully.", localState, () => {});
+});
+
+socket.on('saveMapData', (data) => {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `chivalry_map_${new Date().toISOString().slice(0,19).replace(/:/g,"-")}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    UiManager.addLogEntry("Map terrain saved.", localState, () => {});
 });
 
 // --- RENDER LOOP ---
@@ -494,6 +509,40 @@ fileInput.addEventListener('change', (e) => {
     };
     reader.readAsText(file);
     fileInput.value = ''; // Reset input so same file can be selected again
+});
+
+// --- SAVE / LOAD MAP ONLY ---
+
+document.getElementById('btn-save-map').addEventListener('click', () => {
+    if (!localState || !localState.isGameActive) {
+        alert("Game not active. Start a game to save the map.");
+        return;
+    }
+    socket.emit('requestSaveMap');
+});
+
+const fileInputMap = document.getElementById('file-input-map');
+document.getElementById('btn-load-map').addEventListener('click', () => {
+    fileInputMap.click();
+});
+
+fileInputMap.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const data = JSON.parse(e.target.result);
+            if (confirm("Loading a map will clear all current units. Continue?")) {
+                socket.emit('loadMap', data);
+            }
+        } catch (err) {
+            alert("Invalid map file format.");
+        }
+    };
+    reader.readAsText(file);
+    fileInputMap.value = '';
 });
 
 // ---------------------------

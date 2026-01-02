@@ -364,6 +364,39 @@ io.on('connection', (socket) => {
         io.emit('gameLog', { message: "--- GAME LOADED ---" });
     });
 
+    // --- MAP ONLY SAVE/LOAD ---
+
+    socket.on('requestSaveMap', () => {
+        const mapData = {
+            gridSize: constants.GRID_SIZE,
+            terrainMap: gameState.terrainMap
+        };
+        socket.emit('saveMapData', mapData);
+    });
+
+    socket.on('loadMap', (mapData) => {
+        if (!mapData || !mapData.terrainMap) return;
+
+        // Apply size
+        if (mapData.gridSize) {
+            constants.GRID_SIZE = mapData.gridSize;
+        }
+
+        // Apply terrain
+        gameState.terrainMap = mapData.terrainMap;
+
+        // Reset Grid (remove units) to prevent conflicts (units on water/mountains)
+        gameState.grid = Array(constants.GRID_SIZE).fill(null).map(() => Array(constants.GRID_SIZE).fill(null));
+
+        io.emit('init', {
+            state: gameState,
+            myId: null,
+            unitStats: unitStats,
+            gameConstants: constants
+        });
+        io.emit('gameLog', { message: "--- MAP LOADED (Units Cleared) ---" });
+    });
+
     // --------------------------------
 
     socket.on('spawnEntity', ({ x, y, type }) => {
