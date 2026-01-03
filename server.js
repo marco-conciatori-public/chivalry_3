@@ -30,7 +30,7 @@ let gameState = {
 startNewGame({
     gridSize: constants.GRID_SIZE,
     slots: [
-        { index: 0, type: 'open', gold: 2000 }, // Default Host Slot
+        { index: 0, type: 'open', gold: 2000 },
         { index: 1, type: 'ai', gold: 2000, difficulty: 'normal' },
         { index: 2, type: 'closed', gold: 2000 },
         { index: 3, type: 'closed', gold: 2000 }
@@ -74,15 +74,7 @@ function startNewGame(settings, hostId) {
     const slots = settings.slots || [];
     let usedSockets = [];
 
-    // Pass 1: Assign 'Me' slots (Host)
-    slots.forEach(slot => {
-        let validatedGold = Math.max(constants.MIN_GOLD, Math.min(constants.MAX_GOLD, slot.gold));
-
-        if(slot.type === 'me' && hostId) {
-            createPlayer(hostId, slot.index, validatedGold, false, null);
-            usedSockets.push(hostId);
-        }
-    });
+    // REMOVED: Pass 1 (Host Auto-Assignment). Host is now treated as a normal observer initially.
 
     // Pass 2: Assign AI
     slots.forEach(slot => {
@@ -94,7 +86,8 @@ function startNewGame(settings, hostId) {
         }
     });
 
-    // Pass 3: All others become Observers initially (Role Selection will handle assignment)
+    // Pass 3: All humans (including Host) become Observers initially
+    // Role Selection will handle their assignment to specific slots
     connectedSockets.forEach(sid => {
         if (!usedSockets.includes(sid)) {
             createObserver(sid);
@@ -196,14 +189,14 @@ function getAvailableSlots() {
 
     gameState.matchSettings.slots.forEach(slot => {
         // We only care about human slots ('me' or 'open')
+        // Even if 'me' is passed in settings, we treat it as 'open' now
         if (slot.type === 'me' || slot.type === 'open') {
             if (!takenIndices.includes(slot.index)) {
                 // It's free. Is it a reconnect?
                 const isReconnect = !!gameState.slotData[slot.index];
 
-                // If it's the Host Slot (0) and disconnected, explicitly mark it
+                // Standardize naming
                 let name = isReconnect ? (gameState.slotData[slot.index].name || "Disconnected Player") : "Open Slot";
-                if (slot.type === 'me' && !isReconnect) name = "Host Slot";
 
                 available.push({
                     index: slot.index,
