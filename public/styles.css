@@ -242,12 +242,17 @@
     text-align: center;
 }
 
-/* Remove Arrows/Spinners */
+/* Remove Arrows/Spinners GLOBALLY for specific inputs */
+/* Target both the gold inputs and the grid size input */
+#cfg-grid-size::-webkit-outer-spin-button,
+#cfg-grid-size::-webkit-inner-spin-button,
 .slot-gold::-webkit-outer-spin-button,
 .slot-gold::-webkit-inner-spin-button {
     -webkit-appearance: none;
     margin: 0;
 }
+
+#cfg-grid-size,
 .slot-gold {
     -moz-appearance: textfield;
 }
