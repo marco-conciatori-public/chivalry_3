@@ -256,6 +256,9 @@ const UiManager = {
 
         const banner = document.createElement('div');
         banner.className = 'victory-banner';
+        // Position it higher up (overriding CSS default of 40%)
+        banner.style.top = '20%';
+
         banner.innerHTML = `
             <div class="victory-text" style="color: ${color}">${text}</div>
             <div class="victory-sub">Game Over</div>
