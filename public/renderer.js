@@ -110,7 +110,16 @@ const Renderer = {
     // Zoom towards a specific point (screenX, screenY)
     zoomAt(delta, screenX, screenY) {
         const oldZoom = this.zoom;
-        const newZoom = Math.max(1.0, Math.min(oldZoom + delta, 3.0));
+
+        // Dynamic Max Zoom:
+        // Limit zoom so that the visual cell size doesn't exceed 150 pixels.
+        const MAX_CELL_PIXELS = 150;
+        const calculatedMax = MAX_CELL_PIXELS / this.CELL_SIZE;
+        const maxZoom = Math.max(2.0, calculatedMax);
+
+        // Multiplicative Zoom for consistent speed
+        // Treating delta as a percentage/factor (e.g. 0.1 = +10%)
+        const newZoom = Math.max(1.0, Math.min(oldZoom * (1 + delta), maxZoom));
 
         if (newZoom === oldZoom) return;
 
@@ -202,6 +211,9 @@ const Renderer = {
         const fontSize = Math.floor(this.CELL_SIZE * 0.7);
         const maxElevation = gameConstants ? gameConstants.MAX_ELEVATION : 5;
 
+        // Anti-aliasing overlap: expand cell draw slightly so background doesn't bleed through
+        const drawSize = this.CELL_SIZE + 0.5;
+
         // --- LAYER 1: Background & Elevation ---
         for (let y = 0; y < this.GRID_SIZE; y++) {
             for (let x = 0; x < this.GRID_SIZE; x++) {
@@ -225,9 +237,8 @@ const Renderer = {
                         }
                     }
 
-                    this.ctx.fillRect(x * this.CELL_SIZE, y * this.CELL_SIZE, this.CELL_SIZE, this.CELL_SIZE);
-
-                    // Numeric Height display removed here
+                    // Use drawSize for overlap
+                    this.ctx.fillRect(x * this.CELL_SIZE, y * this.CELL_SIZE, drawSize, drawSize);
                 }
             }
         }
@@ -246,7 +257,9 @@ const Renderer = {
                     this.ctx.fillRect(bx, by, bw, bh);
                     this.ctx.globalAlpha = 1.0;
                     this.ctx.strokeStyle = player.color;
-                    this.ctx.lineWidth = 4;
+
+                    // Scale line width so it doesn't get huge
+                    this.ctx.lineWidth = Math.max(1, 4 / this.zoom);
                     this.ctx.strokeRect(bx, by, bw, bh);
                 }
             });
@@ -284,7 +297,9 @@ const Renderer = {
                     this.ctx.fillStyle = VISUALS.SELECTION_FILL;
                     this.ctx.fillRect(x * this.CELL_SIZE, y * this.CELL_SIZE, this.CELL_SIZE, this.CELL_SIZE);
                     this.ctx.strokeStyle = VISUALS.SELECTION_STROKE;
-                    this.ctx.lineWidth = 3;
+
+                    // Constant visual width
+                    this.ctx.lineWidth = Math.max(1, 3 / this.zoom);
                     this.ctx.strokeRect(x * this.CELL_SIZE, y * this.CELL_SIZE, this.CELL_SIZE, this.CELL_SIZE);
                     this.ctx.lineWidth = 1;
                 }
@@ -301,12 +316,12 @@ const Renderer = {
                     const isInRange = cellsInAttackRange.some(c => c.x === x && c.y === y);
                     if (isInRange) {
                         this.ctx.fillStyle = VISUALS.ATTACK_RANGE_FILL;
-                        this.ctx.fillRect(x * this.CELL_SIZE, y * this.CELL_SIZE, this.CELL_SIZE, this.CELL_SIZE);
+                        this.ctx.fillRect(x * this.CELL_SIZE, y * this.CELL_SIZE, drawSize, drawSize);
                     }
                     const isTarget = validAttackTargets.some(t => t.x === x && t.y === y);
                     if (isTarget) {
                         this.ctx.strokeStyle = VISUALS.ATTACK_TARGET_STROKE;
-                        this.ctx.lineWidth = 3;
+                        this.ctx.lineWidth = Math.max(1, 3 / this.zoom);
                         this.ctx.setLineDash([5, 5]);
                         this.ctx.strokeRect(x * this.CELL_SIZE + 2, y * this.CELL_SIZE + 2, this.CELL_SIZE - 4, this.CELL_SIZE - 4);
                         this.ctx.setLineDash([]);
@@ -327,19 +342,20 @@ const Renderer = {
 
                     if (selectedCell && isReachable && !entityAtCell) {
                         this.ctx.fillStyle = VISUALS.MOVEMENT_FILL;
-                        this.ctx.fillRect(x * this.CELL_SIZE, y * this.CELL_SIZE, this.CELL_SIZE, this.CELL_SIZE);
+                        this.ctx.fillRect(x * this.CELL_SIZE, y * this.CELL_SIZE, drawSize, drawSize);
                         this.ctx.beginPath();
                         this.ctx.arc(x * this.CELL_SIZE + this.CELL_SIZE/2, y * this.CELL_SIZE + this.CELL_SIZE/2, 4, 0, Math.PI * 2);
                         this.ctx.fillStyle = VISUALS.MOVEMENT_DOT;
                         this.ctx.fill();
                     } else if (showAttackRange) {
                         this.ctx.fillStyle = VISUALS.ATTACK_RANGE_FILL;
-                        this.ctx.fillRect(x * this.CELL_SIZE, y * this.CELL_SIZE, this.CELL_SIZE, this.CELL_SIZE);
+                        this.ctx.fillRect(x * this.CELL_SIZE, y * this.CELL_SIZE, drawSize, drawSize);
                     }
                 }
 
-                // Grid Lines
+                // Grid Lines - Scale line width to keep it constant on screen
                 this.ctx.strokeStyle = VISUALS.GRID_LINES;
+                this.ctx.lineWidth = 1 / this.zoom;
                 this.ctx.strokeRect(x * this.CELL_SIZE, y * this.CELL_SIZE, this.CELL_SIZE, this.CELL_SIZE);
             }
         }
