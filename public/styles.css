@@ -449,16 +449,19 @@
 #log-panel-container {
     /* Prevent Flex-grow from stretching this panel indefinitely */
     flex-grow: 0;
-    /* Fixed visual height for the container */
+    /* Fixed visual height for the container, but allow resize */
     height: 150px;
-    min-height: 150px;
-    max-height: 150px;
+    min-height: 100px;
+    /* Enable Resizing */
+    resize: vertical;
+    overflow: hidden; /* Required for resize handle */
 }
 
-/* When collapsed, reset height */
+/* When collapsed, reset height and disable resize */
 #log-panel-container.collapsed-section {
-    height: auto;
+    height: auto !important; /* Force auto to override inline style from resize */
     min-height: 0;
+    resize: none;
 }
 
 #log-panel-container .panel-content {
