@@ -28,6 +28,7 @@ const UiManager = {
     tooltipEl: null,
     cellTooltipEl: null,
     gameConstants: null,
+    hasShownVictory: false, // Track if we've already shown the animation for this game
 
     // Timer state for Cell Tooltip
     cellHoverTimer: null,
@@ -54,6 +55,7 @@ const UiManager = {
         if (this.elements.btnNewGameTrigger) {
             this.elements.btnNewGameTrigger.addEventListener('click', () => {
                 if (confirm("Are you sure you want to start a new game? Current progress will be lost.")) {
+                    this.hasShownVictory = false; // Reset flag on new game
                     this.showSetupScreen();
                 }
             });
@@ -151,6 +153,7 @@ const UiManager = {
 
     hideSetupScreen() {
         this.elements.setupScreen.classList.add('hidden');
+        this.hasShownVictory = false; // Ensure flag is reset when game starts/hides setup
     },
 
     showRoleSelectionModal(slots, onSelect) {
@@ -215,6 +218,7 @@ const UiManager = {
         if (gameState.winner) {
             const winner = gameState.players[gameState.winner];
             const winnerName = winner ? winner.name : "Unknown";
+
             if (gameState.winner === 'DRAW') {
                 this.elements.status.innerText = "GAME OVER: DRAW";
                 this.elements.status.style.color = "#333";
@@ -224,6 +228,12 @@ const UiManager = {
             } else {
                 this.elements.status.innerText = `${winnerName} WINS!`;
                 this.elements.status.style.color = "#f1c40f"; // Gold
+            }
+
+            // Trigger Animation once
+            if (!this.hasShownVictory) {
+                this.showVictoryAnimation(gameState.winner, winnerName, winner ? winner.color : '#333');
+                this.hasShownVictory = true;
             }
             return;
         }
@@ -239,6 +249,28 @@ const UiManager = {
             this.elements.status.innerText = `Turn ${turnCount}: ${turnName}'s Turn...`;
             this.elements.status.style.color = "#c0392b";
         }
+    },
+
+    showVictoryAnimation(winnerId, winnerName, color) {
+        const text = winnerId === 'DRAW' ? "It's a Draw!" : `${winnerName} Wins!`;
+
+        const banner = document.createElement('div');
+        banner.className = 'victory-banner';
+        banner.innerHTML = `
+            <div class="victory-text" style="color: ${color}">${text}</div>
+            <div class="victory-sub">Game Over</div>
+        `;
+
+        // Use inline styles for animation logic if not in CSS, but CSS is cleaner.
+        // I will add the CSS class logic below.
+
+        this.elements.gameArea.appendChild(banner);
+
+        // Remove after 5 seconds
+        setTimeout(() => {
+            banner.style.opacity = '0';
+            setTimeout(() => banner.remove(), 1000);
+        }, 5000);
     },
 
     updateLegend(gameState, myId, onRename) {
