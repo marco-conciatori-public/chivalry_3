@@ -47,9 +47,6 @@ function getPathCost(start, end, grid, terrainMap, maxMoves) {
                 let newCost = current.cost + moveCost;
 
                 // --- MINIMUM MOVEMENT RULE ---
-                // If it's the very first step (we haven't moved yet), allow the move even if cost > remaining movement,
-                // effectively consuming all movement. This prevents getting stuck.
-                // Exception: Walls are still impassable if their ID marks them so.
                 if (current.cost === 0 && targetTerrain.id !== 'wall') {
                     if (newCost > maxMoves) {
                         newCost = maxMoves;
@@ -66,6 +63,73 @@ function getPathCost(start, end, grid, terrainMap, maxMoves) {
         }
     }
     return -1;
+}
+
+// A* Pathfinding for AI to find actual route
+function findPath(start, end, grid, terrainMap) {
+    let openSet = [{ x: start.x, y: start.y, g: 0, f: 0, parent: null }];
+    let closedSet = new Set();
+
+    while (openSet.length > 0) {
+        // Sort by F cost (lowest first)
+        openSet.sort((a, b) => a.f - b.f);
+        let current = openSet.shift();
+
+        if (current.x === end.x && current.y === end.y) {
+            let path = [];
+            let temp = current;
+            while (temp.parent) {
+                path.push({ x: temp.x, y: temp.y });
+                temp = temp.parent;
+            }
+            return path.reverse();
+        }
+
+        closedSet.add(`${current.x},${current.y}`);
+
+        const dirs = [[0, 1], [0, -1], [1, 0], [-1, 0]];
+        for (const [dx, dy] of dirs) {
+            const nx = current.x + dx;
+            const ny = current.y + dy;
+
+            if (nx >= 0 && nx < constants.GRID_SIZE && ny >= 0 && ny < constants.GRID_SIZE) {
+                if (closedSet.has(`${nx},${ny}`)) continue;
+
+                // Collision check (ignore end point for targeting)
+                if (grid[ny][nx] && (nx !== end.x || ny !== end.y)) continue;
+
+                const terrain = terrainMap[ny][nx];
+                const currentTerrain = terrainMap[current.y][current.x];
+
+                // Height check
+                if (Math.abs(terrain.height - currentTerrain.height) > constants.HEIGHT_DIFFERENCE_LIMIT) continue;
+
+                // Walls
+                if (terrain.id === 'wall') continue;
+
+                let moveCost = terrain.cost;
+                if (terrain.height > currentTerrain.height) {
+                    moveCost += (terrain.height - currentTerrain.height) * constants.MOVEMENT_COST_HEIGHT_PENALTY;
+                }
+
+                let gScore = current.g + moveCost;
+
+                // Heuristic (Manhattan)
+                let hScore = Math.abs(nx - end.x) + Math.abs(ny - end.y);
+                let fScore = gScore + hScore;
+
+                let existing = openSet.find(node => node.x === nx && node.y === ny);
+                if (!existing) {
+                    openSet.push({ x: nx, y: ny, g: gScore, f: fScore, parent: current });
+                } else if (gScore < existing.g) {
+                    existing.g = gScore;
+                    existing.f = fScore;
+                    existing.parent = current;
+                }
+            }
+        }
+    }
+    return null; // No path found
 }
 
 function hasLineOfSight(start, end, terrainMap) {
@@ -569,6 +633,7 @@ function handleFleeingMovement(entity, startX, startY, gameState, io) {
 
 module.exports = {
     getPathCost,
+    findPath,
     hasLineOfSight,
     isValidAttackAngle,
     performCombat,

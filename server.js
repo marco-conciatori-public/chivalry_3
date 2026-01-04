@@ -5,6 +5,7 @@ const unitStats = require('./unitStats');
 const constants = require('./constants');
 const mapGenerator = require('./mapGenerator');
 const gameLogic = require('./gameLogic');
+const aiLogic = require('./aiLogic'); // New Import
 
 const app = express();
 const server = http.createServer(app);
@@ -74,8 +75,6 @@ function startNewGame(settings, hostId) {
     const slots = settings.slots || [];
     let usedSockets = [];
 
-    // REMOVED: Pass 1 (Host Auto-Assignment). Host is now treated as a normal observer initially.
-
     // Pass 2: Assign AI
     slots.forEach(slot => {
         let validatedGold = Math.max(constants.MIN_GOLD, Math.min(constants.MAX_GOLD, slot.gold));
@@ -87,11 +86,9 @@ function startNewGame(settings, hostId) {
     });
 
     // Pass 3: All humans (including Host) become Observers initially
-    // Role Selection will handle their assignment to specific slots
     connectedSockets.forEach(sid => {
         if (!usedSockets.includes(sid)) {
             createObserver(sid);
-            // Prompt them to select a role if slots are available
             setTimeout(() => checkAndEmitRoleSelection(io.sockets.sockets.get(sid)), 100);
         }
     });
@@ -110,6 +107,9 @@ function startNewGame(settings, hostId) {
     });
 
     io.emit('gameLog', { message: "--- NEW GAME STARTED ---" });
+
+    // Check if first player is AI
+    checkForAiTurn();
 }
 
 function createPlayer(id, index, gold, isAI, difficulty) {
@@ -176,28 +176,18 @@ function getBaseArea(playerIndex) {
     return null;
 }
 
-// Logic to identify available slots
 function getAvailableSlots() {
     if (!gameState.matchSettings || !gameState.matchSettings.slots) return [];
-
-    // Find slots that are NOT currently occupied by a connected player
     const takenIndices = Object.values(gameState.players)
         .filter(p => !p.isObserver && !p.isAI)
         .map(p => p.slotIndex);
-
     const available = [];
 
     gameState.matchSettings.slots.forEach(slot => {
-        // We only care about human slots ('me' or 'open')
-        // Even if 'me' is passed in settings, we treat it as 'open' now
         if (slot.type === 'me' || slot.type === 'open') {
             if (!takenIndices.includes(slot.index)) {
-                // It's free. Is it a reconnect?
                 const isReconnect = !!gameState.slotData[slot.index];
-
-                // Standardize naming
                 let name = isReconnect ? (gameState.slotData[slot.index].name || "Disconnected Player") : "Open Slot";
-
                 available.push({
                     index: slot.index,
                     isReconnect: isReconnect,
@@ -218,270 +208,162 @@ function checkAndEmitRoleSelection(socket) {
     }
 }
 
-io.on('connection', (socket) => {
-    console.log('A player connected:', socket.id);
+// --- ACTION HANDLERS (Shared by AI and Sockets) ---
 
-    // Default: Add as Observer
-    createObserver(socket.id);
+function handleSpawnEntity(playerId, x, y, type) {
+    const player = gameState.players[playerId];
+    if (!player || player.isObserver) return;
+    if (playerId !== gameState.turn) return;
 
-    // Send init state
-    socket.emit('init', {
-        state: gameState,
-        myId: socket.id,
-        unitStats: unitStats,
-        gameConstants: constants
-    });
-
-    io.emit('update', gameState);
-
-    // Check availability and offer choice
-    checkAndEmitRoleSelection(socket);
-
-    socket.on('chooseSlot', (slotIndex) => {
-        // Find the slot config
-        const slotConfig = gameState.matchSettings.slots.find(s => s.index === slotIndex);
-        if (!slotConfig) return;
-
-        // Verify it is still available
-        const takenIndices = Object.values(gameState.players)
-            .filter(p => !p.isObserver && !p.isAI)
-            .map(p => p.slotIndex);
-
-        if (takenIndices.includes(slotIndex)) {
-            // Race condition: slot taken
-            socket.emit('gameLog', { message: "That slot was just taken." });
-            checkAndEmitRoleSelection(socket);
+    if (player.baseArea) {
+        if (x < player.baseArea.x || x >= player.baseArea.x + player.baseArea.width ||
+            y < player.baseArea.y || y >= player.baseArea.y + player.baseArea.height) {
             return;
         }
+    } else { return; }
 
-        // Remove from Observer list first
-        delete gameState.players[socket.id];
+    const terrain = gameState.terrainMap[y][x];
+    if (terrain.id === 'water' || terrain.id === 'wall') return;
 
-        // Create Player
-        createPlayer(socket.id, slotIndex, slotConfig.gold, false, null);
+    if (!gameState.grid[y][x]) {
+        const baseStats = unitStats[type];
+        if (!baseStats) return;
+        if (player.gold < baseStats.cost) return;
 
-        // If turn was null (all disconnected), set turn
-        if (gameState.turn === null) {
-            gameState.turn = socket.id;
+        let hasUnits = false;
+        for(let r=0; r<constants.GRID_SIZE; r++) {
+            for(let c=0; c<constants.GRID_SIZE; c++) {
+                if (gameState.grid[r][c] && gameState.grid[r][c].owner === playerId) {
+                    hasUnits = true;
+                    break;
+                }
+            }
+            if(hasUnits) break;
         }
 
+        const isCommander = !hasUnits;
+        player.gold -= baseStats.cost;
+
+        gameState.grid[y][x] = {
+            type: type,
+            owner: playerId,
+            symbol: gameState.players[playerId].symbol,
+            remainingMovement: 0,
+            hasAttacked: true,
+            ...baseStats,
+            special_abilities: [...(baseStats.special_abilities || [])],
+            current_health: baseStats.max_health,
+            raw_morale: baseStats.initial_morale,
+            current_morale: baseStats.initial_morale,
+            facing_direction: 0,
+            is_commander: isCommander,
+            is_fleeing: false,
+            morale_breakdown: []
+        };
+
+        let msg = `{p:${player.id}} recruited a {u:${type}:${x}:${y}:${player.id}}`;
+        if (isCommander) msg += " as their Commander!";
+        else msg += ".";
+        io.emit('gameLog', { message: msg });
+        gameLogic.updateAllUnitsMorale(gameState);
         io.emit('update', gameState);
-        io.emit('gameLog', { message: `{p:${socket.id}} has joined the game.` });
+    }
+}
 
-        // Refresh role selection for other observers
-        Object.values(io.sockets.sockets).forEach(s => {
-            const p = gameState.players[s.id];
-            if(p && p.isObserver) checkAndEmitRoleSelection(s);
-        });
-    });
+function handleMoveEntity(playerId, from, to) {
+    if (playerId !== gameState.turn) return;
+    const entity = gameState.grid[from.y][from.x];
+    const targetCell = gameState.grid[to.y][to.x];
 
-    socket.on('startGame', (settings) => {
-        console.log("Starting new game with settings:", settings);
-        startNewGame(settings, socket.id); // Pass socket.id as Host ID
-    });
+    if (entity && entity.owner === playerId && !targetCell) {
+        if (entity.is_fleeing) return;
+        const pathCost = gameLogic.getPathCost(from, to, gameState.grid, gameState.terrainMap, entity.remainingMovement);
 
-    socket.on('changeName', (newName) => {
-        const player = gameState.players[socket.id];
-        if (player) {
-            const cleanName = newName.trim().substring(0, 12) || player.name;
-            player.name = cleanName;
-            io.emit('update', gameState);
-        }
-    });
-
-    socket.on('requestSave', () => {
-        socket.emit('saveGameData', gameState);
-    });
-
-    socket.on('loadGame', (data) => {
-        if (!data || !data.grid || !data.players) return;
-        // Basic load logic (simplified for role selection update)
-        // ... (Keep existing logic but ensure players are mapped or set to disconnected)
-        // For this specific update, we assume basic load works.
-        // We'll just reset gameState and broadcast.
-        gameState.grid = data.grid;
-        gameState.terrainMap = data.terrainMap;
-        gameState.turnCount = data.turnCount;
-        gameState.isGameActive = true;
-        gameState.matchSettings = data.matchSettings || { slots: [] };
-        gameState.slotData = {};
-
-        // When loading, everyone currently connected becomes an observer
-        // Then we offer them the slots from the saved game
-        gameState.players = {};
-        io.sockets.sockets.forEach((s) => createObserver(s.id));
-
-        // Restore slot data from saved players so they appear in "Available Slots"
-        Object.values(data.players).forEach(p => {
-            if (!p.isAI && !p.isObserver) {
-                gameState.slotData[p.slotIndex] = { gold: p.gold, name: p.name };
-            }
-        });
-
-        io.emit('init', { state: gameState, myId: null, unitStats, gameConstants: constants });
-        // Offer roles
-        io.sockets.sockets.forEach((s) => checkAndEmitRoleSelection(s));
-    });
-
-    socket.on('spawnEntity', ({ x, y, type }) => {
-        const player = gameState.players[socket.id];
-        if (!player || player.isObserver) return;
-        if (socket.id !== gameState.turn) return;
-
-        if (player.baseArea) {
-            if (x < player.baseArea.x || x >= player.baseArea.x + player.baseArea.width ||
-                y < player.baseArea.y || y >= player.baseArea.y + player.baseArea.height) {
-                return;
-            }
-        } else { return; }
-
-        const terrain = gameState.terrainMap[y][x];
-        if (terrain.id === 'water' || terrain.id === 'wall') return;
-
-        if (!gameState.grid[y][x]) {
-            const baseStats = unitStats[type];
-            if (!baseStats) return;
-            if (player.gold < baseStats.cost) return;
-
-            let hasUnits = false;
-            for(let r=0; r<constants.GRID_SIZE; r++) {
-                for(let c=0; c<constants.GRID_SIZE; c++) {
-                    if (gameState.grid[r][c] && gameState.grid[r][c].owner === socket.id) {
-                        hasUnits = true;
-                        break;
-                    }
-                }
-                if(hasUnits) break;
+        if (pathCost > -1 && entity.remainingMovement >= pathCost) {
+            const dx = to.x - from.x;
+            const dy = to.y - from.y;
+            if (Math.abs(dy) > Math.abs(dx)) {
+                entity.facing_direction = dy > 0 ? 4 : 0;
+            } else {
+                entity.facing_direction = dx > 0 ? 2 : 6;
             }
 
-            const isCommander = !hasUnits;
-            player.gold -= baseStats.cost;
+            entity.remainingMovement -= pathCost;
+            gameState.grid[to.y][to.x] = entity;
+            gameState.grid[from.y][from.x] = null;
 
-            gameState.grid[y][x] = {
-                type: type,
-                owner: socket.id,
-                symbol: gameState.players[socket.id].symbol,
-                remainingMovement: 0,
-                hasAttacked: true,
-                ...baseStats,
-                special_abilities: [...(baseStats.special_abilities || [])],
-                current_health: baseStats.max_health,
-                raw_morale: baseStats.initial_morale,
-                current_morale: baseStats.initial_morale,
-                facing_direction: 0,
-                is_commander: isCommander,
-                is_fleeing: false,
-                morale_breakdown: []
-            };
-
-            let msg = `{p:${player.id}} recruited a {u:${type}:${x}:${y}:${player.id}}`;
-            if (isCommander) msg += " as their Commander!";
-            else msg += ".";
-            io.emit('gameLog', { message: msg });
             gameLogic.updateAllUnitsMorale(gameState);
             io.emit('update', gameState);
         }
-    });
+    }
+}
 
-    socket.on('moveEntity', ({ from, to }) => {
-        if (socket.id !== gameState.turn) return;
-        const entity = gameState.grid[from.y][from.x];
-        const targetCell = gameState.grid[to.y][to.x];
+function handleRotateEntity(playerId, x, y, direction) {
+    if (playerId !== gameState.turn) return;
+    const entity = gameState.grid[y][x];
+    if (entity && entity.owner === playerId && entity.remainingMovement >= 1) {
+        if (entity.is_fleeing) return;
+        entity.facing_direction = direction;
+        entity.remainingMovement -= 1;
+        gameLogic.updateAllUnitsMorale(gameState);
+        io.emit('update', gameState);
+    }
+}
 
-        if (entity && entity.owner === socket.id && !targetCell) {
-            if (entity.is_fleeing) return;
-            const pathCost = gameLogic.getPathCost(from, to, gameState.grid, gameState.terrainMap, entity.remainingMovement);
+function handleAttackEntity(playerId, attackerPos, targetPos) {
+    if (playerId !== gameState.turn) return;
+    const attacker = gameState.grid[attackerPos.y][attackerPos.x];
+    const target = gameState.grid[targetPos.y][targetPos.x];
+    if (attacker && attacker.is_fleeing) return;
 
-            if (pathCost > -1 && entity.remainingMovement >= pathCost) {
-                const dx = to.x - from.x;
-                const dy = to.y - from.y;
-                if (Math.abs(dy) > Math.abs(dx)) {
-                    entity.facing_direction = dy > 0 ? 4 : 0;
-                } else {
-                    entity.facing_direction = dx > 0 ? 2 : 6;
-                }
+    const combatResults = { events: [], logs: [] };
 
-                entity.remainingMovement -= pathCost;
-                gameState.grid[to.y][to.x] = entity;
-                gameState.grid[from.y][from.x] = null;
+    if (!attacker || attacker.owner !== playerId || attacker.hasAttacked) return;
 
-                gameLogic.updateAllUnitsMorale(gameState);
-                io.emit('update', gameState);
-            }
-        }
-    });
+    if (target) {
+        if (target.owner === playerId) return;
+    } else {
+        if (!attacker.is_ranged) return;
+    }
 
-    socket.on('rotateEntity', ({ x, y, direction }) => {
-        if (socket.id !== gameState.turn) return;
-        const entity = gameState.grid[y][x];
-        if (entity && entity.owner === socket.id && entity.remainingMovement >= 1) {
-            if (entity.is_fleeing) return;
-            entity.facing_direction = direction;
-            entity.remainingMovement -= 1;
-            gameLogic.updateAllUnitsMorale(gameState);
-            io.emit('update', gameState);
-        }
-    });
+    const dist = Math.abs(attackerPos.x - targetPos.x) + Math.abs(attackerPos.y - targetPos.y);
+    const attackerTerrain = gameState.terrainMap[attackerPos.y][attackerPos.x];
+    const targetTerrain = gameState.terrainMap[targetPos.y][targetPos.x];
+    let effectiveRange = attacker.range;
 
-    socket.on('attackEntity', ({ attackerPos, targetPos }) => {
-        if (socket.id !== gameState.turn) return;
-        const attacker = gameState.grid[attackerPos.y][attackerPos.x];
-        const target = gameState.grid[targetPos.y][targetPos.x];
-        if (attacker && attacker.is_fleeing) return;
+    if (attacker.is_ranged && attackerTerrain.height > targetTerrain.height) {
+        effectiveRange += constants.BONUS_HIGH_GROUND_RANGE;
+    }
 
-        const combatResults = { events: [], logs: [] };
-
-        if (!attacker || attacker.owner !== socket.id || attacker.hasAttacked) return;
+    if (dist <= effectiveRange) {
+        if (attacker.is_ranged && !gameLogic.hasLineOfSight(attackerPos, targetPos, gameState.terrainMap)) return;
+        if (!gameLogic.isValidAttackAngle(attacker, attackerPos, targetPos)) return;
 
         if (target) {
-            if (target.owner === socket.id) return;
+            combatResults.logs.push(`{u:${attacker.type}:${attackerPos.x}:${attackerPos.y}:${attacker.owner}} attacks {u:${target.type}:${targetPos.x}:${targetPos.y}:${target.owner}}!`);
         } else {
-            if (!attacker.is_ranged) return;
+            combatResults.logs.push(`{u:${attacker.type}:${attackerPos.x}:${attackerPos.y}:${attacker.owner}} fires at (${targetPos.x}, ${targetPos.y})!`);
         }
 
-        const dist = Math.abs(attackerPos.x - targetPos.x) + Math.abs(attackerPos.y - targetPos.y);
-        const attackerTerrain = gameState.terrainMap[attackerPos.y][attackerPos.x];
-        const targetTerrain = gameState.terrainMap[targetPos.y][targetPos.x];
-        let effectiveRange = attacker.range;
+        gameLogic.performCombat(attacker, attackerPos, target, targetPos, false, combatResults, gameState);
 
-        if (attacker.is_ranged && attackerTerrain.height > targetTerrain.height) {
-            effectiveRange += constants.BONUS_HIGH_GROUND_RANGE;
+        const targetDestroyed = target && !gameState.grid[targetPos.y][targetPos.x];
+        const isMelee = !attacker.is_ranged;
+        attacker.hasAttacked = true;
+        if (isMelee && targetDestroyed) {
+            // Keep movement
+        } else {
+            attacker.remainingMovement = 0;
         }
 
-        if (dist <= effectiveRange) {
-            if (attacker.is_ranged && !gameLogic.hasLineOfSight(attackerPos, targetPos, gameState.terrainMap)) return;
-            if (!gameLogic.isValidAttackAngle(attacker, attackerPos, targetPos)) return;
+        gameLogic.updateAllUnitsMorale(gameState);
+        io.emit('update', gameState);
+        io.emit('combatResults', combatResults);
+    }
+}
 
-            if (target) {
-                combatResults.logs.push(`{u:${attacker.type}:${attackerPos.x}:${attackerPos.y}:${attacker.owner}} attacks {u:${target.type}:${targetPos.x}:${targetPos.y}:${target.owner}}!`);
-            } else {
-                combatResults.logs.push(`{u:${attacker.type}:${attackerPos.x}:${attackerPos.y}:${attacker.owner}} fires at (${targetPos.x}, ${targetPos.y})!`);
-            }
-
-            gameLogic.performCombat(attacker, attackerPos, target, targetPos, false, combatResults, gameState);
-
-            const targetDestroyed = target && !gameState.grid[targetPos.y][targetPos.x];
-            const isMelee = !attacker.is_ranged;
-            attacker.hasAttacked = true;
-            if (isMelee && targetDestroyed) {
-                // Keep movement
-            } else {
-                attacker.remainingMovement = 0;
-            }
-
-            gameLogic.updateAllUnitsMorale(gameState);
-            io.emit('update', gameState);
-            io.emit('combatResults', combatResults);
-        }
-    });
-
-    socket.on('endTurn', () => {
-        if (socket.id === gameState.turn) {
-            endTurn();
-        }
-    });
-
-    function endTurn() {
+function handleEndTurn(playerId) {
+    if (playerId === gameState.turn) {
         const activeIds = Object.keys(gameState.players).filter(id => !gameState.players[id].isObserver);
         activeIds.sort((a,b) => gameState.players[a].slotIndex - gameState.players[b].slotIndex);
 
@@ -500,23 +382,149 @@ io.on('connection', (socket) => {
         io.emit('gameLog', { message: `Turn changed to {p:${gameState.turn}}.` });
         gameLogic.handleMoralePhase(gameState.turn, gameState, io);
         io.emit('update', gameState);
-    }
 
-    function modifyUnitsForPlayer(playerId, callback) {
-        for (let y = 0; y < constants.GRID_SIZE; y++) {
-            for (let x = 0; x < constants.GRID_SIZE; x++) {
-                const entity = gameState.grid[y][x];
-                if (entity && entity.owner === playerId) {
-                    callback(entity);
-                }
+        checkForAiTurn();
+    }
+}
+
+function modifyUnitsForPlayer(playerId, callback) {
+    for (let y = 0; y < constants.GRID_SIZE; y++) {
+        for (let x = 0; x < constants.GRID_SIZE; x++) {
+            const entity = gameState.grid[y][x];
+            if (entity && entity.owner === playerId) {
+                callback(entity);
             }
         }
     }
+}
+
+// --- AI INTEGRATION ---
+
+function checkForAiTurn() {
+    if (!gameState.turn) return;
+    const player = gameState.players[gameState.turn];
+    if (player && player.isAI) {
+        // Trigger AI Logic
+        const callbacks = {
+            move: (from, to) => handleMoveEntity(player.id, from, to),
+            attack: (attacker, target) => handleAttackEntity(player.id, attacker, target),
+            spawn: (x, y, type) => handleSpawnEntity(player.id, x, y, type),
+            rotate: (x, y, dir) => handleRotateEntity(player.id, x, y, dir),
+            endTurn: () => handleEndTurn(player.id)
+        };
+
+        aiLogic.executeTurn(gameState, player.id, gameLogic, callbacks);
+    }
+}
+
+// --- SOCKET LISTENERS ---
+
+io.on('connection', (socket) => {
+    console.log('A player connected:', socket.id);
+
+    createObserver(socket.id);
+
+    socket.emit('init', {
+        state: gameState,
+        myId: socket.id,
+        unitStats: unitStats,
+        gameConstants: constants
+    });
+
+    io.emit('update', gameState);
+    checkAndEmitRoleSelection(socket);
+
+    socket.on('chooseSlot', (slotIndex) => {
+        const slotConfig = gameState.matchSettings.slots.find(s => s.index === slotIndex);
+        if (!slotConfig) return;
+
+        const takenIndices = Object.values(gameState.players)
+            .filter(p => !p.isObserver && !p.isAI)
+            .map(p => p.slotIndex);
+
+        if (takenIndices.includes(slotIndex)) {
+            socket.emit('gameLog', { message: "That slot was just taken." });
+            checkAndEmitRoleSelection(socket);
+            return;
+        }
+
+        delete gameState.players[socket.id];
+        createPlayer(socket.id, slotIndex, slotConfig.gold, false, null);
+
+        if (gameState.turn === null) {
+            gameState.turn = socket.id;
+        }
+
+        io.emit('update', gameState);
+        io.emit('gameLog', { message: `{p:${socket.id}} has joined the game.` });
+
+        Object.values(io.sockets.sockets).forEach(s => {
+            const p = gameState.players[s.id];
+            if(p && p.isObserver) checkAndEmitRoleSelection(s);
+        });
+
+        // If game was waiting and now we have players, ensure AI knows it might be its turn?
+        // Actually, startNewGame handles initial turn.
+        // If human joins LATE into an AI turn, the AI is already running (async).
+        // If human turn was active but empty, we might need to check.
+        // But for now, simple flow is fine.
+    });
+
+    socket.on('startGame', (settings) => {
+        console.log("Starting new game with settings:", settings);
+        startNewGame(settings, socket.id);
+    });
+
+    socket.on('changeName', (newName) => {
+        const player = gameState.players[socket.id];
+        if (player) {
+            const cleanName = newName.trim().substring(0, 12) || player.name;
+            player.name = cleanName;
+            io.emit('update', gameState);
+        }
+    });
+
+    socket.on('requestSave', () => {
+        socket.emit('saveGameData', gameState);
+    });
+
+    socket.on('loadGame', (data) => {
+        if (!data || !data.grid || !data.players) return;
+        gameState.grid = data.grid;
+        gameState.terrainMap = data.terrainMap;
+        gameState.turnCount = data.turnCount;
+        gameState.isGameActive = true;
+        gameState.matchSettings = data.matchSettings || { slots: [] };
+        gameState.slotData = {};
+
+        gameState.players = {};
+        io.sockets.sockets.forEach((s) => createObserver(s.id));
+
+        Object.values(data.players).forEach(p => {
+            if (!p.isAI && !p.isObserver) {
+                gameState.slotData[p.slotIndex] = { gold: p.gold, name: p.name };
+            } else if (p.isAI) {
+                // Restore AI players
+                createPlayer(p.id, p.slotIndex, p.gold, true, p.difficulty);
+            }
+        });
+
+        io.emit('init', { state: gameState, myId: null, unitStats, gameConstants: constants });
+        io.sockets.sockets.forEach((s) => checkAndEmitRoleSelection(s));
+
+        // Resume AI if it was their turn
+        checkForAiTurn();
+    });
+
+    socket.on('spawnEntity', ({ x, y, type }) => handleSpawnEntity(socket.id, x, y, type));
+    socket.on('moveEntity', ({ from, to }) => handleMoveEntity(socket.id, from, to));
+    socket.on('rotateEntity', ({ x, y, direction }) => handleRotateEntity(socket.id, x, y, direction));
+    socket.on('attackEntity', ({ attackerPos, targetPos }) => handleAttackEntity(socket.id, attackerPos, targetPos));
+    socket.on('endTurn', () => handleEndTurn(socket.id));
 
     socket.on('disconnect', () => {
         const player = gameState.players[socket.id];
 
-        // SAVE STATE before deleting
         if (player && !player.isObserver) {
             gameState.slotData[player.slotIndex] = {
                 gold: player.gold,
@@ -541,13 +549,13 @@ io.on('connection', (socket) => {
                 gameState.turn = activeIds[0];
                 modifyUnitsForPlayer(gameState.turn, (u) => { u.remainingMovement = u.speed; u.hasAttacked = false; });
                 io.emit('gameLog', { message: `Player disconnected. Turn passed to {p:${gameState.turn}}.` });
+                checkForAiTurn();
             } else {
                 gameState.turn = null;
             }
         }
         io.emit('update', gameState);
 
-        // Notify others that a slot opened up
         Object.values(io.sockets.sockets).forEach(s => {
             const p = gameState.players[s.id];
             if(p && p.isObserver) checkAndEmitRoleSelection(s);
