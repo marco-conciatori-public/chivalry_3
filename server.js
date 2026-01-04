@@ -374,7 +374,16 @@ function handleMoveEntity(playerId, from, to) {
 
     if (entity && entity.owner === playerId && !targetCell) {
         if (entity.is_fleeing) return;
-        const pathCost = gameLogic.getPathCost(from, to, gameState.grid, gameState.terrainMap, entity.remainingMovement);
+
+        // Pass entity.speed as the last argument to enforce the strict movement rule
+        const pathCost = gameLogic.getPathCost(
+            from,
+            to,
+            gameState.grid,
+            gameState.terrainMap,
+            entity.remainingMovement,
+            entity.speed
+        );
 
         if (pathCost > -1 && entity.remainingMovement >= pathCost) {
             const dx = to.x - from.x;

@@ -2,7 +2,7 @@ const constants = require('./constants');
 
 // --- PATHFINDING & LOS ---
 
-function getPathCost(start, end, grid, terrainMap, maxMoves) {
+function getPathCost(start, end, grid, terrainMap, currentMoves, unitTotalSpeed) {
     if (start.x === end.x && start.y === end.y) return 0;
 
     let costs = {};
@@ -14,7 +14,7 @@ function getPathCost(start, end, grid, terrainMap, maxMoves) {
         let current = queue.shift();
 
         if (current.x === end.x && current.y === end.y) return current.cost;
-        if (current.cost >= maxMoves) continue;
+        if (current.cost >= currentMoves) continue;
 
         const currentTerrain = terrainMap[current.y][current.x];
         const dirs = [[0, 1], [0, -1], [1, 0], [-1, 0]];
@@ -47,13 +47,20 @@ function getPathCost(start, end, grid, terrainMap, maxMoves) {
                 let newCost = current.cost + moveCost;
 
                 // --- MINIMUM MOVEMENT RULE ---
+                // Allow moving into a tile even if cost > remaining ONLY if:
+                // 1. It is the first step (current.cost === 0)
+                // 2. The unit has FULL movement points (hasn't moved yet) - Preventing the exploit
+                // 3. It's not a wall
                 if (current.cost === 0 && targetTerrain.id !== 'wall') {
-                    if (newCost > maxMoves) {
-                        newCost = maxMoves;
+                    if (newCost > currentMoves) {
+                        // Strict check: Only apply if we haven't spent any movement yet
+                        if (unitTotalSpeed !== undefined && currentMoves >= unitTotalSpeed) {
+                            newCost = currentMoves;
+                        }
                     }
                 }
 
-                if (newCost <= maxMoves) {
+                if (newCost <= currentMoves) {
                     if (costs[key] === undefined || newCost < costs[key]) {
                         costs[key] = newCost;
                         queue.push({x: nx, y: ny, cost: newCost});

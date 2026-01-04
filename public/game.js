@@ -319,6 +319,11 @@ function clientHasLineOfSight(start, end) {
 
 function getReachableCells(start, maxDist, grid, terrainMap) {
     if (maxDist <= 0) return [];
+
+    // Get the unit to determine its max speed (needed for the new movement rule)
+    const unit = grid[start.y][start.x];
+    const unitTotalSpeed = unit ? unit.speed : maxDist; // Default to current if unknown, but better to be precise
+
     let costs = {};
     let queue = [{x: start.x, y: start.y, cost: 0}];
     costs[`${start.x},${start.y}`] = 0;
@@ -361,7 +366,10 @@ function getReachableCells(start, maxDist, grid, terrainMap) {
                 // --- MINIMUM MOVEMENT RULE (Client Side) ---
                 if (current.cost === 0 && t.id !== 'wall') {
                     if (newCost > maxDist) {
-                        newCost = maxDist;
+                        // STRICT RULE: Only if we are at full stamina
+                        if (maxDist >= unitTotalSpeed) {
+                            newCost = maxDist;
+                        }
                     }
                 }
 
