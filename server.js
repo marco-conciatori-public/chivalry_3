@@ -458,6 +458,9 @@ function handleAttackEntity(playerId, attackerPos, targetPos) {
         gameLogic.updateAllUnitsMorale(gameState);
         io.emit('update', gameState);
         io.emit('combatResults', combatResults);
+
+        // Check for victory immediately after attack
+        checkWinConditions();
     }
 }
 
@@ -504,9 +507,11 @@ function handleEndTurn(playerId) {
         modifyUnitsForPlayer(gameState.turn, (u) => { u.remainingMovement = u.speed; u.hasAttacked = false; });
 
         io.emit('gameLog', { message: `Turn changed to {p:${gameState.turn}}.` });
-        gameLogic.handleMoralePhase(gameState.turn, gameState, io);
 
+        // Handle morale phase and check win conditions if units flee
+        gameLogic.handleMoralePhase(gameState.turn, gameState, io);
         checkWinConditions();
+
         io.emit('update', gameState);
 
         if (!gameState.winner) {
