@@ -227,13 +227,7 @@ const Renderer = {
 
                     this.ctx.fillRect(x * this.CELL_SIZE, y * this.CELL_SIZE, this.CELL_SIZE, this.CELL_SIZE);
 
-                    if (terrain.id !== 'water' && this.CELL_SIZE > 20) {
-                        this.ctx.fillStyle = VISUALS.TEXT_HEIGHT_COLOR;
-                        this.ctx.font = `${Math.floor(this.CELL_SIZE * 0.25)}px Arial`;
-                        this.ctx.textAlign = "right";
-                        this.ctx.textBaseline = "bottom";
-                        this.ctx.fillText(terrain.height, (x+1) * this.CELL_SIZE - 2, (y+1) * this.CELL_SIZE - 2);
-                    }
+                    // Numeric Height display removed here
                 }
             }
         }

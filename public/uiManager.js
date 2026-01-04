@@ -2,7 +2,7 @@
 const UiManager = {
     elements: {
         playerList: document.getElementById('player-list'),
-        connectionStatus: document.getElementById('connection-status'),
+        // connectionStatus removed from DOM
         unitInfoContent: document.getElementById('unit-info-content'),
         logContent: document.getElementById('log-content'),
         endTurnBtn: document.getElementById('end-turn-btn'),
@@ -208,7 +208,7 @@ const UiManager = {
     },
 
     updateConnectionStatus(id) {
-        this.elements.connectionStatus.innerText = `Connected as ID: ${id.substr(0,4)}...`;
+        // Debug display removed from interface
     },
 
     updateStatus(gameState, myId) {
