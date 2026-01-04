@@ -5,7 +5,7 @@ const unitStats = require('./unitStats');
 const constants = require('./constants');
 const mapGenerator = require('./mapGenerator');
 const gameLogic = require('./gameLogic');
-const aiLogic = require('./aiLogic'); // New Import
+const aiLogic = require('./aiLogic');
 
 const app = express();
 const server = http.createServer(app);
@@ -24,7 +24,8 @@ let gameState = {
     turnCount: 1, // Global turn counter
     isGameActive: false, // Track if the game is in Lobby or Playing state
     matchSettings: null, // Store slot config to handle late joins
-    slotData: {} // Store data for disconnected slots (gold, name, units ownership)
+    slotData: {}, // Store data for disconnected slots (gold, name, units ownership)
+    winner: null // Track the winner ID
 };
 
 // Start initial game with defaults but keep it inactive (Lobby mode)
@@ -65,6 +66,7 @@ function startNewGame(settings, hostId) {
 
     gameState.matchSettings = settings;
     gameState.slotData = {};
+    gameState.winner = null;
 
     // Gather all currently connected sockets
     let connectedSockets = Object.keys(gameState.players).filter(id => !gameState.players[id].isAI);
@@ -93,11 +95,36 @@ function startNewGame(settings, hostId) {
         }
     });
 
-    // 5. Set Turn
-    const allIds = Object.keys(gameState.players).filter(id => !gameState.players[id].isObserver);
-    gameState.turn = allIds.length > 0 ? allIds[0] : null;
+    gameState.turn = null;
     gameState.turnCount = 1;
     gameState.isGameActive = true;
+
+    // Determine initial turn only if all Open slots are filled OR if we have only AI/Closed
+    // BUT actually, we want the game to start immediately, and empty slots just skip turn or wait?
+    // Standard approach: Wait for players to fill "Open" slots before starting turn cycle.
+    // However, the user request implies we might want to watch AI vs AI while waiting.
+
+    // Compromise: We assign turn to the first slot.
+    // If that slot is empty (disconnected/open), the game effectively "pauses" until someone joins it.
+    // If it is AI, it runs.
+
+    // We need to find the first player index (0 to 3) that is NOT closed.
+    const activeSlots = slots.filter(s => s.type !== 'closed').sort((a,b) => a.index - b.index);
+    if (activeSlots.length > 0) {
+        // Find the player ID for this slot
+        const firstSlotIndex = activeSlots[0].index;
+        const player = Object.values(gameState.players).find(p => p.slotIndex === firstSlotIndex && !p.isObserver);
+
+        if (player) {
+            gameState.turn = player.id;
+        } else {
+            // Slot is open/waiting. We set turn to null or a placeholder to indicate waiting.
+            // But 'startNewGame' usually implies we are ready.
+            // Let's set turn to the *expected* player ID if it was an AI, or null if human hasn't joined.
+            // Actually, if human hasn't joined, createPlayer wasn't called for them.
+            // So we wait.
+        }
+    }
 
     io.emit('init', {
         state: gameState,
@@ -108,7 +135,7 @@ function startNewGame(settings, hostId) {
 
     io.emit('gameLog', { message: "--- NEW GAME STARTED ---" });
 
-    // Check if first player is AI
+    // Check if first player is AI and exists
     checkForAiTurn();
 }
 
@@ -147,7 +174,9 @@ function createPlayer(id, index, gold, isAI, difficulty) {
         isAI: isAI,
         difficulty: difficulty || 'normal',
         slotIndex: index,
-        isObserver: false
+        isObserver: false,
+        isDefeated: false,
+        turnsWithoutUnits: 0
     };
 }
 
@@ -208,11 +237,78 @@ function checkAndEmitRoleSelection(socket) {
     }
 }
 
-// --- ACTION HANDLERS (Shared by AI and Sockets) ---
+// --- WIN/LOSS LOGIC ---
+
+function checkWinConditions() {
+    if (gameState.winner) return; // Already finished
+
+    const activePlayers = Object.values(gameState.players).filter(p => !p.isObserver && !p.isDefeated);
+
+    // Check Defeat Conditions for each active player
+    activePlayers.forEach(p => {
+        let unitCount = 0;
+        for(let y=0; y<constants.GRID_SIZE; y++) {
+            for(let x=0; x<constants.GRID_SIZE; x++) {
+                if (gameState.grid[y][x] && gameState.grid[y][x].owner === p.id) {
+                    unitCount++;
+                }
+            }
+        }
+
+        // Condition 1: No units & not enough gold for cheapest unit (50g)
+        const isBankrupt = unitCount === 0 && p.gold < 50;
+
+        // Condition 2: No units for 2 turns
+        if (unitCount === 0) {
+            // We increment this counter at end of turn. Just checking current state here.
+        } else {
+            p.turnsWithoutUnits = 0; // Reset if they have units
+        }
+
+        if (isBankrupt) {
+            eliminatePlayer(p, "Bankruptcy");
+        } else if (p.turnsWithoutUnits >= 2) {
+            eliminatePlayer(p, "Attrition");
+        }
+    });
+
+    // Check Victory Condition
+    const remainingPlayers = Object.values(gameState.players).filter(p => !p.isObserver && !p.isDefeated);
+
+    if (remainingPlayers.length === 1) {
+        const winner = remainingPlayers[0];
+        gameState.winner = winner.id;
+        io.emit('gameLog', { message: `🏆 GAME OVER! ${winner.name} is the WINNER! 🏆` });
+        io.emit('update', gameState);
+    } else if (remainingPlayers.length === 0 && Object.values(gameState.players).some(p => !p.isObserver)) {
+        // Tie or everyone quit/died
+        io.emit('gameLog', { message: `GAME OVER! It's a Draw.` });
+        gameState.winner = 'DRAW';
+        io.emit('update', gameState);
+    }
+}
+
+function eliminatePlayer(player, reason) {
+    if (player.isDefeated) return;
+    player.isDefeated = true;
+    io.emit('gameLog', { message: `☠️ ${player.name} has been Defeated! (${reason})` });
+
+    // Remove their units
+    for(let y=0; y<constants.GRID_SIZE; y++) {
+        for(let x=0; x<constants.GRID_SIZE; x++) {
+            if (gameState.grid[y][x] && gameState.grid[y][x].owner === player.id) {
+                gameState.grid[y][x] = null;
+            }
+        }
+    }
+}
+
+// --- ACTION HANDLERS ---
 
 function handleSpawnEntity(playerId, x, y, type) {
+    if (gameState.winner) return;
     const player = gameState.players[playerId];
-    if (!player || player.isObserver) return;
+    if (!player || player.isObserver || player.isDefeated) return;
     if (playerId !== gameState.turn) return;
 
     if (player.baseArea) {
@@ -271,6 +367,7 @@ function handleSpawnEntity(playerId, x, y, type) {
 }
 
 function handleMoveEntity(playerId, from, to) {
+    if (gameState.winner) return;
     if (playerId !== gameState.turn) return;
     const entity = gameState.grid[from.y][from.x];
     const targetCell = gameState.grid[to.y][to.x];
@@ -299,6 +396,7 @@ function handleMoveEntity(playerId, from, to) {
 }
 
 function handleRotateEntity(playerId, x, y, direction) {
+    if (gameState.winner) return;
     if (playerId !== gameState.turn) return;
     const entity = gameState.grid[y][x];
     if (entity && entity.owner === playerId && entity.remainingMovement >= 1) {
@@ -311,6 +409,7 @@ function handleRotateEntity(playerId, x, y, direction) {
 }
 
 function handleAttackEntity(playerId, attackerPos, targetPos) {
+    if (gameState.winner) return;
     if (playerId !== gameState.turn) return;
     const attacker = gameState.grid[attackerPos.y][attackerPos.x];
     const target = gameState.grid[targetPos.y][targetPos.x];
@@ -363,14 +462,39 @@ function handleAttackEntity(playerId, attackerPos, targetPos) {
 }
 
 function handleEndTurn(playerId) {
+    if (gameState.winner) return;
     if (playerId === gameState.turn) {
-        const activeIds = Object.keys(gameState.players).filter(id => !gameState.players[id].isObserver);
+        const player = gameState.players[playerId];
+
+        // --- Attrition Check at END of turn ---
+        let unitCount = 0;
+        for(let y=0; y<constants.GRID_SIZE; y++) {
+            for(let x=0; x<constants.GRID_SIZE; x++) {
+                if (gameState.grid[y][x] && gameState.grid[y][x].owner === playerId) {
+                    unitCount++;
+                }
+            }
+        }
+        if (unitCount === 0) {
+            player.turnsWithoutUnits = (player.turnsWithoutUnits || 0) + 1;
+        } else {
+            player.turnsWithoutUnits = 0;
+        }
+
+        checkWinConditions();
+        if (gameState.winner) return;
+
+        // Skip defeated players for next turn
+        const activeIds = Object.keys(gameState.players).filter(id => !gameState.players[id].isObserver && !gameState.players[id].isDefeated);
         activeIds.sort((a,b) => gameState.players[a].slotIndex - gameState.players[b].slotIndex);
 
+        if (activeIds.length === 0) return;
+
         const currentIndex = activeIds.indexOf(gameState.turn);
+
         modifyUnitsForPlayer(gameState.turn, (u) => { u.remainingMovement = 0; u.hasAttacked = true; });
 
-        const nextIndex = (currentIndex + 1) % activeIds.length;
+        let nextIndex = (currentIndex + 1) % activeIds.length;
         gameState.turn = activeIds[nextIndex];
 
         if (nextIndex === 0) {
@@ -381,9 +505,13 @@ function handleEndTurn(playerId) {
 
         io.emit('gameLog', { message: `Turn changed to {p:${gameState.turn}}.` });
         gameLogic.handleMoralePhase(gameState.turn, gameState, io);
+
+        checkWinConditions();
         io.emit('update', gameState);
 
-        checkForAiTurn();
+        if (!gameState.winner) {
+            checkForAiTurn();
+        }
     }
 }
 
@@ -400,11 +528,14 @@ function modifyUnitsForPlayer(playerId, callback) {
 
 // --- AI INTEGRATION ---
 
-function checkForAiTurn() {
-    if (!gameState.turn) return;
+async function checkForAiTurn() {
+    if (!gameState.turn || gameState.winner) return;
     const player = gameState.players[gameState.turn];
-    if (player && player.isAI) {
-        // Trigger AI Logic
+
+    // Crucial check: If the player does NOT exist (e.g. open slot), do not run AI logic
+    if (!player) return;
+
+    if (player.isAI && !player.isDefeated) {
         const callbacks = {
             move: (from, to) => handleMoveEntity(player.id, from, to),
             attack: (attacker, target) => handleAttackEntity(player.id, attacker, target),
@@ -413,7 +544,11 @@ function checkForAiTurn() {
             endTurn: () => handleEndTurn(player.id)
         };
 
-        aiLogic.executeTurn(gameState, player.id, gameLogic, callbacks);
+        // Run AI, then when it finishes, check again (allows AI vs AI)
+        await aiLogic.executeTurn(gameState, player.id, gameLogic, callbacks);
+
+        // After AI finishes turn, it calls handleEndTurn, which calls checkForAiTurn again.
+        // This creates the loop for AI vs AI.
     }
 }
 
@@ -451,8 +586,28 @@ io.on('connection', (socket) => {
         delete gameState.players[socket.id];
         createPlayer(socket.id, slotIndex, slotConfig.gold, false, null);
 
+        // If turn was null (all disconnected/empty), set turn to this player
+        // BUT we must respect order.
+        // If turn is NULL, we are starting fresh or resuming from empty.
+        // If it's this player's index that corresponds to current turn (which might be null if 0 index)
+        // logic is tricky.
+
+        // Simplified: If turn is null, set it to the first active player found.
         if (gameState.turn === null) {
-            gameState.turn = socket.id;
+            const activeIds = Object.keys(gameState.players).filter(id => !gameState.players[id].isObserver && !gameState.players[id].isDefeated);
+            activeIds.sort((a,b) => gameState.players[a].slotIndex - gameState.players[b].slotIndex);
+            if (activeIds.length > 0) {
+                gameState.turn = activeIds[0];
+                checkForAiTurn(); // In case the first player is AI? No, human joined.
+            }
+        } else {
+            // If turn was waiting on THIS slot
+            // We need to check if the current turn ID corresponds to a player that didn't exist until now?
+            // No, the ID changes on connect.
+            // If the game logic says "It is Player 1's turn" but Player 1 wasn't there...
+
+            // Actually, handleDisconnect passes turn.
+            // So if I join, I am just waiting for my turn unless I am the ONLY player.
         }
 
         io.emit('update', gameState);
@@ -462,12 +617,6 @@ io.on('connection', (socket) => {
             const p = gameState.players[s.id];
             if(p && p.isObserver) checkAndEmitRoleSelection(s);
         });
-
-        // If game was waiting and now we have players, ensure AI knows it might be its turn?
-        // Actually, startNewGame handles initial turn.
-        // If human joins LATE into an AI turn, the AI is already running (async).
-        // If human turn was active but empty, we might need to check.
-        // But for now, simple flow is fine.
     });
 
     socket.on('startGame', (settings) => {
@@ -496,6 +645,7 @@ io.on('connection', (socket) => {
         gameState.isGameActive = true;
         gameState.matchSettings = data.matchSettings || { slots: [] };
         gameState.slotData = {};
+        gameState.winner = data.winner || null;
 
         gameState.players = {};
         io.sockets.sockets.forEach((s) => createObserver(s.id));
@@ -504,15 +654,14 @@ io.on('connection', (socket) => {
             if (!p.isAI && !p.isObserver) {
                 gameState.slotData[p.slotIndex] = { gold: p.gold, name: p.name };
             } else if (p.isAI) {
-                // Restore AI players
                 createPlayer(p.id, p.slotIndex, p.gold, true, p.difficulty);
+                if (p.isDefeated) gameState.players[p.id].isDefeated = true;
             }
         });
 
         io.emit('init', { state: gameState, myId: null, unitStats, gameConstants: constants });
         io.sockets.sockets.forEach((s) => checkAndEmitRoleSelection(s));
 
-        // Resume AI if it was their turn
         checkForAiTurn();
     });
 
@@ -544,9 +693,22 @@ io.on('connection', (socket) => {
         delete gameState.players[socket.id];
 
         if (player && !player.isObserver && gameState.turn === socket.id) {
-            const activeIds = Object.keys(gameState.players).filter(id => !gameState.players[id].isObserver);
+            // Pass turn immediately if current player disconnects
+            const activeIds = Object.keys(gameState.players).filter(id => !gameState.players[id].isObserver && !gameState.players[id].isDefeated);
+            activeIds.sort((a,b) => gameState.players[a].slotIndex - gameState.players[b].slotIndex);
+
             if (activeIds.length > 0) {
-                gameState.turn = activeIds[0];
+                // Find next player index
+                // Since this player is removed, we just pick the first available one?
+                // Or maintain order. Since 'player' object is gone from 'players',
+                // activeIds does not contain it.
+                // We should find the next slot index > disconnected slot index.
+
+                let nextId = activeIds.find(id => gameState.players[id].slotIndex > player.slotIndex);
+                if (!nextId) nextId = activeIds[0]; // Wrap around
+
+                gameState.turn = nextId;
+
                 modifyUnitsForPlayer(gameState.turn, (u) => { u.remainingMovement = u.speed; u.hasAttacked = false; });
                 io.emit('gameLog', { message: `Player disconnected. Turn passed to {p:${gameState.turn}}.` });
                 checkForAiTurn();

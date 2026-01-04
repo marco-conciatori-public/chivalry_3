@@ -212,6 +212,22 @@ const UiManager = {
     },
 
     updateStatus(gameState, myId) {
+        if (gameState.winner) {
+            const winner = gameState.players[gameState.winner];
+            const winnerName = winner ? winner.name : "Unknown";
+            if (gameState.winner === 'DRAW') {
+                this.elements.status.innerText = "GAME OVER: DRAW";
+                this.elements.status.style.color = "#333";
+            } else if (gameState.winner === myId) {
+                this.elements.status.innerText = "VICTORY!";
+                this.elements.status.style.color = "#27ae60";
+            } else {
+                this.elements.status.innerText = `${winnerName} WINS!`;
+                this.elements.status.style.color = "#f1c40f"; // Gold
+            }
+            return;
+        }
+
         const turnCount = gameState.turnCount || 1;
 
         if (gameState.turn === myId) {
@@ -254,7 +270,11 @@ const UiManager = {
             li.style.display = 'flex';
             li.style.alignItems = 'center';
 
-            if (isTurn) {
+            if (p.isDefeated) {
+                li.style.opacity = '0.5';
+                li.style.background = '#f2f2f2';
+                li.style.border = '1px dashed #ccc';
+            } else if (isTurn) {
                 li.style.border = '2px solid #333';
                 li.style.fontWeight = 'bold';
             }
@@ -272,7 +292,19 @@ const UiManager = {
 
             nameSpan.innerText = displayName;
 
-            if (isMe) {
+            // Status Icon
+            const statusSpan = document.createElement('span');
+            statusSpan.style.marginLeft = '5px';
+
+            if (gameState.winner === p.id) {
+                statusSpan.innerText = '🏆';
+                statusSpan.title = 'Winner';
+            } else if (p.isDefeated) {
+                statusSpan.innerText = '💀';
+                statusSpan.title = 'Defeated';
+            }
+
+            if (isMe && !p.isDefeated) {
                 nameSpan.style.cursor = 'pointer';
                 nameSpan.title = 'Double-click to rename';
                 nameSpan.ondblclick = (e) => {
@@ -307,6 +339,7 @@ const UiManager = {
 
             li.appendChild(colorBox);
             li.appendChild(nameSpan);
+            li.appendChild(statusSpan);
             li.appendChild(goldSpan);
 
             this.elements.playerList.appendChild(li);
@@ -371,6 +404,15 @@ const UiManager = {
     },
 
     updateControls(gameState, myId, clientUnitStats) {
+        // If game over, disable controls except New Game
+        if (gameState.winner) {
+            this.elements.endTurnBtn.disabled = true;
+            this.elements.toolbar.style.opacity = '0.5';
+            this.elements.toolbar.style.pointerEvents = 'none';
+            this.elements.autoEndTurnContainer.classList.add('hidden');
+            return;
+        }
+
         const isMyTurn = gameState.turn === myId;
         const myPlayer = gameState.players[myId];
         const isObserver = myPlayer && myPlayer.isObserver;
