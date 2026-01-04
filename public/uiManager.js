@@ -261,9 +261,6 @@ const UiManager = {
             <div class="victory-sub">Game Over</div>
         `;
 
-        // Use inline styles for animation logic if not in CSS, but CSS is cleaner.
-        // I will add the CSS class logic below.
-
         this.elements.gameArea.appendChild(banner);
 
         // Remove after 5 seconds
@@ -770,8 +767,17 @@ const UiManager = {
             };
         });
 
-        this.elements.logContent.appendChild(div);
-        this.elements.logContent.scrollTop = this.elements.logContent.scrollHeight;
+        // Use prepend to add new entries to the top (Reversed Log)
+        this.elements.logContent.prepend(div);
+
+        // Limit the number of log entries to 100 to allow scrolling back through history
+        const maxEntries = 100;
+        while (this.elements.logContent.children.length > maxEntries) {
+            this.elements.logContent.removeChild(this.elements.logContent.lastChild);
+        }
+
+        // Ensure scroll is at top so user sees the new message
+        this.elements.logContent.scrollTop = 0;
     },
 
     getVisualCellSize(internalCellSize) {

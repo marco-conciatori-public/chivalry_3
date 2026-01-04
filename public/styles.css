@@ -395,6 +395,8 @@
     overflow: hidden;
     display: flex;
     flex-direction: column;
+    /* Do not allow sections to grow infinitely */
+    flex-shrink: 0;
 }
 
 .panel-header {
@@ -437,27 +439,32 @@
 
 .panel-content {
     padding: 10px;
-    /* Allow resizing logic to happen here */
 }
 
 .panel-content.hidden {
     display: none !important;
 }
 
-/* Special Logic for Log Panel to fill space */
+/* Special Logic for Log Panel */
 #log-panel-container {
-    flex-grow: 1; /* By default, fill remaining space in left column */
-    min-height: 200px;
+    /* Prevent Flex-grow from stretching this panel indefinitely */
+    flex-grow: 0;
+    /* Fixed visual height for the container */
+    height: 150px;
+    min-height: 150px;
+    max-height: 150px;
 }
 
-/* When collapsed, stop growing and reset min-height */
+/* When collapsed, reset height */
 #log-panel-container.collapsed-section {
-    flex-grow: 0;
+    height: auto;
     min-height: 0;
 }
 
 #log-panel-container .panel-content {
+    /* Fill the container height */
     flex-grow: 1;
+    height: 100%;
     display: flex;
     flex-direction: column;
     padding: 0; /* No padding for log container */
@@ -523,6 +530,9 @@
     padding: 10px;
     color: #333;
     background: #fff;
+    /* Ensure content stays within parent fixed height */
+    height: 100%;
+
     /* Scrollbar styling for Webkit */
     scrollbar-width: thin;
     scrollbar-color: #ccc #f1f1f1;
