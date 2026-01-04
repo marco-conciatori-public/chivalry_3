@@ -813,18 +813,16 @@ const UiManager = {
             this.elements.btnAttack.disabled = entity.hasAttacked;
         }
 
-        const gameAreaRect = this.elements.gameArea.getBoundingClientRect();
+        // Fix: Position relative to the .canvas-wrapper (parent of context-menu)
+        // using mouse coordinates to handle Zoom/Pan correctly.
+        const canvasWrapper = this.elements.gameArea.querySelector('.canvas-wrapper');
+        const containerRect = canvasWrapper ? canvasWrapper.getBoundingClientRect() : this.elements.gameArea.getBoundingClientRect();
 
-        if (selectedCell) {
-            const visualCellSize = this.getVisualCellSize(internalCellSize);
-            const menuLeft = (selectedCell.x * visualCellSize) + visualCellSize + 5;
-            const menuTop = (selectedCell.y * visualCellSize);
-            this.elements.contextMenu.style.left = `${menuLeft}px`;
-            this.elements.contextMenu.style.top = `${menuTop}px`;
-        } else {
-            this.elements.contextMenu.style.left = `${clientX - gameAreaRect.left}px`;
-            this.elements.contextMenu.style.top = `${clientY - gameAreaRect.top}px`;
-        }
+        // Always position based on mouse coordinates (clientX/Y)
+        // This ensures the menu appears under the cursor regardless of Zoom/Pan transformations on the canvas
+        this.elements.contextMenu.style.left = `${clientX - containerRect.left}px`;
+        this.elements.contextMenu.style.top = `${clientY - containerRect.top}px`;
+
         this.elements.contextMenu.style.display = 'flex';
     },
 
