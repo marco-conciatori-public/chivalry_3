@@ -6,10 +6,12 @@ const UiManager = {
         unitInfoContent: document.getElementById('unit-info-content'),
         logContent: document.getElementById('log-content'),
         endTurnBtn: document.getElementById('end-turn-btn'),
+        autoEndTurnContainer: document.getElementById('auto-end-turn-container'),
         contextMenu: document.getElementById('context-menu'),
         gameArea: document.getElementById('game-area'),
         status: document.getElementById('status'),
         toolbar: document.getElementById('toolbar'),
+        recruitmentPanel: document.getElementById('recruitment-panel'),
         btnRotate: document.getElementById('btn-rotate'),
         btnAttack: document.getElementById('btn-attack'),
         setupScreen: document.getElementById('setup-screen'),
@@ -371,15 +373,33 @@ const UiManager = {
     updateControls(gameState, myId, clientUnitStats) {
         const isMyTurn = gameState.turn === myId;
         const myPlayer = gameState.players[myId];
+        const isObserver = myPlayer && myPlayer.isObserver;
 
-        if (myPlayer && myPlayer.isObserver) {
-            this.elements.endTurnBtn.disabled = true;
+        // Toggle visibility of UI elements based on Observer status
+        if (this.elements.recruitmentPanel) {
+            isObserver ? this.elements.recruitmentPanel.classList.add('hidden') : this.elements.recruitmentPanel.classList.remove('hidden');
+        }
+        if (this.elements.btnNewGameTrigger) {
+            isObserver ? this.elements.btnNewGameTrigger.classList.add('hidden') : this.elements.btnNewGameTrigger.classList.remove('hidden');
+        }
+        if (this.elements.autoEndTurnContainer) {
+            isObserver ? this.elements.autoEndTurnContainer.classList.add('hidden') : this.elements.autoEndTurnContainer.classList.remove('hidden');
+        }
+        if (this.elements.endTurnBtn) {
+            if (isObserver) {
+                this.elements.endTurnBtn.classList.add('hidden');
+            } else {
+                this.elements.endTurnBtn.classList.remove('hidden');
+                this.elements.endTurnBtn.disabled = !isMyTurn;
+            }
+        }
+
+        if (isObserver) {
             this.elements.toolbar.style.opacity = '0.5';
             this.elements.toolbar.style.pointerEvents = 'none';
             return;
         }
 
-        this.elements.endTurnBtn.disabled = !isMyTurn;
         this.elements.toolbar.style.opacity = isMyTurn ? '1' : '0.5';
         this.elements.toolbar.style.pointerEvents = isMyTurn ? 'auto' : 'none';
 
