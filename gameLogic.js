@@ -44,7 +44,17 @@ function getPathCost(start, end, grid, terrainMap, maxMoves) {
                     moveCost += (targetTerrain.height - currentTerrain.height) * constants.MOVEMENT_COST_HEIGHT_PENALTY;
                 }
 
-                const newCost = current.cost + moveCost;
+                let newCost = current.cost + moveCost;
+
+                // --- MINIMUM MOVEMENT RULE ---
+                // If it's the very first step (we haven't moved yet), allow the move even if cost > remaining movement,
+                // effectively consuming all movement. This prevents getting stuck.
+                // Exception: Walls are still impassable if their ID marks them so.
+                if (current.cost === 0 && targetTerrain.id !== 'wall') {
+                    if (newCost > maxMoves) {
+                        newCost = maxMoves;
+                    }
+                }
 
                 if (newCost <= maxMoves) {
                     if (costs[key] === undefined || newCost < costs[key]) {

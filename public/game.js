@@ -356,7 +356,15 @@ function getReachableCells(start, maxDist, grid, terrainMap) {
                     moveCost += (t.height - currentTerrain.height) * heightPenalty;
                 }
 
-                const newCost = current.cost + moveCost;
+                let newCost = current.cost + moveCost;
+
+                // --- MINIMUM MOVEMENT RULE (Client Side) ---
+                if (current.cost === 0 && t.id !== 'wall') {
+                    if (newCost > maxDist) {
+                        newCost = maxDist;
+                    }
+                }
+
                 if (newCost <= maxDist) {
                     if (costs[key] === undefined || newCost < costs[key]) {
                         costs[key] = newCost;
