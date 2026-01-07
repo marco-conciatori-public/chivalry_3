@@ -32,10 +32,10 @@ let gameState = {
 startNewGame({
     gridSize: constants.GRID_SIZE,
     slots: [
-        { index: 0, type: 'open', gold: 2000 },
-        { index: 1, type: 'ai', gold: 2000, difficulty: 'normal' },
-        { index: 2, type: 'closed', gold: 2000 },
-        { index: 3, type: 'closed', gold: 2000 }
+        { index: 0, type: 'open', gold: constants.DEFAULT_STARTING_GOLD },
+        { index: 1, type: 'ai', gold: constants.DEFAULT_STARTING_GOLD, difficulty: 'normal' },
+        { index: 2, type: 'closed', gold: constants.DEFAULT_STARTING_GOLD },
+        { index: 3, type: 'closed', gold: constants.DEFAULT_STARTING_GOLD }
     ]
 }, null);
 

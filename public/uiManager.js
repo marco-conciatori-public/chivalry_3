@@ -144,6 +144,19 @@ const UiManager = {
         this.gameConstants = constants;
         if (constants) {
             this.abilityDescriptions['anti_cavalry'] = `Deals +${constants.BONUS_ANTI_CAVALRY} bonus damage against Cavalry units.`;
+
+            // Apply default gold from constants to setup inputs if available
+            if (constants.DEFAULT_STARTING_GOLD !== undefined) {
+                [0, 1, 2, 3].forEach(i => {
+                    const goldInput = document.getElementById(`slot-${i}-gold`);
+                    const goldSlider = document.getElementById(`slot-${i}-gold-slider`);
+
+                    // We only overwrite if we can access the elements.
+                    // This ensures the displayed default matches the server constant.
+                    if (goldInput) goldInput.value = constants.DEFAULT_STARTING_GOLD;
+                    if (goldSlider) goldSlider.value = constants.DEFAULT_STARTING_GOLD;
+                });
+            }
         }
     },
 
@@ -195,9 +208,11 @@ const UiManager = {
             slots: []
         };
 
+        const defaultGold = (this.gameConstants && this.gameConstants.DEFAULT_STARTING_GOLD) ? this.gameConstants.DEFAULT_STARTING_GOLD : 2000;
+
         for(let i=0; i<4; i++) {
             const type = document.getElementById(`slot-${i}-type`).value;
-            const gold = parseInt(document.getElementById(`slot-${i}-gold`).value) || 2000;
+            const gold = parseInt(document.getElementById(`slot-${i}-gold`).value) || defaultGold;
             const difficulty = document.getElementById(`slot-${i}-diff`).value;
 
             settings.slots.push({

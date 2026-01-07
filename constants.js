@@ -5,12 +5,12 @@ module.exports = {
     // Validation Constants
     MIN_GOLD: 0,
     MAX_GOLD: 5000,
+    DEFAULT_STARTING_GOLD: 2000,
     MIN_GRID_SIZE: 20,
     MAX_GRID_SIZE: 200,
 
     // Player Configuration
     PLAYER_COLORS: ['#3498db', '#e74c3c', '#2ecc71', '#f1c40f', '#9b59b6'],
-    STARTING_GOLD: 1200,
 
     // Combat Mechanics
     BONUS_FLANK: 10,
