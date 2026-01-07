@@ -5,7 +5,7 @@ module.exports = {
     // Validation Constants
     MIN_GOLD: 0,
     MAX_GOLD: 5000,
-    DEFAULT_STARTING_GOLD: 2000,
+    DEFAULT_STARTING_GOLD: 1000,
     MIN_GRID_SIZE: 20,
     MAX_GRID_SIZE: 200,
 
