@@ -49,16 +49,9 @@ socket.on('init', (data) => {
         Renderer.init(ctx, GRID_SIZE, canvas.width, minimapCanvas);
     }
 
-    // New: If we are an observer, setup screen might still be relevant if we are host setting up
-    // But mostly we just show game. The role selection handles the flow now.
-    // If state is inactive (setup phase), show Setup IF we are host... wait, logic changed.
-    // We only show setup screen if explicitly triggered or if game hasn't started and we are the "Host" role.
-
     if (localState.isGameActive) {
         UiManager.hideSetupScreen();
     } else {
-        // Only show setup screen if we aren't seeing role selection
-        // Actually, role selection modal sits on top.
         UiManager.showSetupScreen();
     }
 
@@ -95,7 +88,7 @@ socket.on('update', (state) => {
                 resetSelection();
             } else {
                 recalculateOptions(entity);
-                UiManager.updateUnitInfo(entity, false, null, localState, selectedCell);
+                UiManager.updateUnitInfo(entity, false, null, localState, selectedCell, myId);
             }
         }
     }
@@ -200,7 +193,7 @@ function selectUnitFromLog(x, y) {
     selectedCell = { x, y };
     interactionState = 'SELECTED';
 
-    UiManager.updateUnitInfo(entity, false, null, localState, selectedCell);
+    UiManager.updateUnitInfo(entity, false, null, localState, selectedCell, myId);
 
     if (entity && !entity.is_fleeing) {
         recalculateOptions(entity);
@@ -217,7 +210,8 @@ function resetSelection() {
     cellsInAttackRange = [];
     UiManager.hideContextMenu();
     document.querySelectorAll('.template').forEach(t => t.classList.remove('selected-template'));
-    UiManager.updateUnitInfo(null, false);
+    UiManager.updateUnitInfo(null, false, null, null, null, myId);
+    UiManager.updateActionButtons(null, false, myId); // Explicitly disable buttons
 }
 
 // Client Side Pathfinding/LoS for UI
@@ -580,7 +574,7 @@ document.querySelectorAll('.template').forEach(el => {
         el.classList.add('selected-template');
         selectedTemplate = el.dataset.type;
         if (clientUnitStats[selectedTemplate]) {
-            UiManager.updateUnitInfo(clientUnitStats[selectedTemplate], true, selectedTemplate);
+            UiManager.updateUnitInfo(clientUnitStats[selectedTemplate], true, selectedTemplate, null, null, myId);
         }
         renderGame();
     });
@@ -690,7 +684,7 @@ canvas.addEventListener('contextmenu', (e) => {
         selectedCell = { x, y };
         interactionState = 'SELECTED';
 
-        UiManager.updateUnitInfo(clickedEntity, false, null, localState, selectedCell);
+        UiManager.updateUnitInfo(clickedEntity, false, null, localState, selectedCell, myId);
 
         if (!clickedEntity.is_fleeing) {
             recalculateOptions(clickedEntity);
@@ -785,7 +779,7 @@ canvas.addEventListener('click', (e) => {
         resetSelection();
         selectedCell = { x, y };
         interactionState = 'SELECTED';
-        UiManager.updateUnitInfo(clickedEntity, false, null, localState, selectedCell);
+        UiManager.updateUnitInfo(clickedEntity, false, null, localState, selectedCell, myId);
         if (!clickedEntity.is_fleeing) recalculateOptions(clickedEntity);
     }
     else if (selectedTemplate && !clickedEntity) {
@@ -814,13 +808,29 @@ canvas.addEventListener('click', (e) => {
     renderGame();
 });
 
+// Floating Menu Buttons
 const btnAttack = document.getElementById('btn-attack');
 const btnRotate = document.getElementById('btn-rotate');
 const btnDeselect = document.getElementById('btn-deselect');
 
-btnAttack.addEventListener('click', () => { interactionState = 'ATTACK_TARGETING'; UiManager.hideContextMenu(); renderGame(); });
-btnRotate.addEventListener('click', () => { interactionState = 'ROTATING'; UiManager.hideContextMenu(); renderGame(); });
-btnDeselect.addEventListener('click', () => { resetSelection(); renderGame(); });
+// New Panel Buttons
+const btnPanelAttack = document.getElementById('btn-panel-attack');
+const btnPanelRotate = document.getElementById('btn-panel-rotate');
+const btnPanelDeselect = document.getElementById('btn-panel-deselect');
+
+// Action Handlers
+const onAttackClick = () => { interactionState = 'ATTACK_TARGETING'; UiManager.hideContextMenu(); renderGame(); };
+const onRotateClick = () => { interactionState = 'ROTATING'; UiManager.hideContextMenu(); renderGame(); };
+const onDeselectClick = () => { resetSelection(); renderGame(); };
+
+// Bind Both Sets of Buttons
+btnAttack.addEventListener('click', onAttackClick);
+btnRotate.addEventListener('click', onRotateClick);
+btnDeselect.addEventListener('click', onDeselectClick);
+
+if (btnPanelAttack) btnPanelAttack.addEventListener('click', onAttackClick);
+if (btnPanelRotate) btnPanelRotate.addEventListener('click', onRotateClick);
+if (btnPanelDeselect) btnPanelDeselect.addEventListener('click', onDeselectClick);
 
 window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {

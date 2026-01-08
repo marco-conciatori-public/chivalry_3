@@ -354,11 +354,42 @@
     cursor: not-allowed;
 }
 
+/* New Gray Button */
+.btn-gray {
+    background-color: #95a5a6;
+}
+.btn-gray:hover {
+    background-color: #7f8c8d;
+}
+.btn-gray:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+}
+
 .btn-purple {
     background-color: #8e44ad;
 }
 .btn-purple:hover {
     background-color: #732d91;
+}
+
+/* Panel Context Action Container - UPDATED FOR GRID LAYOUT */
+#panel-context-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+/* Specific adjustments for buttons inside this grid */
+#panel-context-actions .panel-main-btn {
+    margin-bottom: 0; /* Remove the default margin-bottom from .panel-main-btn */
+    padding: 12px 10px; /* Slightly reduced horizontal padding */
+}
+
+/* Make the last button (Cancel) span the full width */
+#panel-context-actions .panel-main-btn:last-child {
+    grid-column: span 2;
 }
 
 .modal-note {

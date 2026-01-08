@@ -12,8 +12,16 @@ const UiManager = {
         status: document.getElementById('status'),
         toolbar: document.getElementById('toolbar'),
         recruitmentPanel: document.getElementById('recruitment-panel'),
+
+        // Floating Menu Buttons
         btnRotate: document.getElementById('btn-rotate'),
         btnAttack: document.getElementById('btn-attack'),
+
+        // Panel Action Buttons
+        btnPanelRotate: document.getElementById('btn-panel-rotate'),
+        btnPanelAttack: document.getElementById('btn-panel-attack'),
+        btnPanelDeselect: document.getElementById('btn-panel-deselect'),
+
         setupScreen: document.getElementById('setup-screen'),
         roleSelectionModal: document.getElementById('role-selection-modal'),
         roleList: document.getElementById('role-list'),
@@ -575,10 +583,14 @@ const UiManager = {
         this.cellTooltipEl.style.top = `${this.lastMousePos.y + 15}px`;
     },
 
-    updateUnitInfo(entity, isTemplate, selectedTemplate, gameState, selectedCell) {
+    updateUnitInfo(entity, isTemplate, selectedTemplate, gameState, selectedCell, myId) {
         this.currentMoraleBreakdown = null;
         this.currentAttackBreakdown = null;
         this.currentDefenseBreakdown = null;
+
+        // NEW: Update buttons state based on current selection
+        const isMyTurn = gameState && gameState.turn === myId;
+        this.updateActionButtons(entity, isMyTurn, myId);
 
         if (!entity) {
             this.elements.unitInfoContent.innerHTML = '<em>Click a unit to see details</em>';
@@ -825,11 +837,33 @@ const UiManager = {
         setTimeout(() => { el.remove(); }, 1500);
     },
 
-    showContextMenu(clientX, clientY, entity, selectedCell, internalCellSize) {
-        if (entity) {
-            this.elements.btnRotate.disabled = entity.remainingMovement < 1;
-            this.elements.btnAttack.disabled = entity.hasAttacked;
+    updateActionButtons(entity, isMyTurn, myId) {
+        // Default state: all disabled
+        let canAttack = false;
+        let canRotate = false;
+        let hasSelection = !!entity;
+
+        if (hasSelection && isMyTurn && entity.owner === myId && !entity.is_fleeing) {
+            canAttack = !entity.hasAttacked;
+            canRotate = entity.remainingMovement >= 1;
         }
+
+        // Update Panel Buttons
+        if (this.elements.btnPanelAttack) this.elements.btnPanelAttack.disabled = !canAttack;
+        if (this.elements.btnPanelRotate) this.elements.btnPanelRotate.disabled = !canRotate;
+        if (this.elements.btnPanelDeselect) this.elements.btnPanelDeselect.disabled = !hasSelection;
+
+        // Update Context Menu Buttons (if it happens to be open)
+        if (this.elements.btnAttack) this.elements.btnAttack.disabled = !canAttack;
+        if (this.elements.btnRotate) this.elements.btnRotate.disabled = !canRotate;
+    },
+
+    showContextMenu(clientX, clientY, entity, selectedCell, internalCellSize) {
+        // Reuse the logic for button states
+        // Note: The context menu buttons are updated via updateActionButtons call in updateUnitInfo usually,
+        // but let's ensure they are correct when opening the menu just in case.
+        // However, showContextMenu is called from game.js which has the logic.
+        // We will trust updateActionButtons was called when selection happened.
 
         // Fix: Position relative to the .canvas-wrapper (parent of context-menu)
         // using mouse coordinates to handle Zoom/Pan correctly.

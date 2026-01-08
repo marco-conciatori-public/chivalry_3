@@ -171,6 +171,17 @@
         <!-- Status Indicator -->
         <h3 id="status" class="game-status">Waiting for players...</h3>
 
+        <!-- 1. Player List MOVED HERE -->
+        <div class="panel-section">
+            <div class="panel-header">
+                <h3>Players</h3>
+                <span class="toggle-icon">▼</span>
+            </div>
+            <div class="panel-content">
+                <ul id="player-list"></ul>
+            </div>
+        </div>
+
         <!-- Standardized Buttons -->
         <button id="btn-new-game-trigger" class="panel-main-btn btn-blue">New Game</button>
 
@@ -188,15 +199,11 @@
 
         <button id="end-turn-btn" class="panel-main-btn btn-red">END TURN</button>
 
-        <!-- Collapsible Player List -->
-        <div class="panel-section">
-            <div class="panel-header">
-                <h3>Players</h3>
-                <span class="toggle-icon">▼</span>
-            </div>
-            <div class="panel-content">
-                <ul id="player-list"></ul>
-            </div>
+        <!-- 2. New Action Buttons ADDED HERE -->
+        <div id="panel-context-actions">
+            <button id="btn-panel-attack" class="panel-main-btn btn-red" disabled>Attack</button>
+            <button id="btn-panel-rotate" class="panel-main-btn btn-blue" disabled>Rotate</button>
+            <button id="btn-panel-deselect" class="panel-main-btn btn-gray" disabled>Cancel</button>
         </div>
 
         <!-- Collapsible Battle Log -->
