@@ -415,13 +415,18 @@ const Renderer = {
         this.drawMinimap(gameState, myId, VISUALS, maxElevation);
     },
 
-    drawMinimap(gameState, myId, VISUALS, maxElevation) {
+    drawMinimap(gameState, myId, VISUALS, maxElevation, gameConstants) {
         if (!this.minimapCtx || !this.minimapCanvas) return;
 
         const ctx = this.minimapCtx;
         const width = this.minimapCanvas.width;
         const height = this.minimapCanvas.height;
         const miniCellSize = width / this.GRID_SIZE;
+
+        // Colors from Constants or Fallbacks
+        const COLOR_WATER = (gameConstants && gameConstants.TERRAIN && gameConstants.TERRAIN.WATER) ? gameConstants.TERRAIN.WATER.color : '#0098ff';
+        const COLOR_WALL = (gameConstants && gameConstants.TERRAIN && gameConstants.TERRAIN.WALL) ? gameConstants.TERRAIN.WALL.color : '#696969';
+        const COLOR_FOREST = (gameConstants && gameConstants.TERRAIN && gameConstants.TERRAIN.FOREST) ? gameConstants.TERRAIN.FOREST.color : '#00c653';
 
         ctx.clearRect(0, 0, width, height);
 
@@ -430,11 +435,11 @@ const Renderer = {
             for (let x = 0; x < this.GRID_SIZE; x++) {
                 const terrain = gameState.terrainMap[y][x];
                 if (terrain.id === 'water') {
-                    ctx.fillStyle = '#0098ff';
+                    ctx.fillStyle = COLOR_WATER;
                 } else if (terrain.id === 'wall') {
-                    ctx.fillStyle = '#696969';
+                    ctx.fillStyle = COLOR_WALL;
                 } else if (terrain.id === 'forest') {
-                    ctx.fillStyle = '#00c653';
+                    ctx.fillStyle = COLOR_FOREST;
                 } else {
                     // Unified logic with main grid for plain/height cells
                     const h = terrain.height;
