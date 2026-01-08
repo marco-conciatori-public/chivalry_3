@@ -436,8 +436,19 @@ const Renderer = {
                 } else if (terrain.id === 'forest') {
                     ctx.fillStyle = '#27ae60';
                 } else {
-                    const factor = Math.max(0, Math.min(1, terrain.height / maxElevation));
-                    ctx.fillStyle = this.interpolateColor('#66bb6a', '#ffffff', factor);
+                    // Unified logic with main grid for plain/height cells
+                    const h = terrain.height;
+                    if (h >= maxElevation) {
+                        ctx.fillStyle = VISUALS.HEIGHT_PEAK || '#ffffff';
+                    } else {
+                        const range = Math.max(1, maxElevation - 1);
+                        const factor = Math.max(0, Math.min(1, h / range));
+                        ctx.fillStyle = this.interpolateColor(
+                            VISUALS.HEIGHT_LOW || '#66bb6a',
+                            VISUALS.HEIGHT_HIGH || '#8d6e63',
+                            factor
+                        );
+                    }
                 }
                 ctx.fillRect(x * miniCellSize, y * miniCellSize, miniCellSize, miniCellSize);
 
