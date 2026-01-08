@@ -233,9 +233,12 @@ function getBaseArea(playerIndex) {
 
 function getAvailableSlots() {
     if (!gameState.matchSettings || !gameState.matchSettings.slots) return [];
+
+    // Fix: Include AI players in 'takenIndices' to prevent AI slots from being offered as open
     const takenIndices = Object.values(gameState.players)
-        .filter(p => !p.isObserver && !p.isAI)
+        .filter(p => !p.isObserver) // Removed && !p.isAI to ensure AI occupied slots count as taken
         .map(p => p.slotIndex);
+
     const available = [];
 
     gameState.matchSettings.slots.forEach(slot => {

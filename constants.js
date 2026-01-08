@@ -10,7 +10,8 @@ module.exports = {
     MAX_GRID_SIZE: 200,
 
     // Player Configuration
-    PLAYER_COLORS: ['#3498db', '#e74c3c', '#2ecc71', '#f1c40f', '#9b59b6'],
+    // Swapped first two colors to match UI (Slot 0: Red, Slot 1: Blue)
+    PLAYER_COLORS: ['#e74c3c', '#3498db', '#2ecc71', '#f1c40f', '#9b59b6'],
 
     // Combat Mechanics
     BONUS_FLANK: 10,
