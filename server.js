@@ -261,9 +261,8 @@ function getAvailableSlots() {
 function checkAndEmitRoleSelection(socket) {
     if (!socket) return;
     const slots = getAvailableSlots();
-    if (slots.length > 0) {
-        socket.emit('roleSelection', slots);
-    }
+    // Always emit roleSelection, even if empty, to ensure client UI clears invalid options
+    socket.emit('roleSelection', slots);
 }
 
 // --- WIN/LOSS LOGIC ---
@@ -608,16 +607,16 @@ io.on('connection', (socket) => {
         unitStats: unitStats,
         gameConstants: constants
     });
-
-    io.emit('update', gameState);
+    socket.emit('update', gameState);
     checkAndEmitRoleSelection(socket);
 
     socket.on('chooseSlot', (slotIndex) => {
         const slotConfig = gameState.matchSettings.slots.find(s => s.index === slotIndex);
         if (!slotConfig) return;
 
+        // Fix: Check ALL non-observer players (including AI) to see if slot is taken
         const takenIndices = Object.values(gameState.players)
-            .filter(p => !p.isObserver && !p.isAI)
+            .filter(p => !p.isObserver)
             .map(p => p.slotIndex);
 
         if (takenIndices.includes(slotIndex)) {
