@@ -639,17 +639,63 @@ canvas#gameCanvas {
     display: block;
 }
 
-/* Minimap Styles */
-canvas#minimap {
+/* --- MINIMAP STYLES --- */
+
+#minimap-container {
     position: absolute;
     bottom: 10px;
     left: 10px;
+    background: rgba(0, 0, 0, 0.8);
     border: 2px solid #444;
-    background: rgba(0, 0, 0, 0.5);
-    box-shadow: 0 0 5px rgba(0,0,0,0.5);
+    border-radius: 4px;
     z-index: 150;
-    pointer-events: auto;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+}
+
+#minimap-header {
+    height: 24px;
+    background: #333;
+    color: #ddd;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 5px;
+    cursor: grab; /* Indicates draggable */
+    font-size: 12px;
+    font-weight: bold;
+    user-select: none;
+}
+
+#minimap-header:active {
+    cursor: grabbing;
+}
+
+#minimap-toggle {
+    background: none;
+    border: none;
+    color: white;
+    font-weight: bold;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 0 5px;
+}
+
+#minimap-toggle:hover {
+    color: #f1c40f;
+}
+
+canvas#minimap {
+    border-top: 1px solid #555;
     cursor: crosshair;
+    display: block;
+    background: rgba(0, 0, 0, 0.5);
+}
+
+/* Minimized state class */
+#minimap-container.minimized canvas#minimap {
+    display: none;
 }
 
 /* Overlay Layer */

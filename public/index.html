@@ -226,8 +226,14 @@
         <div class="canvas-wrapper">
             <canvas id="gameCanvas" width="1000" height="1000"></canvas>
 
-            <!-- Minimap Canvas (Smaller size: 150x150) -->
-            <canvas id="minimap" width="150" height="150"></canvas>
+            <!-- Minimap Container -->
+            <div id="minimap-container">
+                <div id="minimap-header">
+                    <span>Map</span>
+                    <button id="minimap-toggle">-</button>
+                </div>
+                <canvas id="minimap" width="150" height="150"></canvas>
+            </div>
 
             <!-- Context Menu -->
             <div id="context-menu">

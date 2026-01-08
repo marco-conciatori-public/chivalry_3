@@ -78,6 +78,62 @@ const UiManager = {
 
         this.initCollapsibles();
         this.initSetupForm();
+        this.initMinimapUI();
+    },
+
+    initMinimapUI() {
+        const container = document.getElementById('minimap-container');
+        const header = document.getElementById('minimap-header');
+        const toggleBtn = document.getElementById('minimap-toggle');
+
+        if (!container || !header || !toggleBtn) return;
+
+        // Toggle Logic
+        toggleBtn.addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent drag start from click on toggle
+            container.classList.toggle('minimized');
+            toggleBtn.innerText = container.classList.contains('minimized') ? '+' : '-';
+        });
+
+        // Drag Logic
+        let isDragging = false;
+        let startX, startY, initialLeft, initialTop;
+
+        header.addEventListener('mousedown', (e) => {
+            isDragging = true;
+
+            // Ensure we are using left/top for positioning from now on
+            // Calculate current offset relative to parent
+            initialLeft = container.offsetLeft;
+            initialTop = container.offsetTop;
+
+            // Set styles to lock position in Top/Left mode to prevent jumping when Bottom/Right CSS rules were active
+            container.style.left = `${initialLeft}px`;
+            container.style.top = `${initialTop}px`;
+            container.style.bottom = 'auto';
+            container.style.right = 'auto';
+
+            startX = e.clientX;
+            startY = e.clientY;
+
+            header.style.cursor = 'grabbing';
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            e.preventDefault(); // Prevent text selection
+            const dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+            container.style.left = `${initialLeft + dx}px`;
+            container.style.top = `${initialTop + dy}px`;
+        });
+
+        window.addEventListener('mouseup', () => {
+            if (isDragging) {
+                isDragging = false;
+                header.style.cursor = 'grab';
+            }
+        });
     },
 
     initCollapsibles() {
