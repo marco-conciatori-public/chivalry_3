@@ -216,7 +216,7 @@ const UiManager = {
             slots: []
         };
 
-        const defaultGold = (this.gameConstants && this.gameConstants.DEFAULT_STARTING_GOLD) ? this.gameConstants.DEFAULT_STARTING_GOLD : 2000;
+        const defaultGold = (this.gameConstants && this.gameConstants.DEFAULT_STARTING_GOLD) ? this.gameConstants.DEFAULT_STARTING_GOLD : 1000;
 
         for(let i=0; i<4; i++) {
             const type = document.getElementById(`slot-${i}-type`).value;
