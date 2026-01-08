@@ -143,7 +143,33 @@ function createPlayer(id, index, gold, isAI, difficulty) {
     const playerColor = constants.PLAYER_COLORS[index % constants.PLAYER_COLORS.length];
     const playerSymbol = index === 0 ? 'X' : (index === 1 ? 'O' : (index === 2 ? 'Y' : 'Z'));
     const baseArea = getBaseArea(index);
-    let defaultName = isAI ? `Bot ${index+1}` : `Player ${index+1}`;
+
+    // Independent Enumeration Logic
+    let nameIndex = index + 1; // Default fallback
+
+    if (gameState.matchSettings && gameState.matchSettings.slots) {
+        // Sort slots by index to be sure
+        const sortedSlots = [...gameState.matchSettings.slots].sort((a, b) => a.index - b.index);
+
+        if (isAI) {
+            // Count AIs
+            const aiSlots = sortedSlots.filter(s => s.type === 'ai');
+            const foundPos = aiSlots.findIndex(s => s.index === index);
+            if (foundPos !== -1) {
+                nameIndex = foundPos + 1;
+            }
+        } else {
+            // Count Humans (anything not AI and not Closed)
+            // 'me' and 'open' are the standard human types.
+            const humanSlots = sortedSlots.filter(s => s.type !== 'ai' && s.type !== 'closed');
+            const foundPos = humanSlots.findIndex(s => s.index === index);
+            if (foundPos !== -1) {
+                nameIndex = foundPos + 1;
+            }
+        }
+    }
+
+    let defaultName = isAI ? `Bot ${nameIndex}` : `Player ${nameIndex}`;
 
     // CHECK FOR PREVIOUS STATE (RECONNECTION)
     let finalGold = gold;
