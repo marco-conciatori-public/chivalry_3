@@ -118,9 +118,9 @@ module.exports = {
     // Height: Dynamic (0 to MAX_ELEVATION) for ground, -2 for Water, +2 relative for Walls
     TERRAIN: {
         PLAINS:   { id: 'plains',   symbol: '',   cost: 1,   height: 0,  defense: 0,  cover: 0,  blocksLos: false, color: '#a3d5a5' },
-        FOREST:   { id: 'forest',   symbol: '🌲', cost: 2,   height: 0,  defense: 20, cover: 20, blocksLos: false, color: '#27ae60' }, // Color darkened slightly
-        WALL:     { id: 'wall',     symbol: '🧱', cost: 1,   height: 2,  defense: 0,  cover: 0,  blocksLos: true,  color: '#7f8c8d' },
-        WATER:    { id: 'water',    symbol: '🌊', cost: 1,   height: -2, defense: 0,  cover: 0,  blocksLos: false, color: '#85c1e9' },
+        FOREST:   { id: 'forest',   symbol: '🌲', cost: 2,   height: 0,  defense: 20, cover: 20, blocksLos: false, color: '#00c653' }, // Color darkened slightly
+        WALL:     { id: 'wall',     symbol: '🧱', cost: 1,   height: 2,  defense: 0,  cover: 0,  blocksLos: true,  color: '#696969' },
+        WATER:    { id: 'water',    symbol: '🌊', cost: 1,   height: -2, defense: 0,  cover: 0,  blocksLos: false, color: '#0098ff' },
         STREET:   { id: 'street',   symbol: '',   cost: 0.5, height: 0,  defense: 0,  cover: 0,  blocksLos: false, color: '#A8AFB5' }
     }
 };

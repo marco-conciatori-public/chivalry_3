@@ -430,11 +430,11 @@ const Renderer = {
             for (let x = 0; x < this.GRID_SIZE; x++) {
                 const terrain = gameState.terrainMap[y][x];
                 if (terrain.id === 'water') {
-                    ctx.fillStyle = '#85c1e9';
+                    ctx.fillStyle = '#0098ff';
                 } else if (terrain.id === 'wall') {
-                    ctx.fillStyle = '#7f8c8d';
+                    ctx.fillStyle = '#696969';
                 } else if (terrain.id === 'forest') {
-                    ctx.fillStyle = '#27ae60';
+                    ctx.fillStyle = '#00c653';
                 } else {
                     // Unified logic with main grid for plain/height cells
                     const h = terrain.height;
