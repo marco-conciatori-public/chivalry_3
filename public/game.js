@@ -273,8 +273,9 @@ function resetSelection() {
     cellsInAttackRange = [];
     UiManager.hideContextMenu();
     document.querySelectorAll('.template').forEach(t => t.classList.remove('selected-template'));
-    UiManager.updateUnitInfo(null, false, null, null, null, myId);
-    UiManager.updateActionButtons(null, false, myId); // Explicitly disable buttons
+
+    // Update Unit Info passing localState so isMyTurn can be calculated correctly
+    UiManager.updateUnitInfo(null, false, null, localState, null, myId);
 }
 
 // Client Side Pathfinding/LoS for UI

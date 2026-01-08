@@ -349,10 +349,6 @@
 .btn-red:hover {
     background-color: #c0392b;
 }
-.btn-red:disabled {
-    background-color: #ccc;
-    cursor: not-allowed;
-}
 
 /* New Gray Button */
 .btn-gray {
@@ -361,16 +357,25 @@
 .btn-gray:hover {
     background-color: #7f8c8d;
 }
-.btn-gray:disabled {
-    background-color: #ccc;
-    cursor: not-allowed;
-}
 
 .btn-purple {
     background-color: #8e44ad;
 }
 .btn-purple:hover {
     background-color: #732d91;
+}
+
+/* GLOBAL DISABLED STATE FOR ALL COLORED BUTTONS */
+.btn-blue:disabled,
+.btn-red:disabled,
+.btn-gray:disabled,
+.btn-green:disabled,
+.btn-purple:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+    opacity: 0.8;
 }
 
 /* Panel Context Action Container - UPDATED FOR GRID LAYOUT */
