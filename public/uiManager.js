@@ -399,7 +399,11 @@ const UiManager = {
 
             let displayName = p.name;
             if (isMe) displayName += " (You)";
-            if (p.isAI) displayName += " [AI]";
+            if (p.isAI) {
+                // Display difficulty with first letter capitalized, default to Normal if missing
+                const diff = p.difficulty ? p.difficulty.charAt(0).toUpperCase() + p.difficulty.slice(1) : 'Normal';
+                displayName += ` [${diff}]`;
+            }
 
             nameSpan.innerText = displayName;
 
