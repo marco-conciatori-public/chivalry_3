@@ -201,6 +201,69 @@ function selectUnitFromLog(x, y) {
     renderGame();
 }
 
+function selectNextAvailableUnit() {
+    if (!localState || localState.turn !== myId) return;
+
+    let startX = 0;
+    let startY = 0;
+
+    // If a unit is currently selected, start searching after it
+    if (selectedCell) {
+        startX = selectedCell.x;
+        startY = selectedCell.y;
+    }
+
+    // Collect all own units that have actions
+    const activeUnits = [];
+    for (let y = 0; y < GRID_SIZE; y++) {
+        for (let x = 0; x < GRID_SIZE; x++) {
+            const u = localState.grid[y][x];
+            if (u && u.owner === myId && !u.is_fleeing) {
+                // Check if has actions (can move OR hasn't attacked)
+                if (u.remainingMovement > 0 || !u.hasAttacked) {
+                    activeUnits.push({x, y});
+                }
+            }
+        }
+    }
+
+    if (activeUnits.length === 0) return;
+
+    // Find current index
+    let nextIndex = 0;
+    if (selectedCell) {
+        // Find the unit in the list that is "after" the current selected cell in grid order
+        const currentIndex = activeUnits.findIndex(p => p.x === selectedCell.x && p.y === selectedCell.y);
+
+        if (currentIndex !== -1) {
+            nextIndex = (currentIndex + 1) % activeUnits.length;
+        } else {
+            // Selected unit might not have actions anymore, or we just selected a random cell.
+            // Find the first unit in the list that comes after the current selection position
+            const nextAfter = activeUnits.findIndex(p => (p.y > startY) || (p.y === startY && p.x > startX));
+            if (nextAfter !== -1) {
+                nextIndex = nextAfter;
+            } else {
+                nextIndex = 0; // Wrap to start
+            }
+        }
+    }
+
+    const target = activeUnits[nextIndex];
+
+    // Select it
+    const entity = localState.grid[target.y][target.x];
+    resetSelection(); // Clears current
+    selectedCell = { x: target.x, y: target.y };
+    interactionState = 'SELECTED';
+
+    UiManager.updateUnitInfo(entity, false, null, localState, selectedCell, myId);
+    if (!entity.is_fleeing) {
+        recalculateOptions(entity);
+    }
+    renderGame();
+}
+
 function resetSelection() {
     selectedCell = null;
     selectedTemplate = null;
@@ -816,12 +879,13 @@ const btnDeselect = document.getElementById('btn-deselect');
 // New Panel Buttons
 const btnPanelAttack = document.getElementById('btn-panel-attack');
 const btnPanelRotate = document.getElementById('btn-panel-rotate');
-const btnPanelDeselect = document.getElementById('btn-panel-deselect');
+const btnPanelNextUnit = document.getElementById('btn-panel-next-unit');
 
 // Action Handlers
 const onAttackClick = () => { interactionState = 'ATTACK_TARGETING'; UiManager.hideContextMenu(); renderGame(); };
 const onRotateClick = () => { interactionState = 'ROTATING'; UiManager.hideContextMenu(); renderGame(); };
 const onDeselectClick = () => { resetSelection(); renderGame(); };
+const onNextUnitClick = () => { selectNextAvailableUnit(); };
 
 // Bind Both Sets of Buttons
 btnAttack.addEventListener('click', onAttackClick);
@@ -830,7 +894,7 @@ btnDeselect.addEventListener('click', onDeselectClick);
 
 if (btnPanelAttack) btnPanelAttack.addEventListener('click', onAttackClick);
 if (btnPanelRotate) btnPanelRotate.addEventListener('click', onRotateClick);
-if (btnPanelDeselect) btnPanelDeselect.addEventListener('click', onDeselectClick);
+if (btnPanelNextUnit) btnPanelNextUnit.addEventListener('click', onNextUnitClick);
 
 window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {

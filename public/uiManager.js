@@ -20,7 +20,7 @@ const UiManager = {
         // Panel Action Buttons
         btnPanelRotate: document.getElementById('btn-panel-rotate'),
         btnPanelAttack: document.getElementById('btn-panel-attack'),
-        btnPanelDeselect: document.getElementById('btn-panel-deselect'),
+        btnPanelNextUnit: document.getElementById('btn-panel-next-unit'), // Replaced Deselect
 
         setupScreen: document.getElementById('setup-screen'),
         roleSelectionModal: document.getElementById('role-selection-modal'),
@@ -851,7 +851,11 @@ const UiManager = {
         // Update Panel Buttons
         if (this.elements.btnPanelAttack) this.elements.btnPanelAttack.disabled = !canAttack;
         if (this.elements.btnPanelRotate) this.elements.btnPanelRotate.disabled = !canRotate;
-        if (this.elements.btnPanelDeselect) this.elements.btnPanelDeselect.disabled = !hasSelection;
+
+        // Next Unit is enabled if it's my turn, regardless of selection
+        if (this.elements.btnPanelNextUnit) {
+            this.elements.btnPanelNextUnit.disabled = !isMyTurn;
+        }
 
         // Update Context Menu Buttons (if it happens to be open)
         if (this.elements.btnAttack) this.elements.btnAttack.disabled = !canAttack;
