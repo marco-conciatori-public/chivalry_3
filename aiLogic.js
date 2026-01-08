@@ -5,6 +5,17 @@ function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+// Helper: Determine direction from A to B
+function getDirection(from, to) {
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    if (Math.abs(dy) > Math.abs(dx)) {
+        return dy > 0 ? 4 : 0; // Down : Up
+    } else {
+        return dx > 0 ? 2 : 6; // Right : Left
+    }
+}
+
 async function executeTurn(gameState, playerId, gameLogic, actionCallbacks) {
     // 1. Identify my units
     let myUnits = [];
@@ -43,17 +54,35 @@ async function executeTurn(gameState, playerId, gameLogic, actionCallbacks) {
         const currentPos = { x: item.x, y: item.y };
         let hasMoved = false;
 
-        // --- ATTACK CHECK (Pre-Move) ---
-        let target = findBestTargetInRange(item.unit, currentPos, enemies, gameState, gameLogic);
+        // --- PHASE 1: PRE-MOVE ACTION ---
+        // A. Try Strict Attack (Correct Range & Angle)
+        let target = findBestTargetInRange(item.unit, currentPos, enemies, gameState, gameLogic, false);
 
         if (target) {
-            await sleep(500); // Visual delay
+            await sleep(500);
             actionCallbacks.attack({ x: currentPos.x, y: currentPos.y }, { x: target.x, y: target.y });
-            // Attack ends turn for unit usually, unless melee kill
             if (item.unit.remainingMovement <= 0) continue;
         }
+        // B. Try Rotation Attack (Correct Range, Wrong Angle)
+        else if (item.unit.remainingMovement >= 1 && !item.unit.hasAttacked) {
+            const potentialTarget = findBestTargetInRange(item.unit, currentPos, enemies, gameState, gameLogic, true); // ignoreAngle = true
+            if (potentialTarget) {
+                // Check if we need to rotate
+                if (!gameLogic.isValidAttackAngle(item.unit, currentPos, potentialTarget)) {
+                    const neededDir = getDirection(currentPos, potentialTarget);
+                    if (item.unit.facing_direction !== neededDir) {
+                        await sleep(300);
+                        actionCallbacks.rotate(currentPos.x, currentPos.y, neededDir);
+                        // Try attack again now that we rotated
+                        await sleep(300);
+                        actionCallbacks.attack(currentPos, { x: potentialTarget.x, y: potentialTarget.y });
+                        if (item.unit.remainingMovement <= 0) continue;
+                    }
+                }
+            }
+        }
 
-        // --- MOVE LOGIC ---
+        // --- PHASE 2: MOVEMENT ---
         // If we haven't attacked (or killed melee and can move), try to move closer
         if (item.unit.remainingMovement > 0 && !item.unit.hasAttacked) {
             // Find closest enemy
@@ -67,29 +96,6 @@ async function executeTurn(gameState, playerId, gameLogic, actionCallbacks) {
                 const path = gameLogic.findPath(currentPos, closest, gameState.grid, gameState.terrainMap);
 
                 if (path && path.length > 0) {
-                    // Calculate how far we can go
-                    let steps = 0;
-                    let cost = 0;
-
-                    // Simple path traversal based on cost
-                    // We need to re-verify cost because findPath heuristic assumes basic cost
-                    // But getPathCost logic is robust.
-                    // For "Easy" AI, we just take the first N steps that fit in movement
-
-                    let targetStep = null;
-
-                    // We don't want to step ON the enemy, stop at ideal range
-                    // path includes the destination.
-                    // If destination is enemy, we stop 1 tile before (for melee)
-                    // But findPath excludes occupied tiles usually, so path might stop adjacent already
-
-                    // Actually findPath in gameLogic DOES check collision, so it won't path ONTO an enemy.
-                    // But it targets the enemy coord.
-                    // Let's just pick the furthest reachable point on the path
-
-                    // Re-calculate reachable with proper cost function
-                    // Or iterate path and sum costs
-
                     let currentCost = 0;
                     let stepIndex = 0;
                     let lastValidPos = currentPos;
@@ -98,8 +104,6 @@ async function executeTurn(gameState, playerId, gameLogic, actionCallbacks) {
                     while(stepIndex < path.length) {
                         const nextPos = path[stepIndex];
                         const moveCost = gameLogic.getPathCost(lastValidPos, nextPos, gameState.grid, gameState.terrainMap, item.unit.remainingMovement - currentCost);
-
-                        // Minimum movement rule handling is inside getPathCost now
 
                         if (moveCost !== -1 && (currentCost + moveCost) <= item.unit.remainingMovement) {
                             currentCost += moveCost;
@@ -121,18 +125,41 @@ async function executeTurn(gameState, playerId, gameLogic, actionCallbacks) {
             }
         }
 
-        // --- ATTACK CHECK (Post-Move) ---
-        if (hasMoved && !item.unit.hasAttacked) {
-            target = findBestTargetInRange(item.unit, currentPos, enemies, gameState, gameLogic);
+        // --- PHASE 3: POST-MOVE ACTION ---
+        if (!item.unit.hasAttacked) {
+            // A. Strict Attack
+            target = findBestTargetInRange(item.unit, currentPos, enemies, gameState, gameLogic, false);
             if (target) {
                 await sleep(400);
                 actionCallbacks.attack({ x: currentPos.x, y: currentPos.y }, { x: target.x, y: target.y });
             }
+            // B. Rotate Attack (if we still have movement)
+            else if (item.unit.remainingMovement >= 1) {
+                const potentialTarget = findBestTargetInRange(item.unit, currentPos, enemies, gameState, gameLogic, true);
+                if (potentialTarget) {
+                    const neededDir = getDirection(currentPos, potentialTarget);
+                    if (!gameLogic.isValidAttackAngle(item.unit, currentPos, potentialTarget)) {
+                        await sleep(300);
+                        actionCallbacks.rotate(currentPos.x, currentPos.y, neededDir);
+                        await sleep(300);
+                        actionCallbacks.attack(currentPos, { x: potentialTarget.x, y: potentialTarget.y });
+                    }
+                }
+            }
         }
 
-        // --- FACING LOGIC ---
-        // If we moved but didn't attack, maybe rotate towards nearest enemy?
-        // (Server handleMove already sets facing towards movement, so mostly fine)
+        // --- PHASE 4: DEFENSIVE FACING ---
+        // If we ended the turn with movement left and didn't attack, face the nearest enemy
+        if (!item.unit.hasAttacked && item.unit.remainingMovement >= 1) {
+            const closest = findClosestEnemy(currentPos, enemies);
+            if (closest) {
+                const neededDir = getDirection(currentPos, closest);
+                if (item.unit.facing_direction !== neededDir) {
+                    await sleep(200);
+                    actionCallbacks.rotate(currentPos.x, currentPos.y, neededDir);
+                }
+            }
+        }
     }
 
     // 4. Recruitment Logic
@@ -195,7 +222,7 @@ function findClosestEnemy(myPos, enemies) {
     return closest;
 }
 
-function findBestTargetInRange(unit, myPos, enemies, gameState, gameLogic) {
+function findBestTargetInRange(unit, myPos, enemies, gameState, gameLogic, ignoreAngle = false) {
     let bestTarget = null;
     let lowestHealth = Infinity;
 
@@ -217,8 +244,8 @@ function findBestTargetInRange(unit, myPos, enemies, gameState, gameLogic) {
                 if (!gameLogic.hasLineOfSight(myPos, e, gameState.terrainMap)) return;
             }
 
-            // Check Angle
-            if (!gameLogic.isValidAttackAngle(unit, myPos, e)) return;
+            // Check Angle (unless ignored)
+            if (!ignoreAngle && !gameLogic.isValidAttackAngle(unit, myPos, e)) return;
 
             // It's a valid target. Pick weak ones.
             if (e.unit.current_health < lowestHealth) {
