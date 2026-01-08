@@ -327,7 +327,7 @@ function performCombat(attacker, attackerPos, defender, defenderPos, isRetaliati
         const defenderKilled = applyDamage(defender, defenderPos, damageToDefender, gameState.grid);
 
         if (defenderKilled) {
-            combatResults.events.push({ x: defenderPos.x, y: defenderPos.y, type: 'death', value: '逐' });
+            combatResults.events.push({ x: defenderPos.x, y: defenderPos.y, type: 'death', value: '💀' });
             combatResults.logs.push(`-- {u:${defender.type}:${defenderPos.x}:${defenderPos.y}:${defender.owner}} was destroyed!`);
             applyDeathMoraleEffects(defenderPos, defender.owner, gameState.grid);
         }
@@ -353,7 +353,7 @@ function performCombat(attacker, attackerPos, defender, defenderPos, isRetaliati
 
                     const splashKilled = applyDamage(neighborUnit, pos, splashDamage, gameState.grid);
                     if (splashKilled) {
-                        combatResults.events.push({ x: pos.x, y: pos.y, type: 'death', value: '逐' });
+                        combatResults.events.push({ x: pos.x, y: pos.y, type: 'death', value: '💀' });
                         applyDeathMoraleEffects(pos, neighborUnit.owner, gameState.grid);
                     }
                 }
@@ -381,7 +381,7 @@ function performCombat(attacker, attackerPos, defender, defenderPos, isRetaliati
 
         const attackerKilled = applyDamage(attacker, attackerPos, retaliationDamage, gameState.grid);
         if (attackerKilled) {
-            combatResults.events.push({ x: attackerPos.x, y: attackerPos.y, type: 'death', value: '逐' });
+            combatResults.events.push({ x: attackerPos.x, y: attackerPos.y, type: 'death', value: '💀' });
             combatResults.logs.push(`-- {u:${attacker.type}:${attackerPos.x}:${attackerPos.y}:${attacker.owner}} was destroyed!`);
             applyDeathMoraleEffects(attackerPos, attacker.owner, gameState.grid);
         }
@@ -627,7 +627,7 @@ function handleFleeingMovement(entity, startX, startY, gameState, io) {
         if (finalPos.x === 0 || finalPos.x === constants.GRID_SIZE - 1 ||
             finalPos.y === 0 || finalPos.y === constants.GRID_SIZE - 1) {
             io.emit('combatResults', {
-                events: [{ x: finalPos.x, y: finalPos.y, type: 'death', value: '暢' }],
+                events: [{ x: finalPos.x, y: finalPos.y, type: 'death', value: '💨' }],
                 logs: [`-- {u:${entity.type}:${startX}:${startY}:${entity.owner}} fled the battlefield!`]
             });
         } else {
