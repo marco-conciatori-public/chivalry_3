@@ -688,23 +688,34 @@ const UiManager = {
 
         if (!isTemplate && entity.is_commander) typeDisplay += ' 👑';
 
-        const healthDisplay = isTemplate ? entity.max_health : `${entity.current_health}/${entity.max_health}`;
+        // --- BARS GENERATION ---
+
+        let healthHtml = '';
+        if (isTemplate) {
+            healthHtml = formatStat('Health', entity.max_health);
+        } else {
+            healthHtml = this.createStatBar('Health', entity.current_health, entity.max_health, '#2ecc71');
+        }
+
+        let moraleHtml = '';
+        if (isTemplate) {
+            moraleHtml = formatStat('Morale', entity.initial_morale);
+        } else {
+            // Preserve tooltip trigger
+            const labelHtml = `<span id="morale-stat-label" class="interactive-label" style="${interactiveStyle}">Morale</span>`;
+            // Use Gold color normally, Red if fleeing/risk
+            const color = isFleeRisk ? '#e74c3c' : '#f1c40f';
+            moraleHtml = this.createStatBar(labelHtml, entity.current_morale, entity.initial_morale, color, isFleeRisk);
+        }
+
+        // --- STATS GENERATION ---
+
         const movesDisplay = isTemplate ? entity.speed : `${entity.remainingMovement}/${entity.speed}`;
 
         let attacksRow = '';
         if (!isTemplate) {
             const attacksLeft = entity.hasAttacked ? 0 : 1;
             attacksRow = formatStat('Attacks', `${attacksLeft}/1`);
-        }
-
-        const moraleDisplay = isTemplate ? entity.initial_morale : `${entity.current_morale}/${entity.initial_morale}`;
-
-        let moraleRow = '';
-        if (!isTemplate) {
-            const moraleColor = isFleeRisk ? 'color: #e74c3c;' : '';
-            moraleRow = `<div class="stat-row"><span id="morale-stat-label" class="interactive-label" style="${interactiveStyle}">Morale:</span> <strong style="${moraleColor}">${moraleDisplay}</strong></div>`;
-        } else {
-            moraleRow = formatStat('Morale', moraleDisplay);
         }
 
         let attackValue = entity.attack;
@@ -784,10 +795,10 @@ const UiManager = {
             ${statusEffect}
             ${costRow}
             <hr style="border: 0; border-top: 1px solid #eee; margin: 8px 0;">
-            ${formatStat('Health', healthDisplay)}
+            ${healthHtml}
+            ${moraleHtml}
             ${formatStat('Moves', movesDisplay)}
             ${attacksRow}
-            ${moraleRow}
             <hr style="border: 0; border-top: 1px solid #eee; margin: 8px 0;">
             ${attackRowHtml}
             ${defenseRowHtml}
@@ -825,6 +836,23 @@ const UiManager = {
                 defenseEl.addEventListener('mouseleave', () => this.hideTooltip());
             }
         }
+    },
+
+    createStatBar(labelHtml, current, max, color, isWarning = false) {
+        const pct = Math.max(0, Math.min(100, (current / max) * 100));
+        const warningClass = isWarning ? 'stat-warning' : '';
+
+        return `
+            <div class="stat-bar-wrapper">
+                <div class="stat-bar-header">
+                    <span>${labelHtml}:</span>
+                    <span style="font-weight:bold; color:#555;">${current}/${max}</span>
+                </div>
+                <div class="stat-bar-container">
+                    <div class="stat-bar-fill ${warningClass}" style="width:${pct}%; background-color:${color};"></div>
+                </div>
+            </div>
+        `;
     },
 
     clearLog() {
